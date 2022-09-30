@@ -1,0 +1,31 @@
+[package]
+name = "citadel"
+version = "0.1.0"
+authors = [
+	"Xavier Salleras <xavier@dusk.network>"
+]
+repository = "https://github.com/dusk-network/citadel"
+description = "Proof-of-Concept of Citadel, a SSI system integrated in Dusk Network."
+categories = ["algorithms", "cryptography", "science", "mathematics"]
+keywords = ["cryptography", "self-sovereign identities", "zk-snarks", "zero-knowledge proofs"]
+edition = "2021"
+license = "MPL-2.0"
+
+[dependencies]
+dusk-bytes = "0.1"
+dusk-poseidon = { version ="0.26", features = ["canon"] }
+dusk-plonk = { version = "0.12", default-features = false, features = ["alloc"]}
+dusk-bls12_381 = { version = "0.11", default-features = false }
+dusk-jubjub = { version = "0.12", default-features = false }
+dusk-pki = { version = "0.11", default-features = false}
+dusk-schnorr = { version = "0.11", features = ["canon"] }
+canonical = {version = "0.7", optional = false}
+canonical_derive = {version = "0.7", optional = false}
+rand_core = {version="0.6", default-features=false, features = ["getrandom"]}
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "citadel"
+harness = false
