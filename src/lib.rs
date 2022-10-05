@@ -57,14 +57,14 @@ impl PoseidonLeaf for DataLeaf {
 
 #[derive(Debug)]
 pub struct Citadel {
-    c: BlsScalar,           // challenge for the nullifier
-    npk_user: JubJubAffine, // note public key of the user
-    lsk: JubJubScalar,      // license secret key
+    c: BlsScalar,      // challenge for the nullifier
+    rb: JubJubScalar,  // addition of random 'r' and static secret key 'b'
+    lsk: JubJubScalar, // license secret key
 
     attr: BlsScalar,     // set of attributes describing our license
     lsig: Signature,     // signature of the license
     pk_sp: JubJubAffine, // static public key of the service provider SP
-    t: JubJubScalar,     // randomness for the Pedersen Commitment
+    s: JubJubScalar,     // randomness for the Pedersen Commitment
 
     note_type: BlsScalar, // 2: transparent, 3: obfuscated
     enc: BlsScalar,       // encryption of the commitment opening
@@ -78,13 +78,13 @@ pub struct Citadel {
 impl Citadel {
     pub fn new(
         c: BlsScalar,
-        npk_user: JubJubAffine,
+        rb: JubJubScalar,
         lsk: JubJubScalar,
 
         attr: BlsScalar,
         lsig: Signature,
         pk_sp: JubJubAffine,
-        t: JubJubScalar,
+        s: JubJubScalar,
 
         note_type: BlsScalar,
         enc: BlsScalar,
@@ -96,13 +96,13 @@ impl Citadel {
     ) -> Self {
         Self {
             c,
-            npk_user,
+            rb,
             lsk,
 
             attr,
             lsig,
             pk_sp,
-            t,
+            s,
 
             note_type,
             enc,
@@ -118,7 +118,10 @@ impl Citadel {
         // We set random values as an example
         let c = BlsScalar::random(rng);
         let r = JubJubScalar::random(rng);
-        let npk_user = JubJubAffine::from(GENERATOR_EXTENDED * r);
+        let b = JubJubScalar::random(rng);
+
+        let rb = r + b;
+        let npk_user = JubJubAffine::from(GENERATOR_EXTENDED * rb);
 
         let lsk = JubJubScalar::random(rng);
         let lpk = JubJubAffine::from(GENERATOR_EXTENDED * lsk);
@@ -137,7 +140,7 @@ impl Citadel {
 
         let pk_sp = JubJubAffine::from(GENERATOR_EXTENDED * sk_sp.as_ref());
 
-        let t = JubJubScalar::random(rng);
+        let s = JubJubScalar::random(rng);
 
         let leaf = DataLeaf::random(rng);
         let pos_tree = tree.push(leaf).expect("Failed to append to the tree");
@@ -155,13 +158,13 @@ impl Citadel {
 
         Self {
             c,
-            npk_user,
+            rb,
             lsk,
 
             attr,
             lsig,
             pk_sp,
-            t,
+            s,
 
             note_type,
             enc,
@@ -181,9 +184,12 @@ impl Circuit for Citadel {
         let lsk = composer.append_witness(self.lsk);
         let lpk = composer.component_mul_generator(lsk, GENERATOR);
 
+        // COMPUTE THE NOTE PUBLIC KEY OF THE USER
+        let rb = composer.append_witness(self.rb);
+        let npk_user = composer.component_mul_generator(rb, GENERATOR);
+
         // COMPUTE THE LICENSE NULLIFIER
         let c = composer.append_witness(self.c);
-        let npk_user = composer.append_point(self.npk_user);
         let _lnullifier = sponge::gadget(composer, &[c, *npk_user.x(), *npk_user.y(), lsk]);
 
         // VERIFYING THE SIGNATURE
@@ -199,10 +205,10 @@ impl Circuit for Citadel {
 
         // COMMIT TO THE PAYLOAD_NFT
         let payload_nft = truncated::gadget(composer, &[lsig_u, *lsig_r.x(), *lsig_r.y(), attr]);
-        let t = composer.append_witness(self.t);
+        let s = composer.append_witness(self.s);
 
         let pc_1 = composer.component_mul_generator(payload_nft, GENERATOR);
-        let pc_2 = composer.component_mul_generator(t, GENERATOR_NUMS);
+        let pc_2 = composer.component_mul_generator(s, GENERATOR_NUMS);
 
         let com = composer.component_add_point(pc_1, pc_2);
 
@@ -279,12 +285,12 @@ pub fn citadel_setup() -> (PublicParameters, usize, Citadel, ProverKey, Verifier
 pub fn citadel_prover(pp: &PublicParameters, input: &Citadel, pk: &ProverKey) -> Proof {
     Citadel::new(
         input.c,
-        input.npk_user,
+        input.rb,
         input.lsk,
         input.attr,
         input.lsig,
         input.pk_sp,
-        input.t,
+        input.s,
         input.note_type,
         input.enc,
         input.nonce,
