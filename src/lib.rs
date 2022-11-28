@@ -1,4 +1,4 @@
-use dusk_jubjub::{GENERATOR, GENERATOR_EXTENDED, GENERATOR_NUMS};
+use dusk_jubjub::{GENERATOR, GENERATOR_EXTENDED, GENERATOR_NUMS, GENERATOR_NUMS_EXTENDED};
 use dusk_pki::SecretKey;
 use dusk_plonk::error::Error as PlonkError;
 use dusk_poseidon::sponge;
@@ -13,7 +13,7 @@ use dusk_plonk::prelude::*;
 
 static mut CONSTRAINTS: usize = 0;
 static LABEL: &[u8; 12] = b"dusk-network";
-const CAPACITY: usize = 16; // capacity required for the setup
+const CAPACITY: usize = 17; // capacity required for the setup
 const DEPTH: usize = 17; // depth of the 4-ary Merkle tree
 type Tree = PoseidonTree<DataLeaf, PoseidonAnnotation, DEPTH>;
 
@@ -55,16 +55,14 @@ impl PoseidonLeaf for DataLeaf {
     }
 }
 
-#[derive(Debug)]
-pub struct Citadel {
-    c: BlsScalar,      // challenge for the nullifier
-    rb: JubJubScalar,  // addition of random 'r' and static secret key 'b'
-    lsk: JubJubScalar, // license secret key
+#[derive(Debug, Copy, Clone)]
+pub struct License {
+    npk_user: JubJubAffine,   // note public key
+    npk_user_p: JubJubAffine, // note public key prime
 
-    attr: BlsScalar,     // set of attributes describing our license
-    lsig: Signature,     // signature of the license
     pk_sp: JubJubAffine, // static public key of the service provider SP
-    s: JubJubScalar,     // randomness for the Pedersen Commitment
+    attr: BlsScalar,     // set of attributes describing our license
+    sig_lic: Signature,  // signature of the license
 
     note_type: BlsScalar, // 2: transparent, 3: obfuscated
     enc: BlsScalar,       // encryption of the commitment opening
@@ -72,83 +70,30 @@ pub struct Citadel {
     r_user: JubJubAffine, // R value of the user
     pos: BlsScalar,       // position of the note in the Merkle tree
 
-    branch: PoseidonBranch<DEPTH>, // merkle tree branch
+    s0: JubJubScalar, // randomness for the hash
+    s1: JubJubScalar, // randomness for the Pedersen Commitment
+    s2: JubJubScalar, // randomness for the Pedersen Commitment
+
+    c: BlsScalar,                // challenge for the nullifier
+    tx_hash: BlsScalar,          // hash of the transaction nullifying the license
+    sig_tx: dusk_schnorr::Proof, // signature of the tx_hash
 }
 
-impl Citadel {
-    pub fn new(
-        c: BlsScalar,
-        rb: JubJubScalar,
-        lsk: JubJubScalar,
+impl License {
+    pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
+        // First, the user computes these values and requests a License
+        let nsk_user = SecretKey::random(rng);
+        let npk_user = JubJubAffine::from(GENERATOR_EXTENDED * nsk_user.as_ref());
+        let npk_user_p = JubJubAffine::from(GENERATOR_NUMS_EXTENDED * nsk_user.as_ref());
 
-        attr: BlsScalar,
-        lsig: Signature,
-        pk_sp: JubJubAffine,
-        s: JubJubScalar,
-
-        note_type: BlsScalar,
-        enc: BlsScalar,
-        nonce: BlsScalar,
-        r_user: JubJubAffine,
-        pos: BlsScalar,
-
-        branch: PoseidonBranch<DEPTH>,
-    ) -> Self {
-        Self {
-            c,
-            rb,
-            lsk,
-
-            attr,
-            lsig,
-            pk_sp,
-            s,
-
-            note_type,
-            enc,
-            nonce,
-            r_user,
-            pos,
-
-            branch,
-        }
-    }
-
-    pub fn random<R: RngCore + CryptoRng>(rng: &mut R, tree: &mut Tree) -> Self {
-        // We set random values as an example
-        let c = BlsScalar::random(rng);
-        let r = JubJubScalar::random(rng);
-        let b = JubJubScalar::random(rng);
-
-        let rb = r + b;
-        let npk_user = JubJubAffine::from(GENERATOR_EXTENDED * rb);
-
-        let lsk = JubJubScalar::random(rng);
-        let lpk = JubJubAffine::from(GENERATOR_EXTENDED * lsk);
-
+        // Second, the SP computes these values and grants the License
         let sk_sp = SecretKey::random(rng);
-        let attr = BlsScalar::from(00112233445566778899u64);
-
-        let message = sponge::truncated::hash(&[
-            npk_user.get_x(),
-            npk_user.get_y(),
-            attr,
-            lpk.get_x(),
-            lpk.get_y(),
-        ]);
-        let lsig = Signature::new(&sk_sp, rng, BlsScalar::from(message));
-
         let pk_sp = JubJubAffine::from(GENERATOR_EXTENDED * sk_sp.as_ref());
 
-        let s = JubJubScalar::random(rng);
+        let attr = BlsScalar::from(00112233445566778899u64);
+        let message = sponge::truncated::hash(&[npk_user.get_x(), npk_user.get_y(), attr]);
 
-        let leaf = DataLeaf::random(rng);
-        let pos_tree = tree.push(leaf).expect("Failed to append to the tree");
-
-        let branch = tree
-            .branch(pos_tree)
-            .expect("Failed to read the tree for the branch")
-            .expect("Failed to fetch the branch of the created leaf from the tree");
+        let sig_lic = Signature::new(&sk_sp, rng, BlsScalar::from(message));
 
         let note_type = BlsScalar::from(3u64);
         let enc = BlsScalar::random(rng);
@@ -156,15 +101,22 @@ impl Citadel {
         let r_user = JubJubAffine::from(GENERATOR_EXTENDED * JubJubScalar::random(rng));
         let pos = BlsScalar::from(1u64);
 
-        Self {
-            c,
-            rb,
-            lsk,
+        // Third, the user computes these values to generate the ZKP later on
+        let s0 = JubJubScalar::random(rng);
+        let s1 = JubJubScalar::random(rng);
+        let s2 = JubJubScalar::random(rng);
 
-            attr,
-            lsig,
+        let c = BlsScalar::from(20221126u64);
+        let tx_hash = BlsScalar::from(00112233445566778899u64);
+        let sig_tx = dusk_schnorr::Proof::new(&nsk_user, rng, tx_hash);
+
+        Self {
+            npk_user,
+            npk_user_p,
+
             pk_sp,
-            s,
+            attr,
+            sig_lic,
 
             note_type,
             enc,
@@ -172,58 +124,80 @@ impl Citadel {
             r_user,
             pos,
 
-            branch,
+            s0,
+            s1,
+            s2,
+
+            c,
+            tx_hash,
+            sig_tx,
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct Citadel {
+    license: License,
+    branch: PoseidonBranch<DEPTH>,
+}
+
+impl Citadel {
+    pub fn new(license: License, branch: PoseidonBranch<DEPTH>) -> Self {
+        Self { license, branch }
     }
 }
 
 impl Circuit for Citadel {
     const CIRCUIT_ID: [u8; 32] = [0xff; 32];
     fn gadget(&mut self, composer: &mut TurboComposer) -> Result<(), PlonkError> {
-        // COMPUTE THE LICENSE KEYPAIR
-        let lsk = composer.append_witness(self.lsk);
-        let lpk = composer.component_mul_generator(lsk, GENERATOR);
-
-        // COMPUTE THE NOTE PUBLIC KEY OF THE USER
-        let rb = composer.append_witness(self.rb);
-        let npk_user = composer.component_mul_generator(rb, GENERATOR);
+        // APPEND THE NOTE PUBLIC KEYS OF THE USER
+        let npk_user = composer.append_point(self.license.npk_user);
+        let npk_user_p = composer.append_point(self.license.npk_user_p);
 
         // COMPUTE THE LICENSE NULLIFIER
-        let c = composer.append_witness(self.c);
-        let _lnullifier = sponge::gadget(composer, &[c, *npk_user.x(), *npk_user.y(), lsk]);
+        let c = composer.append_witness(self.license.c);
+        let _nullifier_lic = sponge::gadget(composer, &[*npk_user_p.x(), *npk_user_p.y(), c]);
 
-        // VERIFYING THE SIGNATURE
-        let (lsig_u, lsig_r) = self.lsig.to_witness(composer);
-        let pk_sp = composer.append_point(self.pk_sp);
-        let attr = composer.append_witness(self.attr);
+        // VERIFY THE SIGNATURES
+        let (sig_lic_u, sig_lic_r) = self.license.sig_lic.to_witness(composer);
+        let pk_sp = composer.append_point(self.license.pk_sp);
+        let attr = composer.append_witness(self.license.attr);
 
-        let message = truncated::gadget(
-            composer,
-            &[*npk_user.x(), *npk_user.y(), attr, *lpk.x(), *lpk.y()],
+        let message = truncated::gadget(composer, &[*npk_user.x(), *npk_user.y(), attr]);
+        gadgets::single_key_verify(composer, sig_lic_u, sig_lic_r, pk_sp, message);
+
+        let (sig_tx_u, sig_tx_r, sig_tx_r_p) = self.license.sig_tx.to_witness(composer);
+        let tx_hash = composer.append_witness(self.license.tx_hash);
+        gadgets::double_key_verify(
+            composer, sig_tx_u, sig_tx_r, sig_tx_r_p, npk_user, npk_user_p, tx_hash,
         );
-        gadgets::single_key_verify(composer, lsig_u, lsig_r, pk_sp, message);
 
-        // COMMIT TO THE PAYLOAD_NFT
-        let payload_nft = truncated::gadget(composer, &[lsig_u, *lsig_r.x(), *lsig_r.y(), attr]);
-        let s = composer.append_witness(self.s);
+        // COMMIT TO THE PK_SP USING A HASH FUNCTION
+        let s0 = composer.append_witness(self.license.s0);
+        let _com_0 = sponge::gadget(composer, &[*pk_sp.x(), *pk_sp.y(), s0]);
 
-        let pc_1 = composer.component_mul_generator(payload_nft, GENERATOR);
-        let pc_2 = composer.component_mul_generator(s, GENERATOR_NUMS);
+        // COMMIT TO THE ATTRIBUTE
+        let s1 = composer.append_witness(self.license.s1);
+        let pc_1_1 = composer.component_mul_generator(attr, GENERATOR);
+        let pc_1_2 = composer.component_mul_generator(s1, GENERATOR_NUMS);
+        let _com_1 = composer.component_add_point(pc_1_1, pc_1_2);
 
-        let com = composer.component_add_point(pc_1, pc_2);
+        // COMMIT TO THE CHALLENGE
+        let s2 = composer.append_witness(self.license.s2);
+        let pc_2_1 = composer.component_mul_generator(c, GENERATOR);
+        let pc_2_2 = composer.component_mul_generator(s2, GENERATOR_NUMS);
+        let _com_2 = composer.component_add_point(pc_2_1, pc_2_2);
 
         // COMPUTE THE HASH OF THE NOTE
-        let note_type = composer.append_witness(self.note_type);
-        let enc = composer.append_witness(self.enc);
-        let nonce = composer.append_witness(self.nonce);
-        let r_user = composer.append_point(self.r_user);
-        let pos = composer.append_witness(self.pos);
+        let note_type = composer.append_witness(self.license.note_type);
+        let enc = composer.append_witness(self.license.enc);
+        let nonce = composer.append_witness(self.license.nonce);
+        let r_user = composer.append_point(self.license.r_user);
+        let pos = composer.append_witness(self.license.pos);
 
         let _hash = sponge::gadget(
             composer,
             &[
-                *com.x(),
-                *com.y(),
                 note_type,
                 enc,
                 nonce,
@@ -265,50 +239,68 @@ impl Circuit for Citadel {
     }
 }
 
-pub fn citadel_setup() -> (PublicParameters, usize, Citadel, ProverKey, VerifierData) {
-    // Perform the circuit setup
-    let mut tree = Tree::default();
-    let mut circuit = Citadel::random(&mut OsRng, &mut tree);
-    let pp = PublicParameters::setup(1 << CAPACITY, &mut OsRng).unwrap();
-    let (pk, vd) = circuit.compile(&pp).expect("Failed to compile circuit");
-
+pub fn poseidon_branch_random<R: RngCore + CryptoRng>(rng: &mut R) -> PoseidonBranch<DEPTH> {
     // Instantiate a tree with random elements as an example
-    let mut tree: PoseidonTree<DataLeaf, PoseidonAnnotation, DEPTH> = PoseidonTree::new();
+    let mut tree = Tree::default();
+    let leaf = DataLeaf::random(rng);
+    let pos_tree = tree.push(leaf).expect("Appended to the tree");
+
     for i in 0..1024 {
         let l = DataLeaf::from(i as u64);
-        tree.push(l).expect("Failed appending to the tree");
+        tree.push(l).expect("Appended to the tree");
     }
 
-    unsafe { (pp, CONSTRAINTS, circuit, pk, vd) }
+    tree.branch(pos_tree)
+        .expect("Tree was read successfully")
+        .expect("The branch of the created leaf from the tree was fetched successfully")
 }
 
-pub fn citadel_prover(pp: &PublicParameters, input: &Citadel, pk: &ProverKey) -> Proof {
-    Citadel::new(
-        input.c,
-        input.rb,
-        input.lsk,
-        input.attr,
-        input.lsig,
-        input.pk_sp,
-        input.s,
-        input.note_type,
-        input.enc,
-        input.nonce,
-        input.r_user,
-        input.pos,
-        input.branch.clone(),
-    )
-    .prove(&pp, &pk, LABEL, &mut OsRng)
-    .expect("Failed to prove")
+pub fn citadel_setup() -> (PublicParameters, usize, ProverKey, VerifierData) {
+    let pp = PublicParameters::setup(1 << CAPACITY, &mut OsRng).unwrap();
+    let mut circuit = Citadel::new(
+        License::random(&mut OsRng),
+        poseidon_branch_random(&mut OsRng),
+    );
+    let (pk, vd) = circuit.compile(&pp).expect("Circuit compiled");
+
+    unsafe { (pp, CONSTRAINTS, pk, vd) }
 }
 
-pub fn citadel_verifier(pp: &PublicParameters, vd: &VerifierData, proof: &Proof) {
-    Citadel::verify(&pp, &vd, &proof, &[], LABEL).expect("Proof verification failed");
+pub fn citadel_prove(
+    pp: &PublicParameters,
+    license: &License,
+    branch: &PoseidonBranch<DEPTH>,
+    pk: &ProverKey,
+) -> Proof {
+    Citadel::new(*license, branch.clone())
+        .prove(&pp, &pk, LABEL, &mut OsRng)
+        .expect("Proof computed")
+}
+
+pub fn citadel_verify(pp: &PublicParameters, vd: &VerifierData, proof: &Proof) -> bool {
+    match Citadel::verify(&pp, &vd, &proof, &[], LABEL) {
+        Ok(()) => true,
+        Err(_e) => false,
+    }
 }
 
 #[test]
 fn test_full_citadel() {
-    let (pp, _constraints, circuit, pk, vd) = citadel_setup();
-    let proof = citadel_prover(&pp, &circuit, &pk);
-    citadel_verifier(&pp, &vd, &proof);
+    let (pp, _constraints, pk, vd) = citadel_setup();
+    let branch = poseidon_branch_random(&mut OsRng);
+    let license = License::random(&mut OsRng);
+
+    let proof = citadel_prove(&pp, &license, &branch, &pk);
+    assert_eq!(citadel_verify(&pp, &vd, &proof), true);
+}
+
+#[test]
+fn test_full_citadel_false_proof() {
+    let (pp_false, _constraints, pk_false, _vd_false) = citadel_setup();
+    let branch = poseidon_branch_random(&mut OsRng);
+    let license = License::random(&mut OsRng);
+
+    let proof = citadel_prove(&pp_false, &license, &branch, &pk_false);
+    let (pp, _constraints, _pk, vd) = citadel_setup();
+    assert_eq!(citadel_verify(&pp, &vd, &proof), false);
 }
