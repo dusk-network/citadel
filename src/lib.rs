@@ -9,7 +9,15 @@ use rand_core::{CryptoRng, OsRng, RngCore};
 use canonical_derive::Canon;
 use dusk_poseidon::tree::{self, PoseidonAnnotation, PoseidonBranch, PoseidonLeaf, PoseidonTree};
 
+use dusk_bytes::Serializable;
 use dusk_plonk::prelude::*;
+
+use std::fs;
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
+use std::str::from_utf8;
+
+use colored::Colorize;
 
 static mut CONSTRAINTS: usize = 0;
 static LABEL: &[u8; 12] = b"dusk-network";
@@ -133,6 +141,21 @@ impl License {
             sig_tx,
         }
     }
+
+    pub fn prove(
+        &self,
+        pp: &PublicParameters,
+        branch: &PoseidonBranch<DEPTH>,
+        pk: &ProverKey,
+    ) -> Proof {
+        Citadel::new(*self, branch.clone())
+            .prove(&pp, &pk, LABEL, &mut OsRng)
+            .expect("Proof computed")
+    }
+
+    pub fn verify(pp: &PublicParameters, vd: &VerifierData, proof: &Proof) -> bool {
+        Citadel::verify(&pp, &vd, &proof, &[], LABEL).is_ok()
+    }
 }
 
 #[derive(Debug)]
@@ -144,6 +167,172 @@ pub struct Citadel {
 impl Citadel {
     pub fn new(license: License, branch: PoseidonBranch<DEPTH>) -> Self {
         Self { license, branch }
+    }
+
+    pub fn poseidon_branch_random<R: RngCore + CryptoRng>(rng: &mut R) -> PoseidonBranch<DEPTH> {
+        // Instantiate a tree with random elements as an example
+        let mut tree = Tree::default();
+        let leaf = DataLeaf::random(rng);
+        let pos_tree = tree.push(leaf).expect("Appended to the tree");
+
+        for i in 0..1024 {
+            let l = DataLeaf::from(i as u64);
+            tree.push(l).expect("Appended to the tree");
+        }
+
+        tree.branch(pos_tree)
+            .expect("Tree was read successfully")
+            .expect("The branch of the created leaf from the tree was fetched successfully")
+    }
+
+    pub fn generate_setup() -> (PublicParameters, usize, ProverKey, VerifierData) {
+        let pp = PublicParameters::setup(1 << CAPACITY, &mut OsRng).unwrap();
+        let mut circuit = Self::new(
+            License::random(&mut OsRng),
+            Self::poseidon_branch_random(&mut OsRng),
+        );
+        let (pk, vd) = circuit.compile(&pp).expect("Circuit compiled");
+
+        unsafe { (pp, CONSTRAINTS, pk, vd) }
+    }
+
+    pub fn generate_setup_to_file() {
+        let (pp, _constraints, pk, vd) = Self::generate_setup();
+
+        let pp_bytes = pp.to_var_bytes();
+        let pk_bytes = pk.to_var_bytes();
+        let vd_bytes = vd.to_var_bytes();
+
+        fs::create_dir("setup").unwrap();
+        fs::write("setup/pp_bytes", pp_bytes).expect("Unable to write file");
+        fs::write("setup/pk_bytes", pk_bytes).expect("Unable to write file");
+        fs::write("setup/vd_bytes", vd_bytes).expect("Unable to write file");
+    }
+
+    pub fn clean() {
+        fs::remove_dir_all("setup").unwrap();
+    }
+
+    fn handle_client(mut stream: TcpStream, pp: PublicParameters, vd: VerifierData) {
+        let mut buffer = [0; 1040];
+        stream.read(&mut buffer).unwrap();
+
+        println!(
+            "{} License proof received.",
+            format!("[log] :").bold().blue()
+        );
+        let proof = Proof::from_bytes(&buffer).unwrap();
+
+        println!(
+            "{} Verifying license proof...",
+            format!("[log] :").bold().blue()
+        );
+
+        if License::verify(&pp, &vd, &proof) {
+            stream.write(b"AUTHORIZED").unwrap();
+            println!(
+                "{} License proof verified. User authorized.\n",
+                format!("[log] :").bold().blue()
+            );
+        } else {
+            stream.write(b"DENIED").unwrap();
+            println!(
+                "{} License proof not verified. User not authorized.\n",
+                format!("[log] :").bold().blue()
+            );
+        }
+
+        stream.flush().unwrap();
+    }
+
+    pub fn run_server(port: String) {
+        println!(
+            "\n{} Setting up the Citadel Server...",
+            format!("[INFO] :").bold().yellow()
+        );
+
+        let pp_bytes = fs::read("setup/pp_bytes").expect("Unable to read file");
+        let pp = PublicParameters::from_slice(&pp_bytes).unwrap();
+        let vd_bytes = fs::read("setup/vd_bytes").expect("Unable to read file");
+        let vd = VerifierData::from_slice(&vd_bytes).unwrap();
+
+        let listener = TcpListener::bind("localhost:".to_owned() + &port).unwrap();
+        println!(
+            "{} Citadel Server listening on port {}.\n",
+            format!("[INFO] :").bold().yellow(),
+            port
+        );
+
+        for stream in listener.incoming() {
+            let stream = stream.unwrap();
+            println!(
+                "{} New connection from {}",
+                format!("[log] :").bold().blue(),
+                stream.peer_addr().unwrap()
+            );
+            Self::handle_client(stream, pp.clone(), vd.clone());
+        }
+    }
+
+    pub fn run_client(ip: String, port: String) {
+        println!(
+            "\n{} Setting up the Citadel Client...",
+            format!("[INFO] :").bold().yellow()
+        );
+
+        let pp_bytes = fs::read("setup/pp_bytes").expect("Unable to read file");
+        let pp = PublicParameters::from_slice(&pp_bytes).unwrap();
+        let pk_bytes = fs::read("setup/pk_bytes").expect("Unable to read file");
+        let pk = ProverKey::from_slice(&pk_bytes).unwrap();
+
+        let server = ip + ":" + &port;
+
+        match TcpStream::connect(server.clone()) {
+            Ok(mut stream) => {
+                println!(
+                    "{} Connected to Citadel Server {}.\n",
+                    format!("[INFO] :").bold().yellow(),
+                    server
+                );
+                println!(
+                    "{} Computing license proof...",
+                    format!("[log] :").bold().blue()
+                );
+
+                let branch = Citadel::poseidon_branch_random(&mut OsRng);
+                let license = License::random(&mut OsRng);
+                let proof = license.prove(&pp, &branch, &pk);
+
+                stream.write(&proof.to_bytes()).unwrap();
+
+                println!(
+                    "{} License proof sent to Citadel Server.",
+                    format!("[log] :").bold().blue()
+                );
+
+                let mut data = [0 as u8; 128];
+                stream.read(&mut data).unwrap();
+                let text = from_utf8(&data).unwrap();
+
+                if text[..10].eq("AUTHORIZED") {
+                    println!(
+                        "{} Login: {}\n",
+                        format!("[log] :").bold().blue(),
+                        format!("[ACCESS GRANTED]").bold().green()
+                    );
+                } else {
+                    println!(
+                        "{} Login: {}\n",
+                        format!("[log] :").bold().blue(),
+                        format!("[ACCESS DENIED]").bold().red()
+                    );
+                }
+            }
+
+            Err(e) => {
+                println!("Connection error: {}", e);
+            }
+        }
     }
 }
 
@@ -239,68 +428,23 @@ impl Circuit for Citadel {
     }
 }
 
-pub fn poseidon_branch_random<R: RngCore + CryptoRng>(rng: &mut R) -> PoseidonBranch<DEPTH> {
-    // Instantiate a tree with random elements as an example
-    let mut tree = Tree::default();
-    let leaf = DataLeaf::random(rng);
-    let pos_tree = tree.push(leaf).expect("Appended to the tree");
-
-    for i in 0..1024 {
-        let l = DataLeaf::from(i as u64);
-        tree.push(l).expect("Appended to the tree");
-    }
-
-    tree.branch(pos_tree)
-        .expect("Tree was read successfully")
-        .expect("The branch of the created leaf from the tree was fetched successfully")
-}
-
-pub fn citadel_setup() -> (PublicParameters, usize, ProverKey, VerifierData) {
-    let pp = PublicParameters::setup(1 << CAPACITY, &mut OsRng).unwrap();
-    let mut circuit = Citadel::new(
-        License::random(&mut OsRng),
-        poseidon_branch_random(&mut OsRng),
-    );
-    let (pk, vd) = circuit.compile(&pp).expect("Circuit compiled");
-
-    unsafe { (pp, CONSTRAINTS, pk, vd) }
-}
-
-pub fn citadel_prove(
-    pp: &PublicParameters,
-    license: &License,
-    branch: &PoseidonBranch<DEPTH>,
-    pk: &ProverKey,
-) -> Proof {
-    Citadel::new(*license, branch.clone())
-        .prove(&pp, &pk, LABEL, &mut OsRng)
-        .expect("Proof computed")
-}
-
-pub fn citadel_verify(pp: &PublicParameters, vd: &VerifierData, proof: &Proof) -> bool {
-    match Citadel::verify(&pp, &vd, &proof, &[], LABEL) {
-        Ok(()) => true,
-        Err(_e) => false,
-    }
-}
-
 #[test]
 fn test_full_citadel() {
-    let (pp, _constraints, pk, vd) = citadel_setup();
-    let branch = poseidon_branch_random(&mut OsRng);
+    let (pp, _constraints, pk, vd) = Citadel::generate_setup();
+    let branch = Citadel::poseidon_branch_random(&mut OsRng);
     let license = License::random(&mut OsRng);
 
-    let proof = citadel_prove(&pp, &license, &branch, &pk);
-    assert_eq!(citadel_verify(&pp, &vd, &proof), true);
+    let proof = license.prove(&pp, &branch, &pk);
+    assert_eq!(License::verify(&pp, &vd, &proof), true);
 }
 
 #[test]
 fn test_full_citadel_false_proof() {
-    let (pp_false, _constraints, pk_false, _vd_false) = citadel_setup();
-    let branch = poseidon_branch_random(&mut OsRng);
+    let (pp_false, _constraints, pk_false, _vd_false) = Citadel::generate_setup();
+    let branch = Citadel::poseidon_branch_random(&mut OsRng);
     let license = License::random(&mut OsRng);
 
-    let proof = citadel_prove(&pp_false, &license, &branch, &pk_false);
-    let (pp, _constraints, _pk, vd) = citadel_setup();
-    assert_eq!(citadel_verify(&pp, &vd, &proof), false);
+    let proof = license.prove(&pp_false, &branch, &pk_false);
+    let (pp, _constraints, _pk, vd) = Citadel::generate_setup();
+    assert_eq!(License::verify(&pp, &vd, &proof), false);
 }
