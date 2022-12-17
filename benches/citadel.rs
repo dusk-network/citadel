@@ -4,19 +4,23 @@ use rand_core::OsRng;
 
 fn citadel_benchmark(c: &mut Criterion) {
     // Compute the setup
-    let (pp, constraints, pk, vd) = Citadel::generate_setup();
+    let (constraints, pk, vk) = Citadel::generate_setup();
 
     // Benchmark the prover
-    let branch = Citadel::poseidon_branch_random(&mut OsRng);
     let license = License::random(&mut OsRng);
 
     let log = &format!("Citadel Prover ({} constraints)", constraints);
-    c.bench_function(log, |b| b.iter(|| license.prove(&pp, &branch, &pk)));
+    c.bench_function(log, |b| {
+        b.iter(|| {
+            pk.prove(&mut OsRng, &Citadel::new(license.clone()))
+                .expect("failed to prove")
+        })
+    });
 
     // Benchmark the verifier
-    let proof = license.prove(&pp, &branch, &pk);
+    let proof = Citadel::prove(license, pk);
     let log = &format!("Citadel Verifier ({} constraints)", constraints);
-    c.bench_function(log, |b| b.iter(|| License::verify(&pp, &vd, &proof)));
+    c.bench_function(log, |b| b.iter(|| Citadel::verify(&proof, &vk)));
 }
 
 criterion_group! {

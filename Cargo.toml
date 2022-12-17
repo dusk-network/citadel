@@ -13,16 +13,18 @@ license = "MPL-2.0"
 
 [dependencies]
 dusk-bytes = "0.1"
-dusk-poseidon = { version ="0.26", features = ["canon"] }
-dusk-plonk = { version = "0.12", default-features = false, features = ["alloc"]}
+dusk-poseidon = { version ="0.28" }
+dusk-plonk = { version = "0.13", default-features = false, features = ["alloc"]}
 dusk-bls12_381 = { version = "0.11", default-features = false }
 dusk-jubjub = { version = "0.12", default-features = false }
 dusk-pki = { version = "0.11", default-features = false}
-dusk-schnorr = { version = "0.11", features = ["canon"] }
+dusk-schnorr = { version = "0.12" }
 canonical = {version = "0.7", optional = false}
 canonical_derive = {version = "0.7", optional = false}
 rand_core = {version="0.6", default-features=false, features = ["getrandom"]}
 colored = "2.0.0"
+nstack = { version = "0.16" }
+rkyv = { version = "0.7", optional = true, default-features = false }
 
 [dev-dependencies]
 criterion = "0.3"
