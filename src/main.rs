@@ -2,20 +2,20 @@ use colored::Colorize;
 use std::env;
 use std::process::exit;
 
-use citadel::Citadel;
+use citadel::service::Service;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
 
     if args.len() > 1 {
         if args[1].eq("server") {
-            Citadel::run_server(args[2].clone());
+            Service::run_service_provider(args[2].clone());
         } else if args[1].eq("client") {
-            Citadel::run_client(args[2].clone(), args[3].clone());
+            Service::run_user(args[2].clone(), args[3].clone());
         } else if args[1].eq("setup") {
-            Citadel::generate_setup_to_file();
+            Service::generate_setup_to_file();
         } else if args[1].eq("clean") {
-            Citadel::clean();
+            Service::clean();
         }
 
         exit(0);
@@ -27,6 +27,7 @@ fn main() {
             .bold()
             .red()
     );
+
     println!("USAGE: cargo run --release [arg]\n");
     println!("Where [arg] can be:");
     println!("server [port]: Run the Citadel Server on a given port.");
