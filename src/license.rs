@@ -14,7 +14,7 @@ type Tree = PoseidonTree<DataLeaf, (), DEPTH>;
 
 #[derive(Debug, Default, Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
 pub struct DataLeaf {
-    data: BlsScalar,
+    note_hash: BlsScalar,
     pos: u64,
 }
 
@@ -27,20 +27,23 @@ impl Keyed<()> for DataLeaf {
 
 impl DataLeaf {
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        let data = BlsScalar::random(rng);
+        let note_hash = BlsScalar::random(rng);
         let pos = 0;
 
-        Self { data, pos }
+        Self { note_hash, pos }
     }
     pub fn new(hash: BlsScalar, n: u64) -> DataLeaf {
-        DataLeaf { data: hash, pos: n }
+        DataLeaf {
+            note_hash: hash,
+            pos: n,
+        }
     }
 }
 
 impl From<u64> for DataLeaf {
     fn from(n: u64) -> DataLeaf {
         DataLeaf {
-            data: BlsScalar::from(n),
+            note_hash: BlsScalar::from(n),
             pos: n,
         }
     }
@@ -48,7 +51,8 @@ impl From<u64> for DataLeaf {
 
 impl PoseidonLeaf for DataLeaf {
     fn poseidon_hash(&self) -> BlsScalar {
-        self.data
+        // the note hash (the leaf) is computed into the circuit
+        self.note_hash
     }
 
     fn pos(&self) -> &u64 {
