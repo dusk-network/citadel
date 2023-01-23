@@ -1,13 +1,10 @@
 [package]
-name = "citadel"
+name = "zk-citadel"
 version = "0.1.0"
-authors = [
-	"Xavier Salleras <xavier@dusk.network>"
-]
 repository = "https://github.com/dusk-network/citadel"
 description = "Implementation of Citadel, a SSI system integrated in Dusk Network."
 categories = ["cryptography", "authentication", "mathematics", "science"]
-keywords = ["cryptography", "self-sovereign-identities", "zk-snarks", "zero-knowledge-proofs"]
+keywords = ["cryptography", "self-sovereign", "identity", "zk-snarks", "zero-knowledge"]
 edition = "2021"
 license = "MPL-2.0"
 
