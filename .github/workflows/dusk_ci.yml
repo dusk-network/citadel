@@ -2,9 +2,9 @@ on:
   pull_request:
   push:
     branches:
-      - master
+      - main
 
-name: Continuous integration
+name: CI
 
 jobs:
   analyze:
