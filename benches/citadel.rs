@@ -4,9 +4,9 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use citadel::gadget;
-use citadel::license::License;
 use dusk_plonk::prelude::*;
+use zk_citadel::gadget;
+use zk_citadel::license::License;
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand_core::OsRng;

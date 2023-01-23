@@ -10,8 +10,8 @@ use rand_core::OsRng;
 static LABEL: &[u8; 12] = b"dusk-network";
 const CAPACITY: usize = 17; // capacity required for the setup
 
-use citadel::gadget;
-use citadel::license::{License, SessionCookie};
+use zk_citadel::gadget;
+use zk_citadel::license::{License, SessionCookie};
 
 #[derive(Default, Debug)]
 pub struct Citadel {
