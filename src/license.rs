@@ -116,7 +116,7 @@ pub struct License {
 
     pub com_0: BlsScalar,      // Hash commitment 0
     pub com_1: JubJubExtended, // Pedersen Commitment 1
-    pub com_2: JubJubExtended, // Pedersen Ccommitment 2
+    pub com_2: JubJubExtended, // Pedersen Commitment 2
 
     pub c: JubJubScalar,             // challenge for the nullifier
     pub tx_hash: BlsScalar,          // hash of the transaction nullifying the license
