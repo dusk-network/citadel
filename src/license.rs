@@ -143,7 +143,7 @@ impl License {
         let sk_sp = SecretKey::random(rng);
         let pk_sp = JubJubAffine::from(GENERATOR_EXTENDED * sk_sp.as_ref());
 
-        let attr = JubJubScalar::from(00112233445566778899u64);
+        let attr = JubJubScalar::from(112233445566778899u64);
         let message = sponge::hash(&[npk_user.get_x(), npk_user.get_y(), BlsScalar::from(attr)]);
 
         let sig_lic = Signature::new(&sk_sp, rng, message);
@@ -160,7 +160,7 @@ impl License {
         let s_2 = JubJubScalar::random(rng);
 
         let c = JubJubScalar::from(20221126u64);
-        let tx_hash = BlsScalar::from(00112233445566778899u64);
+        let tx_hash = BlsScalar::from(112233445566778899u64);
         let sig_tx = dusk_schnorr::Proof::new(&nsk_user, rng, tx_hash);
 
         let com_0 = sponge::hash(&[pk_sp.get_x(), pk_sp.get_y(), s_0]);
