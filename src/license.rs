@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) DUSK NETWORK. All rights reserved.
+
 use dusk_jubjub::JubJubAffine;
 use dusk_jubjub::{GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED};
 use dusk_pki::SecretKey;
@@ -116,7 +122,7 @@ pub struct License {
 
     pub com_0: BlsScalar,      // Hash commitment 0
     pub com_1: JubJubExtended, // Pedersen Commitment 1
-    pub com_2: JubJubExtended, // Pedersen Ccommitment 2
+    pub com_2: JubJubExtended, // Pedersen Commitment 2
 
     pub c: JubJubScalar,             // challenge for the nullifier
     pub tx_hash: BlsScalar,          // hash of the transaction nullifying the license
