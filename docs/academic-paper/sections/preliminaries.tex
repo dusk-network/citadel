@@ -1,0 +1,130 @@
+In this section, we introduce the background needed to understand the whole paper. We first introduce the basics of elliptic curves, commitments, and Merkle trees. Later, we review the specific ZKPs schemes related to our solution, and finally, we describe Blockchain technologies.
+
+\subsection{Elliptic Curves}
+
+One of the main elements required for constructing the ZKP scheme that we will use in this work are elliptic curves. An elliptic curve is defined as follows.
+
+\begin{definition}[Elliptic curve]
+    Let $E$ be an algebraic curve defined by the projective solutions of the equation 
+    \[Y^2=X^3+aX+b,\] 
+    for some $a,b\in\mathbb{F}_{q}$. If $4a^3-27b^2\neq 0$, we call $E$ an \emph{elliptic curve over $\mathbb{F}_{q}$}, and denote this by $E/\mathbb{F}_{q}$.
+\end{definition}
+
+
+We are particularly interested in the so-called pairing-friendly elliptic curves, and we describe them now. Let $E$ be an elliptic curve over a finite field $\mathbb{F}_q$, where $q$ is a prime number. We have the bilinear groups $(\mathbb{G}_1, \mathbb{G}_2, \mathbb{G}_T)$ of prime order $p$, and a pairing 
+\[e : \mathbb{G}_1 \times \mathbb{G}_2 \rightarrow \mathbb{G}_T\]
+being a bilinear map. As the map $e$ is bilinear, the following relation is satisfied 
+\[e(aP,bQ)=e(P,Q)^{ab},\]
+for any $P,Q\in E$.
+
+We are particularly interested in two elliptic curves, needed later on to describe the transaction model of Dusk Network. They are the BLS12-381~\cite{zcashBLS} and the Jubjub~\cite{zcashJubJub} elliptic curves. Let $p, q$ be two specific prime numbers of $255$ and $381$ bits, respectively.
+The curve BLS12-381 is defined over $\mathbb{F}_q$ by the equation
+\[E: Y^2 = X^3 + 4,\]
+and has different subgroups $\G_1, \G_2$ such that $\#\G_1 = \#\G_2 = p$. This curve is pairing-friendly, meaning that pairings can be efficiently computed. On the other hand, the Jubjub curve is defined by the equation
+\[J : -X^2+Y^2 = 1 + \left(-\frac{10240}{10241}\right)X^2Y^2,\]
+over $\mathbb{F}_p$ (it is important to recall that $p$ is the order of a prime subgroup of the BLS12-381). We define a subgroup $\mathbb{J}$ whose order $t$ is a $252$-bit prime. Throughout the document, we will mainly use scalar values from the field $\mathbb{F}_t$, and elements from $\mathbb{J}$.
+
+\subsection{Commitments and Hash Functions}
+
+A \emph{commitment scheme} allows a party to commit to a secret value $v$, to be revealed at a later time. A commitment scheme works like a safe-deposit box, in the following sense. The party that wishes to make a commitment puts the value $v$ inside the box, and locks it. They keep the key, but the box is kept in a public place. The commitment \emph{hides} the value inside, until the owner decides to use the key and open it. At the same time, the commitment \emph{binds} the value, ensuring that the owner cannot change it after committing. We are particularly interested in Non-interactive Commitment Schemes, defined as follows:
+
+\begin{definition}[Non-interactive Commitment]
+A non-interactive commitment scheme consists of a tuple of algorithms (Setup, Commit, Open). The Setup algorithm $\ck \leftarrow \mathsf{Setup}(1^\lambda)$ generates a public commitment key $\ck$ given the security parameter $\lambda$. Given the public commitment key $\ck$, the commitment algorithm Commit defines a function $\mathsf{Com}_\ck : \mathcal{M} \times \mathcal{R} \rightarrow \mathcal{C}$ for a message space $\mathcal{M}$, a randomness space $\mathcal{R}$ and a commitment space $\mathcal{C}$. Given a message $m \in \mathcal{M}$, the commitment algorithm samples $r \leftarrow \mathcal{R}$ uniformly at random and computes $\mathsf{Com}_\ck(m;r) \in \mathcal{C}.$ Given $m,r$ and a commitment $c \in \mathcal{C}$, the Open algorithm $\mathsf{Open}_\ck(m;r;c)$ outputs $1/0$ whether or not $c$ is a valid commitment for the pair $m,r$. A non-interactive commitment scheme is perfectly hiding, and computationally binding under the discrete logarithm assumption. 
+\end{definition}
+
+In this work, we will use the Pedersen commitment along with the Jubjub elliptic curve. Let $\mathbb{J}$ be a group of order $t$ and set our message and randomness spaces $\mathcal{M}, \mathcal{R} = \F_t$ and our commitment space $\mathcal{C} = \mathbb{J}$. The Setup, Commit, and Open algorithms for Pedersen commitments are defined as follows:
+\begin{itemize}
+      \item \emph{Setup.} Sample and output the commitment key $\ck= (G,G')\gets\mathbb{J}^2$.
+    \item \emph{Commit.} On input a message $m \in \mathcal{M}$, sample randomness $r\gets\F_t$ and output
+    \[c = \mathsf{Com}_\ck(m;r)=mG+rG'.\]
+    \item \emph{Open.} Reveal $m,r$. With these values, anyone can recompute the commitment and check whether it matches the commitment previously provided.
+\end{itemize}
+
+The Pedersen commitment scheme is perfectly hiding, and computationally binding under the discrete logarithm assumption.
+
+On the other hand, we will make use of hash functions, which we define as follows.
+
+\begin{definition}[Hash Functions] A \emph{cryptographic hash function} is a function $H:\{0,1\}^*\rightarrow\{0,1\}^\ell$ that is collision-resistant, that is, it is hard to find $x,x'\in\{0,1\}^*$ such that $x\neq x'$ but $H(x)=H(x')$. 
+\end{definition}
+
+Throughout the document, we will be using two specific hash functions: first, BLAKE2b \cite{blake2}, a lightweight and efficient hash function. Second, Poseidon \cite{cryptoeprint:2019:458}, whose main feature is being SNARK-friendly: it is cheap in terms of computing resources when computed into a specific ZKP scheme called zk-SNARK.
+
+\subsection{Merkle Trees}
+
+\emph{Merkle trees}~\cite{merkle1987digital} are data structures containing at every node the hash of its children nodes. Considering a $k$-ary tree of $h$ levels, the single node at level $0$ is called the \emph{root} of the tree, and the $k^{h}$ nodes at level $h$ are called the \emph{leaves}. Given a node placed in the level $i$, the $k$ nodes in the level $i+1$ that are adjacent to it are called its \emph{children}. Plus, a node is the other's \emph{sibling} if they all are children of the same node.
+
+The tree is partially updated every time a new value is written (or modified) into a leaf, always resulting in a new root of the tree. Furthermore, given a root $r$, it is easy to prove that a value $x$ is in a leaf of a tree with root $r$. The proof works as follows: 
+\begin{itemize}
+  \item \emph{Prove.} For $i=h,\dots,1$, let $x_i$ be the node that is in level $i$ and is in the unique path from $x$ to the root. Let $y_{i, 1},\dots, y_{i, k-1}$ be the $k-1$ siblings of $x_i$. Output
+  \[(x, (y_{1,1}, \dots, y_{1,k-1}), \dots, (y_{h,1},\dots,y_{h,k-1})).\]
+  \item \emph{Verify}. Parse input as $(x_h, (y_{1,1}, \dots, y_{1,k-1}), \dots, (y_{h,1},\dots,y_{h,k-1}))$, where $x_h$ is the purported value and $y_{i,1},\dots,y_{i,k-1}$ are the purported siblings at level $i$. For $i=h-1,\dots, 0$, compute\footnote{Additionaly, the prover also has to send $\lceil\log_2k\rceil$ bits for each level, specifying the position of $x_i$ with respect to its siblings, so that the verifier knows in which order to arrange the inputs of the hash.}
+  \[x_i = H\left( x_{i+1}, y_{i+1,1},\dots,y_{i+1,k-1} \right).\] 
+  If $x_0$ equals the root $r$ of the set we are proving membership of, the proof is verified.
+\end{itemize}
+
+We can prove membership in a set of size $k^h$ by sending $kh$ values, so we can state that the communication complexity for proving the membership is $O(kh)$. If the hash function is collision-resistant, the proof is sound.
+
+\subsection{Digital Signatures}
+\label{sec:signatures}
+
+Digital signatures are one of the most important pieces needed to build our solution. In particular, we are interested in the Schnorr signature scheme, which we describe now. Let $G, G'\gets \mathbb{J}$. Then, we have the following algorithms:
+
+\begin{itemize}
+    \item \emph{Setup.} Sample a secret key $\sk \gets \F_t$ and compute a public key $\pk = \sk G$. 
+    \item \emph{Sign.} To sign a message $m$ using $\sk$, sample $r \gets \F_t$ and compute $R = rG$. Compute the challenge $c = H(m, R)$, and set 
+    \[u = r - c \sk.\]
+    Set the signature $\sig = (R, u)$. 
+    \item \emph{Verify.} To verify a signature $\sig = (R, u)$ of a message $m$ using $\pk$, we first compute $c = H(m, R)$ and check whether the following equality holds:
+    \[\begin{aligned}
+        & R \stackrel{?}{=} uG + c \pk, \\
+    \end{aligned}\]
+    If it equals, accept the signature, reject otherwise.
+\end{itemize}
+
+This scheme is existentially unforgeable under chosen-message attacks under the discrete logarithm assumption, in the random oracle model~\cite[Section 12.5.1]{katz2020introduction}.
+
+We are also interested in a double-key version of this signature scheme, that will be used to delegate some computations later in the protocol. We have the following algorithms:
+
+\begin{itemize}
+    \item \emph{Setup.} Sample a secret key $\sk \gets \F_t$ and compute a public keypair $(\pk, \pk') = (\sk G, \sk G')$. 
+    \item \emph{Sign.} To sign a message $m$ using $\sk$, sample $r \gets \F_t$ and compute $(R, R') = (rG, rG')$. Compute the challenge $c = H(m, R, R')$, and also 
+    \[u = r - c \sk.\]
+    Finally, set the signature $\sig = (R, R', u)$. 
+    \item \emph{Verify.} To verify a signature $\sig = (R, R', u)$ of a message $m$ using $(\pk, \pk')$, we first compute $c = H(m, R, R')$ and check whether the following equalities hold:
+    \[\begin{aligned}
+        & R \stackrel{?}{=} uG + c \pk, \\
+        & R' \stackrel{?}{=} uG' + c \pk'. \\
+    \end{aligned}\]
+    If they are equal, accept the signature, reject otherwise.
+\end{itemize}
+
+\subsection{Zero-Knowledge Proofs}
+\label{subsec:zkp}
+
+A Zero-Knowledge Proof (ZKP) \cite{gmr85} is a cryptographic primitive allowing a prover $\mathcal{P}$ to convince a verifier $\mathcal{V}$ that a public statement is true, without leaking any secret information. 
+
+Given a statement $u$, and a witness $w$ being some secret information only known by $\mathcal{P}$, $\mathcal{P}$ wants to convince $\mathcal{V}$ that they know $w$. Both $u$ and $w$ are related by a set of operations defined by a \textit{circuit}, a graph composed of different wires and gates, which leads to a set of equations involving the inputs and the outputs of these gates. Each of these equations is called a \textit{constraint}. $\mathcal{P}$ can execute a proving algorithm using $u$ as the set of public inputs, and $w$ as the private inputs. This execution outputs a set of elements, which we call the proof $\pi$. $\mathcal{P}$ sends $\pi$ to $\mathcal{V}$, who will use a verifying algorithm to verify that $u$ is true, for a given $w$ only known by $\mathcal{P}$. In essence, ZKPs must satisfy 3 properties:
+
+\begin{itemize}
+ \item \textbf{Completeness:} If the statement is true, $\mathcal{P}$ must be able to convince $\mathcal{V}$.
+ \item \textbf{Soundness:} If the statement is false, $\mathcal{P}$ must not be able to convince $\mathcal{V}$ that the statement is true.
+ \item \textbf{Zero-knowledge:} $\mathcal{V}$ must not learn any information from the proof beyond the fact that the statement is true.
+\end{itemize}
+
+First ZKP schemes used to achieve the aforesaid properties by exchanging several messages between $\mathcal{P}$ and $\mathcal{V}$. However, non-interactive ZKPs \cite{Blum:1988:NZA:62212.62222} arose, providing an extra feature, where $\mathcal{P}$ could prove statements to $\mathcal{V}$ by sending them a single message, instead of several interactions. 
+
+Even so, computing and verifying ZKPs used to require high computing resources, and this made them impractical in real applications. More recently, Zero-Knowledge Succinct and Non-interactive ARguments of Knowledge (zk-SNARKs) \cite{cryptoeprint:2013:879} appeared: ZKPs that can be computed and verified in a more efficient way, compared to previous solutions, making them suitable for real applications, like privacy-preserving cryptocurrencies \cite{zcash}. 
+
+\subsection{zk-SNARKs}
+
+zk-SNARKs \cite{184425} are the most used ZKPs, because they are short and succinct: the proofs can be verified in a few milliseconds. However, they require a trusted setup where some public parameters are generated. These parameters, called the Common Reference String (CRS) are used by $\mathcal{P}$ and $\mathcal{V}$ to generate and verify proofs. To generate the CRS, a secret randomness $\tau$ is used, and such randomness should be destroyed afterward. If an attacker gets $\tau$, the soundness property of the scheme breaks: the attacker would be able to compute false proofs that anyone could verify as if they were correct. As such, the CRS is commonly computed using a secure Multi-Party Computation (MPC) protocol \cite{cryptoeprint:2017:1050}, where $\tau$ can only be leaked if all the participants are malicious. The computing complexity of generating a setup, computing proofs, and verifying them, depends on the number of operations that we do in the circuit, which is also the number of gates $n$. 
+
+\subsection{Blockchain}
+
+A Blockchain \cite{blockchain} is a unique and immutable data structure called ledger, and shared by a set of nodes. Cryptocurrencies like Bitcoin \cite{blockchain2} use such technology, and populate the ledger with transactions exchanging money between parties. These transactions are cryptographically validated by the nodes of the network, to be sure that each user spends what belongs to them. This process is a consensus agreed upon among all the users of the network (e.g. Proof of Work \cite{gervais2016security}, Proof of Stake \cite{bentov2014proof}, etc.). 
+
+Beyond the feature of exchanging money, Blockchains like Ethereum \cite{ethereum} grant the possibility of executing decentralized applications (DApps) on-chain. DApps are possible thanks to smart contracts \cite{mavridou2018designing}, programs that can be executed on-chain thanks to the Ethereum Virtual Machine (EVM) \cite{hildenbrandt2018kevm}. Such contracts and the EVM allow, for instance, to execute some action (like issuing a payment) upon fulfilling some conditions.
+
+Furthermore, other Blockchains like Dusk Network \cite{dusk} also provide virtual machines to execute smart contracts. In this particular case, Dusk has the \verb!Rusk! virtual machine, which like the EVM can execute smart contracts, but with the difference that all the transactions handled by \verb!Rusk! are private by default, thanks to ZKPs.
+
+From a more technical perspective, it is worth mentioning that, in order to prevent saturation of the network, users are required to pay \textit{gas} in order to execute transactions. This is the amount of Duskies (Dusk's coin) per amount of bytes needed to execute a transaction. Depending on how busy the Dusk Network is, the price of the gas increases or decreases. Like this, performing a Denial-of-Service (DoS) attack becomes so expensive that is infeasible \cite{Chen2017AnAG}.
