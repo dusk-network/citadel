@@ -1,0 +1,18 @@
+
+\subsection{What is Citadel} 
+
+A Self-Sovereign Identity (SSI) protocol serves the purpose of allowing users of a given service to manage their identities in a fully transparent manner. In other words, every user can know which information about them is shared with other parties, and accept or deny any request for personal information.
+
+\verb!Citadel! is a SSI protocol build on top of Dusk Network. Users of a service can get a \textit{license}, which represents their \textit{right} to use such a service. In particular, \verb!Citadel! allows for the following properties:
+
+\begin{itemize}
+	\item \textbf{Proof of Ownership:} a user of a service is able to prove ownership of a license that allows them to use such a service.
+	\item \textbf{Proof of Validity:} users can prove ownership of a valid license, that has not been revoked.
+ 	\item \textbf{Unlinkability:} no one can link any activity with other activities done in the network.
+ 	\item \textbf{Decentralized Nullification:} when a user spends a license, everyone in the network learns that this happened, so it cannot be spent again.
+	\item \textbf{Attribute Blinding:} the user is capable of deciding which information they want to leak, blinding any other sensitive information and providing only the desired one.
+\end{itemize}
+
+\subsection{Document Organization} 
+
+In Section \ref{sec:definitions} we define all the object types and entities involved in the protocol. In Section \ref{sec:protocol} we roll out the protocol with full details.
