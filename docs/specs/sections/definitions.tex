@@ -1,18 +1,39 @@
-\subsection{The Types involved} 
-
-\begin{itemize}
-    \item \textbf{Request:} TBD.
-    \item \textbf{License:} TBD.
-
-    $$\License = \{\type, \pos, \nonce, \enc, \npk, R\}.$$
-
-    \item \textbf{Session Cookie:} TBD.
-\end{itemize}
-
-
 \subsection{The Roles involved} 
 
 \begin{itemize}
     \item \textbf{User:} TBD.
     \item \textbf{Service Provider:} TBD.
+\end{itemize}
+
+\subsection{The Types involved} 
+
+\begin{itemize}
+    \item \textbf{Request:} TBD.
+
+    \item \textbf{License:} A license is an asset that represents the right of a user to use a given service. The structure is as follows:
+
+    $$\License = \{\type, \pos, \nonce, \enc, \npk, R\}.$$
+
+    where
+
+    \begin{itemize}
+        \item $\type$ can be transparent (0) or obfuscated (1).
+        \item $\pos$ is the position of the license into a Merkle tree of licenses.
+        \item $\nonce$ is a randomness needed to compute $\enc$.
+        \item $\enc$ is a ciphertext of size 4.
+        \item $(\npk, R)$ is the note public key of the license's owner.
+    \end{itemize}
+
+    \item \textbf{Session Cookie:} A session cookie is a secret value (thus, always obfuscated) known only by the user and the SP. It contains a set of openings to a given set of commitments. The structure is as follows:
+
+    $$\sc = \{\pos, \nonce, \enc, \npk, R\}.$$
+
+    where
+
+    \begin{itemize}
+        \item $\pos$ is the position of the session cookie into a Merkle tree of session cookies.
+        \item $\nonce$ is a randomness needed to compute $\enc$.
+        \item $\enc$ is a ciphertext of size 3.
+        \item $(\npk, R)$ is the note public key of the SP.
+    \end{itemize}
 \end{itemize}
