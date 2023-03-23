@@ -9,31 +9,25 @@ The workflow is depicted in Figure \ref{fig:protocol}, and described with full d
 \end{figure}
 
 \begin{enumerate}
-	\item (\textbf{user}) $\mathsf{send\_note\_license\_req}$ : Compute a note public key $(\npk_{\user}, R_{\user})$ belonging to the user, using the user's own public key, and also an additional key $\ksym_{\user} = \hp(\npk_{\user}, \nsk_{\user})$, by computing first the user's $\nsk_{\user}$. Then, send the required amount of Dusk coins to the SP, in order to pay for the service. Into the same transaction, send an NFT to the SP using the function $\mintnft(\npk_{\SP}, R_{\SP}, \nftpayload, \kdh)$, whose arguments are computed as follows:
-	\begin{itemize}
-		\item $(\npk_{\SP}, R_{\SP})$ is the SP's note public key, computed through his public key $\pk_{\SP}$.
-		\item $\nftpayload = (\npk_{\user}, R_{\user}, \ksym_{\user})$.
-		\item $\kdh$ is computed using the SP's public key.
-	\end{itemize}
+	\item (\textbf{user}) $\mathsf{send\_license\_req}$ : TBD.
 
-	\item (\textbf{SP}) $\mathsf{get\_note\_license\_req}$ : Continuously check the network for incoming license requests. Upon receiving the payment from a user, define a set of attributes $attr$ representing the license, and compute a digital signature as follows:
+	\item (\textbf{SP}) $\mathsf{get\_license\_req}$ : Continuously check the network for incoming license requests. Upon receiving the payment from a user, define a set of attributes $attr$ representing the license, and compute a digital signature as follows:
 
-	$$\lsig= \sign_{\sk_{\SP}}(\npk_{\user}, \attr)$$
+	$$\lsig = \sign_{\sk_{\SP}}(\lpk, \attr)$$
 
-	\item (\textbf{SP}) $\mathsf{send\_note\_license}$ : Set the $\nftpayload = \{\lsig, \attr\}$, and send the license to the user using the function $\mintnft(\npk_{\user}, R_{\user}, \nftpayload, \ksym_{\user})$.
+	\item (\textbf{SP}) $\mathsf{send\_license}$ : Compute $\enc = \Enc_{\ksym_{\user}} ((\lsig, \attr); \nonce)$, set all the paramters of the license struct, and send it to the user.
 
-	\item (\textbf{user}) $\mathsf{get\_note\_license}$ : Receive the note containing the license. 
+	\item (\textbf{user}) $\mathsf{get\_license}$ : Receive the license. 
 
 	\item (\textbf{user}) $\mathsf{call\_nullify\_license}$ : When desiring to use the license, nullify it by executing a call to the license contract. The following steps are performed:
 
 	\begin{itemize}
-		\item The user sets a session cookie $\stoken = (\mathsf{s_0}, \mathsf{s_1}, \mathsf{s_2}) \leftarrow \F_t$.
-		\item The user creates a new NFT note where $\nftpayload = \stoken$, and the SP is the receiver.
-		\item The user issues the transaction that includes the NFT described in the previous step, by calling the license contract. In this case, the \textsf{tx\_proof} is computed as done in the standard Phoenix model, but into the same circuit, the circuit depicted in Figure \ref{fig:circuit_prove_nft} is appended.
-		\item The network validators will execute the smart contract, which verifies the proof. Upon success, the NFT note will be forwarded, and the license nullifier $\lnullifier$ will be added to the Merkle tree of nullifiers.
+		\item The user sets a session cookie $\stoken$ where $\enc = \Enc_{\ksym} ((\mathsf{s_0}, \mathsf{s_1}, \mathsf{s_2}); \nonce)$ and sets the SP as the receiver.
+		\item The user issues the transaction that includes the session cookie described in the previous step, by calling the license contract. In this case, the \textsf{tx\_proof} is computed as done in the standard Phoenix model to pay for the gas, but into the same circuit, the gadget depicted in Figure \ref{fig:circuit_prove_nft} is appended.
+		\item The network validators will execute the smart contract, which verifies the proof. Upon success, the session cookie will be forwarded, and the license nullifier $\lnullifier$ will be added to a shared list of nullifiers.
 	\end{itemize}
 
-	\item (\textbf{SP}) $\mathsf{get\_note\_session\_cookie}$ : Receive a note containing the session cookie $\stoken$.
+	\item (\textbf{SP}) $\mathsf{get\_session\_cookie}$ : Receive the session cookie $\stoken$.
 
 	\item (\textbf{user}) $\mathsf{req\_service}$ : Request the service to the SP, establishing communication using a secure channel, and providing the tuple $(\mathsf{tx\_hash}, \pk_{\SP}, \attr, c, \stoken)$.
 
