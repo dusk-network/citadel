@@ -15,7 +15,7 @@ The workflow is depicted in Figure \ref{fig:protocol}, and described with full d
 
 	$$\lsig = \sign_{\sk_{\SP}}(\lpk, \attr)$$
 
-	\item (\textbf{SP}) $\mathsf{send\_license}$ : Compute $\enc = \Enc_{\ksym_{\user}} ((\lsig, \attr); \nonce)$, set all the paramters of the license struct, and send it to the user.
+	\item (\textbf{SP}) $\mathsf{send\_license}$ : Compute $\enc = \Enc_{\ksym_{\user}} ((\lsig, \attr); \nonce)$, set all the parameters of the license struct, and send it to the user.
 
 	\item (\textbf{user}) $\mathsf{get\_license}$ : Receive the license. 
 

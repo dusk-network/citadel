@@ -25,8 +25,8 @@
      inkscape:document-units="mm"
      showgrid="false"
      inkscape:zoom="0.90583672"
-     inkscape:cx="645.25978"
-     inkscape:cy="267.70829"
+     inkscape:cx="356.02443"
+     inkscape:cy="280.95571"
      inkscape:window-width="2560"
      inkscape:window-height="1317"
      inkscape:window-x="1920"
@@ -256,7 +256,7 @@
          id="tspan6622"
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.264583"
          x="-25.085907"
-         y="67.785103">(1) send_note_license_req</tspan></text>
+         y="67.785103">(1) send_license_req</tspan></text>
     <path
        style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-start:url(#marker17730)"
        d="M 96.165804,72.025266 H -62.01549"
@@ -283,7 +283,7 @@
          id="tspan3127"
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.264583"
          x="134.68286"
-         y="78.897614">(2) get_note_license_req</tspan></text>
+         y="78.897614">(2) get_license_req</tspan></text>
     <path
        style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-start:url(#marker17730)"
        d="M 255.93468,83.137773 H 97.753305"
@@ -298,7 +298,7 @@
          id="tspan7105"
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.264583"
          x="134.68286"
-         y="95.830963">(3) send_note_license</tspan></text>
+         y="95.830963">(3) send_license</tspan></text>
     <path
        style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-start:url(#marker17730)"
        d="M 99.723986,100.07112 H 257.90536"
@@ -313,7 +313,7 @@
          id="tspan20305"
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.264583"
          x="-25.085907"
-         y="107.397">(4) get_note_license</tspan></text>
+         y="107.397">(4) get_license</tspan></text>
     <path
        style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-start:url(#marker17730)"
        d="M -61.218288,111.63724 H 96.962566"
@@ -373,7 +373,7 @@
          id="tspan146494"
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.264583"
          x="134.68286"
-         y="138.6933">(6) get_note_session_cookie</tspan></text>
+         y="138.6933">(6) get_session_cookie</tspan></text>
     <path
        style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-start:url(#marker17730)"
        d="M 255.93468,142.93389 H 97.753305"
