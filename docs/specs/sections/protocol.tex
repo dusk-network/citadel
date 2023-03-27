@@ -11,7 +11,7 @@ The workflow is depicted in Figure \ref{fig:protocol}, and described with full d
 \begin{enumerate}
 	\item (\textbf{user}) $\mathsf{send\_license\_req}$ : TBD.
 
-	\item (\textbf{SP}) $\mathsf{get\_license\_req}$ : Continuously check the network for incoming license requests. Upon receiving the payment from a user, define a set of attributes $attr$ representing the license, and compute a digital signature as follows:
+	\item (\textbf{SP}) $\mathsf{get\_license\_req}$ : Continuously check the network for incoming license requests. Upon receiving the payment from a user, define a set of attributes $\attr$ representing the license, and compute a digital signature as follows:
 
 	$$\lsig = \sign_{\sk_{\SP}}(\lpk, \attr)$$
 

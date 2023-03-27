@@ -8,43 +8,69 @@
 \subsection{The Elements involved} 
 
 \begin{itemize}
-    \item \textbf{Request:} TBD.
-
-    \item \textbf{License:} A license is an asset that represents the right of a user to use a given service. The structure is as follows:
-
-    $$\License = \{\type, \pos, \nonce, \enc, (\lpk, R)\}.$$
-
-    where
+    \item \textbf{Request:} A request includes the encryption of a stealth address belonging to the user, where the license has to be sent to. The structure is as follows:
 
     \begin{center}
         \begin{tabular}{ |c|c|c|c| } 
         \hline
         \textbf{Element} & \textbf{Type} & \textbf{Info.} \\
         \hline
-        $\type$ & - & Can be transparent (0) or obfuscated (1). \\ 
-        $\pos$ & - & It is the position of the license into a Merkle tree of licenses. \\ 
         $\nonce$ & - & It is a randomness needed to compute $\enc$. \\ 
-        $\enc$ & - & It is a ciphertext of size 4. \\
-        $(\lpk, R)$ & - & It is the public key of the license belonging to the user. \\
+        $\enc$ & - & It is a ciphertext of size 3. \\
+        $(\lpk, R)$ & - & It is a stealth address of the SP. \\
         \hline
         \end{tabular}
     \end{center}
 
-    \item \textbf{Session Cookie:} A session cookie is a secret value (thus, always obfuscated) known only by the user and the SP. It contains a set of openings to a given set of commitments. The structure is as follows:
 
-    $$\stoken = \{\pos, \nonce, \enc, (\lpk_{\mathsf{SP}}, R_{\mathsf{SP}})\}.$$
-
-    where
+    \item \textbf{License:} A license is an asset that represents the right of a user to use a given service. The structure is as follows:
 
     \begin{center}
         \begin{tabular}{ |c|c|c|c| } 
         \hline
         \textbf{Element} & \textbf{Type} & \textbf{Info.} \\
         \hline
-        $\pos$ & - & It is the position of the license into a Merkle tree of session cookies. \\ 
+        $\pos$ & - & It is the position of the license into a Merkle tree of licenses. \\ 
         $\nonce$ & - & It is a randomness needed to compute $\enc$. \\ 
-        $\enc$ & - & It is a ciphertext of size 3. \\
-        $(\lpk_{\mathsf{sc}}, R_{\mathsf{sc}})$ & - & It is the license public key of the session cookie. \\
+        $\enc$ & - & It is a ciphertext of size 4. \\
+        $(\lpk, R)$ & - & It is a stealth address of the user. \\
+        \hline
+        \end{tabular}
+    \end{center}
+
+    \item \textbf{LicenseProverParameters:} A prover needs some auxiliary parameters to compute the proof that nullifies a license when desired to be spent. The structure is as follows:
+
+    \begin{center}
+        \begin{tabular}{ |c|c|c|c| } 
+        \hline
+        \textbf{Element} & \textbf{Type} & \textbf{Info.} \\
+        \hline
+        $\lpk'$ & - & The license public key prime.\\ 
+        $\lsig$ & - & The signature of the license. \\ 
+        $\com_0^{hash}$ & - & A hash commitment of the public key of the SP. \\ 
+        $\com_1$ & - & A Pedersen Commitment of the attributes. \\ 
+        $\com_2$ & - & A Pedersen Commitment of the $c$ value. \\ 
+        $\mathsf{tx\_hash}$ & - & The hash of the transaction calling the nullifying contract. \\ 
+        $\mathsf{sig}_\mathsf{tx}$ & - & The signature of the transaction calling the nullifying contract. \\ 
+        $\mathsf{nullifier}_\mathsf{lic}$ & - & The nullifier of the license. \\ 
+        $\mathsf{merkle\_proof}$ & - & Membership proof of the license in the Merkle tree of licenses. \\ 
+
+        \hline
+        \end{tabular}
+    \end{center}
+
+    \item \textbf{Session Cookie:} A session cookie is a secret value known only by the user and the SP. It contains a set of openings to a given set of commitments. The structure is as follows:
+
+    \begin{center}
+        \begin{tabular}{ |c|c|c|c| } 
+        \hline
+        \textbf{Element} & \textbf{Type} & \textbf{Info.} \\
+        \hline
+        $\pk_{\SP}$ & - & The public key of the SP. \\ 
+        $\attr$ & - & The attributes of the user. \\ 
+        $c$ & - & The challenge value. \\ 
+        $(\mathsf{s_0}, \mathsf{s_1}, \mathsf{s_2})$ & - & The randomness used to compute the commitments. \\
+
         \hline
         \end{tabular}
     \end{center}
