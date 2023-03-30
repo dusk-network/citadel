@@ -8,16 +8,16 @@
 \subsection{The Elements involved} 
 
 \begin{itemize}
-    \item \textbf{Request:} A request includes the encryption of a stealth address belonging to the user, where the license has to be sent to. The structure is as follows:
+    \item \textbf{Request:} A request includes the encryption of a stealth address belonging to the user, where the license has to be sent to, and a symmetric key. The structure is as follows:
 
     \begin{center}
         \begin{tabular}{ |c|c|c|c| } 
         \hline
         \textbf{Element} & \textbf{Type} & \textbf{Info.} \\
         \hline
-        $\nonce$ & - & It is a randomness needed to compute $\enc$. \\ 
-        $\enc$ & - & It is a ciphertext of size 3. \\
         $(\rpk, R)$ & - & It is a stealth address of the SP. \\
+        $\enc$ & - & It is a ciphertext of size 4. \\
+        $\nonce$ & - & It is a randomness needed to compute $\enc$. \\ 
         \hline
         \end{tabular}
     \end{center}
@@ -30,10 +30,10 @@
         \hline
         \textbf{Element} & \textbf{Type} & \textbf{Info.} \\
         \hline
-        $\pos$ & - & It is the position of the license into a Merkle tree of licenses. \\ 
-        $\nonce$ & - & It is a randomness needed to compute $\enc$. \\ 
-        $\enc$ & - & It is a ciphertext of size 4. \\
         $(\lpk, R)$ & - & It is a stealth address of the user. \\
+        $\enc$ & - & It is a ciphertext of size 4. \\
+        $\nonce$ & - & It is a randomness needed to compute $\enc$. \\ 
+        $\pos$ & - & It is the position of the license into a Merkle tree of licenses. \\ 
         \hline
         \end{tabular}
     \end{center}
@@ -59,6 +59,22 @@
         \end{tabular}
     \end{center}
 
+    \item \textbf{Session:} A session is a public struct known only by all the validators. The structure is as follows:
+
+    \begin{center}
+        \begin{tabular}{ |c|c|c|c| } 
+        \hline
+        \textbf{Element} & \textbf{Type} & \textbf{Info.} \\
+        \hline
+        $(\spk, R)$ & - & It is a stealth address of the SP. \\ 
+        $\lnullifier$ & - & The nullifier of a given license. \\ 
+        $\com_0^{hash}$ & - & A hash commitment of the public key of the SP. \\ 
+        $\com_1$ & - & A Pedersen Commitment of the attributes. \\ 
+        $\com_2$ & - & A Pedersen Commitment of the $c$ value. \\ 
+        \hline
+        \end{tabular}
+    \end{center}
+
     \item \textbf{Session Cookie:} A session cookie is a secret value known only by the user and the SP. It contains a set of openings to a given set of commitments. The structure is as follows:
 
     \begin{center}
@@ -66,11 +82,11 @@
         \hline
         \textbf{Element} & \textbf{Type} & \textbf{Info.} \\
         \hline
+        $\lnullifier$ & - & The nullifier of a given license. \\ 
         $\pk_{\SP}$ & - & The public key of the SP. \\ 
         $\attr$ & - & The attributes of the user. \\ 
         $c$ & - & The challenge value. \\ 
         $(\mathsf{s_0}, \mathsf{s_1}, \mathsf{s_2})$ & - & The randomness used to compute the commitments. \\
-
         \hline
         \end{tabular}
     \end{center}

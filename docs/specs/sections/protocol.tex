@@ -9,33 +9,54 @@ The workflow is depicted in Figure \ref{fig:protocol}, and described with full d
 \end{figure}
 
 \begin{enumerate}
-	\item (\textbf{user}) $\mathsf{send\_license\_req}$ : TBD.
+	\item (\textbf{user}) $\mathsf{send\_license\_req}$ : Compute a license public key $(\lpk, R)$ belonging to the user, using the user's own public key, and also an additional key $\ksym_{\License} = \hb(\lsk)G$, by computing first the user's $\lsk$. Then, compute $(\rpk, R)$ and $\kdh$ using the SP's public key. And finally send the following request to the network:
 
-	\item (\textbf{SP}) $\mathsf{get\_license\_req}$ : Continuously check the network for incoming license requests. Upon receiving the payment from a user, define a set of attributes $\attr$ representing the license, and compute a digital signature as follows:
 
-	$$\lsig = \sign_{\sk_{\SP}}(\lpk, \attr)$$
+		$$\Request = ((\rpk, R), \enc, \nonce)$$
 
-	\item (\textbf{SP}) $\mathsf{send\_license}$ : Compute $\enc = \Enc_{\ksym_{\user}} ((\lsig, \attr); \nonce)$, set all the parameters of the license struct, and send it to the user.
+	where 
 
-	\item (\textbf{user}) $\mathsf{get\_license}$ : Receive the license. 
+		$$\enc = \Enc_{\kdh} ((\lpk, R)||\ksym_{\License}; \nonce)$$
+
+
+	\item (\textbf{SP}) $\mathsf{get\_license\_req}$ : Continuously check the network for incoming license requests.
+
+	\item (\textbf{SP}) $\mathsf{send\_license}$ : Upon receiving the request from a user, define a set of attributes $\attr$ representing the license, and compute a digital signature as follows:
+
+		$$\lsig = \sign_{\sk_{\SP}}(\lpk, \attr)$$
+
+	Then, send the following license to the network:
+
+		$$\License = ((\lpk, R), \enc, \nonce, \pos)$$
+
+	where 
+
+		$$\enc = \Enc_{\ksym_{\License}} (\lsig || \attr; \nonce)$$
+
+	\item (\textbf{user}) $\mathsf{get\_license}$ : Receive the license by scanning the incoming transactions.
 
 	\item (\textbf{user}) $\mathsf{call\_nullify\_license}$ : When desiring to use the license, nullify it by executing a call to the license contract. The following steps are performed:
 
 	\begin{itemize}
-		\item The user sets a session cookie $\stoken$ where $\enc = \Enc_{\ksym} ((\mathsf{s_0}, \mathsf{s_1}, \mathsf{s_2}); \nonce)$ and sets the SP as the receiver.
-		\item The user issues the transaction that includes the session cookie described in the previous step, by calling the license contract. In this case, the \textsf{tx\_proof} is computed as done in the standard Phoenix model to pay for the gas, but into the same circuit, the gadget depicted in Figure \ref{fig:circuit_prove_nft} is appended.
-		\item The network validators will execute the smart contract, which verifies the proof. Upon success, the session cookie will be forwarded, and the license nullifier $\lnullifier$ will be added to a shared list of nullifiers.
+		\item The user issues a transaction that calls the license contract, which includes a ZKP that is computed out of the gadget depicted in Figure \ref{fig:circuit_prove_nft}.
+		\item The network validators will execute the smart contract, which verifies the proof. Upon success, the following session will be added to a shared list of sessions:
+
+			$$\Session = \{(\spk, R), \lnullifier, \com_0^{hash}, \com_1, \com_2\}$$
+
+		where $(\spk, R)$ is a stealth address included into the transaction, and computed by the user using the SP's public key.
+
+
 	\end{itemize}
 
-	\item (\textbf{SP}) $\mathsf{get\_session\_cookie}$ : Receive the session cookie $\stoken$.
+	\item (\textbf{SP}) $\mathsf{get\_session}$ : Receive the session by scanning the incoming transactions.
 
-	\item (\textbf{user}) $\mathsf{req\_service}$ : Request the service to the SP, establishing communication using a secure channel, and providing the tuple $(\mathsf{tx\_hash}, \pk_{\SP}, \attr, c, \stoken)$.
+	\item (\textbf{user}) $\mathsf{req\_service}$ : Request the service to the SP, establishing communication using a secure channel, and providing the $\SessionCookie$.
 
 	\item (\textbf{SP}) $\mathsf{grant\_service}$ : Grant or deny the service upon verification of the following steps:
 
 	\begin{itemize}
-		\item Check whether or not the values $(\attr, \pk_{\SP}, c)$ are correct.
-		\item Check whether or not the openings $((\pk_{\SP}, \mathsf{s_0}), (\attr, \mathsf{s_1}), (c, \mathsf{s_2}))$ match the commitments $\com_0^{hash}, \com_1, \com_2$ found in the transaction $\mathsf{tx\_hash}$.
+		\item Check whether or not the values $(\attr, \pk_{\SP}, c)$ included in the $\SessionCookie$ are correct.
+		\item Check whether or not the openings $((\pk_{\SP}, \mathsf{s_0}), (\attr, \mathsf{s_1}), (c, \mathsf{s_2}))$ included in the $\SessionCookie$ match the commitments $\com_0^{hash}, \com_1, \com_2$ found in the $\Session$, where $\Session.\lnullifier = \SessionCookie.\lnullifier$.
 	\end{itemize}
 
 \end{enumerate}

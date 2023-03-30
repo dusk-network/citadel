@@ -7,7 +7,7 @@
    viewBox="0 0 383.17248 211.08923"
    version="1.1"
    id="svg5"
-   inkscape:version="1.1.2 (b8e25be8, 2022-02-05)"
+   inkscape:version="1.1.1 (c3084ef, 2021-09-22)"
    sodipodi:docname="protocol.svg"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
@@ -25,11 +25,11 @@
      inkscape:document-units="mm"
      showgrid="false"
      inkscape:zoom="0.90583672"
-     inkscape:cx="356.02443"
-     inkscape:cy="280.95571"
-     inkscape:window-width="2560"
-     inkscape:window-height="1317"
-     inkscape:window-x="1920"
+     inkscape:cx="896.96077"
+     inkscape:cy="519.40928"
+     inkscape:window-width="1440"
+     inkscape:window-height="787"
+     inkscape:window-x="0"
      inkscape:window-y="25"
      inkscape:window-maximized="1"
      inkscape:current-layer="layer1" />
@@ -373,7 +373,7 @@
          id="tspan146494"
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.264583"
          x="134.68286"
-         y="138.6933">(6) get_session_cookie</tspan></text>
+         y="138.6933">(6) get_session</tspan></text>
     <path
        style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-start:url(#marker17730)"
        d="M 255.93468,142.93389 H 97.753305"
