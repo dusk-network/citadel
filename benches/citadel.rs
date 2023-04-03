@@ -6,23 +6,24 @@
 
 use dusk_plonk::prelude::*;
 use zk_citadel::gadget;
-use zk_citadel::license::License;
+use zk_citadel::license::{License, LicenseProverParameters, SessionCookie};
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand_core::OsRng;
 
 static mut CONSTRAINTS: usize = 0;
 static LABEL: &[u8; 12] = b"dusk-network";
-const CAPACITY: usize = 17; // capacity required for the setup
+const CAPACITY: usize = 15; // capacity required for the setup
 
 #[derive(Default, Debug)]
 pub struct Citadel {
-    license: License,
+    lpp: LicenseProverParameters,
+    sc: SessionCookie,
 }
 
 impl Citadel {
-    pub fn new(license: License) -> Self {
-        Self { license }
+    pub fn new(lpp: LicenseProverParameters, sc: SessionCookie) -> Self {
+        Self { lpp, sc }
     }
 }
 
@@ -31,7 +32,7 @@ impl Circuit for Citadel {
     where
         C: Composer,
     {
-        gadget::nullify_license(composer, &self.license)?;
+        gadget::nullify_license(composer, &self.lpp, &self.sc)?;
 
         unsafe {
             CONSTRAINTS = composer.constraints();
@@ -48,21 +49,21 @@ fn citadel_benchmark(c: &mut Criterion) {
         Compiler::compile::<Citadel>(&pp, LABEL).expect("failed to compile circuit");
 
     // Benchmark the prover
-    let license = License::random(&mut OsRng);
+    let (_license, lpp, sc) = License::random(&mut OsRng);
 
     unsafe {
         let log = &format!("Citadel Prover ({} constraints)", CONSTRAINTS);
         c.bench_function(log, |b| {
             b.iter(|| {
                 prover
-                    .prove(&mut OsRng, &Citadel::new(license.clone()))
+                    .prove(&mut OsRng, &Citadel::new(lpp.clone(), sc.clone()))
                     .expect("failed to prove")
             })
         });
 
         // Benchmark the verifier
         let (proof, public_inputs) = prover
-            .prove(&mut OsRng, &Citadel::new(license))
+            .prove(&mut OsRng, &Citadel::new(lpp, sc))
             .expect("failed to prove");
         let log = &format!("Citadel Verifier ({} constraints)", CONSTRAINTS);
         c.bench_function(log, |b| {

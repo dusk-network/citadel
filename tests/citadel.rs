@@ -8,19 +8,20 @@ use dusk_plonk::prelude::*;
 use rand_core::OsRng;
 
 static LABEL: &[u8; 12] = b"dusk-network";
-const CAPACITY: usize = 17; // capacity required for the setup
+const CAPACITY: usize = 15; // capacity required for the setup
 
 use zk_citadel::gadget;
-use zk_citadel::license::{License, SessionCookie};
+use zk_citadel::license::{License, LicenseProverParameters, SessionCookie};
 
 #[derive(Default, Debug)]
 pub struct Citadel {
-    license: License,
+    lpp: LicenseProverParameters,
+    sc: SessionCookie,
 }
 
 impl Citadel {
-    pub fn new(license: License) -> Self {
-        Self { license }
+    pub fn new(lpp: LicenseProverParameters, sc: SessionCookie) -> Self {
+        Self { lpp, sc }
     }
 }
 
@@ -29,7 +30,7 @@ impl Circuit for Citadel {
     where
         C: Composer,
     {
-        gadget::nullify_license(composer, &self.license)?;
+        gadget::nullify_license(composer, &self.lpp, &self.sc)?;
         Ok(())
     }
 }
@@ -40,24 +41,17 @@ fn test_full_citadel() {
     let (prover, verifier) =
         Compiler::compile::<Citadel>(&pp, LABEL).expect("failed to compile circuit");
 
-    let license = License::random(&mut OsRng);
+    let (_license, lpp, sc) = License::random(&mut OsRng);
     let (proof, public_inputs) = prover
-        .prove(&mut OsRng, &Citadel::new(license.clone()))
+        .prove(&mut OsRng, &Citadel::new(lpp.clone(), sc.clone()))
         .expect("failed to prove");
 
     verifier
         .verify(&proof, &public_inputs)
         .expect("failed to verify proof");
 
-    let sc = SessionCookie::new(
-        license.pk_sp,
-        license.s_0,
-        license.attr,
-        license.s_1,
-        license.c,
-        license.s_2,
-    );
-    License::verify(sc, public_inputs, license.pk_sp);
+    let pk_sp = sc.pk_sp;
+    sc.verify(public_inputs, pk_sp);
 }
 
 #[test]
@@ -67,9 +61,9 @@ fn test_nullify_license_circuit_false_public_input() {
     let (prover, verifier) =
         Compiler::compile::<Citadel>(&pp, LABEL).expect("failed to compile circuit");
 
-    let license = License::random(&mut OsRng);
+    let (_license, lpp, sc) = License::random(&mut OsRng);
     let (proof, public_inputs) = prover
-        .prove(&mut OsRng, &Citadel::new(license))
+        .prove(&mut OsRng, &Citadel::new(lpp.clone(), sc.clone()))
         .expect("failed to prove");
 
     // set a false public input
@@ -88,19 +82,20 @@ fn test_verify_license_false_session_cookie() {
     let (prover, _verifier) =
         Compiler::compile::<Citadel>(&pp, LABEL).expect("failed to compile circuit");
 
-    let license = License::random(&mut OsRng);
+    let (_license, lpp, sc) = License::random(&mut OsRng);
     let (_proof, public_inputs) = prover
-        .prove(&mut OsRng, &Citadel::new(license.clone()))
+        .prove(&mut OsRng, &Citadel::new(lpp.clone(), sc.clone()))
         .expect("failed to prove");
 
     // set a false session cookie
-    let sc = SessionCookie::new(
-        license.pk_sp,
-        BlsScalar::from(1234u64),
-        license.attr,
-        license.s_1,
-        license.c,
-        license.s_2,
+    let sc_false = SessionCookie::new(
+        sc.nullifier_lic,
+        sc.pk_sp,
+        JubJubScalar::from(1234u64),
+        sc.c,
+        sc.s_0,
+        sc.s_1,
+        sc.s_2,
     );
-    License::verify(sc, public_inputs, license.pk_sp);
+    sc_false.verify(public_inputs, sc.pk_sp);
 }
