@@ -47,11 +47,7 @@ pub fn nullify_license<C: Composer>(
     let pk_sp = composer.append_point(sc.pk_sp);
     let attr = composer.append_witness(sc.attr);
 
-    // TODO: t1 and t2 should be used directly as the point lpk. Investigate why it doesn't work
-    let t1 = composer.append_witness(lpp.lpk.get_x());
-    let t2 = composer.append_witness(lpp.lpk.get_y());
-
-    let message = sponge::gadget(composer, &[t1, t2, attr]);
+    let message = sponge::gadget(composer, &[*lpk.x(), *lpk.y(), attr]);
     gadgets::single_key_verify(composer, sig_lic_u, sig_lic_r, pk_sp, message)?;
 
     let (sig_tx_u, sig_tx_r, sig_tx_r_p) = lpp.sig_tx.to_witness(composer);
@@ -60,14 +56,10 @@ pub fn nullify_license<C: Composer>(
         composer, sig_tx_u, sig_tx_r, sig_tx_r_p, lpk, lpk_p, tx_hash,
     )?;
 
-    // TODO: t3 and t4 should be used directly as the point pk_sp. Investigate why it doesn't work
-    let t3 = composer.append_witness(sc.pk_sp.get_x());
-    let t4 = composer.append_witness(sc.pk_sp.get_y());
-
     // COMMIT TO THE PK_SP USING A HASH FUNCTION
     let s_0 = composer.append_witness(sc.s_0);
     let com_0_pi = composer.append_public(lpp.com_0);
-    let com_0 = sponge::gadget(composer, &[t3, t4, s_0]);
+    let com_0 = sponge::gadget(composer, &[*pk_sp.x(), *pk_sp.y(), s_0]);
 
     composer.assert_equal(com_0, com_0_pi);
 
@@ -88,7 +80,7 @@ pub fn nullify_license<C: Composer>(
     composer.assert_equal_public_point(com_2, lpp.com_2);
 
     // COMPUTE THE HASH OF THE NOTE
-    let note_hash = sponge::gadget(composer, &[t1, t2]);
+    let note_hash = sponge::gadget(composer, &[*lpk.x(), *lpk.y()]);
 
     // VERIFY THE MERKLE PROOF
     let root_pi = composer.append_public(*lpp.merkle_proof.root());

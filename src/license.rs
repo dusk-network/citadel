@@ -76,7 +76,7 @@ impl PoseidonLeaf for DataLeaf {
 pub struct SessionCookie {
     pub nullifier_lic: BlsScalar,
 
-    pub pk_sp: JubJubExtended,
+    pub pk_sp: JubJubAffine,
     pub attr: JubJubScalar,
     pub c: JubJubScalar,
 
@@ -89,7 +89,7 @@ impl SessionCookie {
     pub fn new(
         nullifier_lic: BlsScalar,
 
-        pk_sp: JubJubExtended,
+        pk_sp: JubJubAffine,
         attr: JubJubScalar,
         c: JubJubScalar,
 
@@ -110,7 +110,7 @@ impl SessionCookie {
         }
     }
 
-    pub fn verify(&self, public_inputs: Vec<BlsScalar>, pk_sp: JubJubExtended) {
+    pub fn verify(&self, public_inputs: Vec<BlsScalar>, pk_sp: JubJubAffine) {
         assert_eq!(pk_sp.get_x(), self.pk_sp.get_x());
         assert_eq!(pk_sp.get_y(), self.pk_sp.get_y());
 
@@ -138,7 +138,7 @@ pub struct License {
 
 #[derive(Default, Debug, Clone)]
 pub struct LicenseProverParameters {
-    pub lpk: JubJubExtended, // license public key
+    pub lpk: JubJubAffine, // license public key
     pub lpk_p: JubJubAffine, // license public key prime
     pub sig_lic: Signature,  // signature of the license
 
@@ -163,13 +163,13 @@ impl License {
         let lsa = psk.gen_stealth_address(&r);
         let lsk = ssk.sk_r(&lsa);
 
-        let lpk = *lsa.pk_r().as_ref();
+        let lpk = JubJubAffine::from(*lsa.pk_r().as_ref());
         let lpk_p = JubJubAffine::from(GENERATOR_NUMS_EXTENDED * lsk.as_ref());
 
         // Second, the SP computes these values and grants the License
         let ssk_sp = SecretSpendKey::random(&mut OsRng);
         let psk_sp = ssk_sp.public_spend_key();
-        let pk_sp = *psk_sp.A();
+        let pk_sp = JubJubAffine::from(*psk_sp.A());
 
         let attr = JubJubScalar::from(112233445566778899u64);
         let message = sponge::hash(&[lpk.get_x(), lpk.get_y(), BlsScalar::from(attr)]);
