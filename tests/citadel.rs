@@ -4,14 +4,17 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+use dusk_jubjub::GENERATOR_EXTENDED;
+use dusk_pki::SecretSpendKey;
 use dusk_plonk::prelude::*;
-use rand_core::OsRng;
 
 static LABEL: &[u8; 12] = b"dusk-network";
 const CAPACITY: usize = 15; // capacity required for the setup
 
 use zk_citadel::gadget;
 use zk_citadel::license::{License, LicenseProverParameters, SessionCookie};
+
+use rand_core::{CryptoRng, OsRng, RngCore};
 
 #[derive(Default, Debug)]
 pub struct Citadel {
@@ -35,13 +38,36 @@ impl Circuit for Citadel {
     }
 }
 
+fn compute_random_license<R: RngCore + CryptoRng>(
+    rng: &mut R,
+) -> (License, LicenseProverParameters, SessionCookie) {
+    // First, the user computes these values and requests a License
+    let ssk = SecretSpendKey::random(&mut OsRng);
+    let psk = ssk.public_spend_key();
+    let lsa = psk.gen_stealth_address(&JubJubScalar::random(&mut OsRng));
+
+    // Second, the SP computes these values and grants the License
+    let ssk_sp = SecretSpendKey::random(&mut OsRng);
+    let psk_sp = ssk_sp.public_spend_key();
+
+    let attr = JubJubScalar::from(112233445566778899u64);
+    let k_lic = JubJubAffine::from(GENERATOR_EXTENDED * JubJubScalar::from(123456u64));
+    let lic = License::new(attr, ssk_sp, lsa, k_lic, &mut OsRng);
+
+    // Third, the user computes these values to generate the ZKP later on
+    let pk_sp = JubJubAffine::from(*psk_sp.A());
+    let (lpp, sc) = LicenseProverParameters::new(lsa, ssk, lic.clone(), pk_sp, k_lic, rng);
+
+    (lic, lpp, sc)
+}
+
 #[test]
 fn test_full_citadel() {
     let pp = PublicParameters::setup(1 << CAPACITY, &mut OsRng).unwrap();
     let (prover, verifier) =
         Compiler::compile::<Citadel>(&pp, LABEL).expect("failed to compile circuit");
 
-    let (_license, lpp, sc) = License::random(&mut OsRng);
+    let (_lic, lpp, sc) = compute_random_license(&mut OsRng);
     let (proof, public_inputs) = prover
         .prove(&mut OsRng, &Citadel::new(lpp.clone(), sc.clone()))
         .expect("failed to prove");
@@ -61,7 +87,7 @@ fn test_nullify_license_circuit_false_public_input() {
     let (prover, verifier) =
         Compiler::compile::<Citadel>(&pp, LABEL).expect("failed to compile circuit");
 
-    let (_license, lpp, sc) = License::random(&mut OsRng);
+    let (_lic, lpp, sc) = compute_random_license(&mut OsRng);
     let (proof, public_inputs) = prover
         .prove(&mut OsRng, &Citadel::new(lpp.clone(), sc.clone()))
         .expect("failed to prove");
@@ -82,7 +108,7 @@ fn test_verify_license_false_session_cookie() {
     let (prover, _verifier) =
         Compiler::compile::<Citadel>(&pp, LABEL).expect("failed to compile circuit");
 
-    let (_license, lpp, sc) = License::random(&mut OsRng);
+    let (_lic, lpp, sc) = compute_random_license(&mut OsRng);
     let (_proof, public_inputs) = prover
         .prove(&mut OsRng, &Citadel::new(lpp.clone(), sc.clone()))
         .expect("failed to prove");

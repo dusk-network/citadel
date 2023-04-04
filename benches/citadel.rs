@@ -4,12 +4,15 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+use dusk_jubjub::GENERATOR_EXTENDED;
+use dusk_pki::SecretSpendKey;
 use dusk_plonk::prelude::*;
+
 use zk_citadel::gadget;
 use zk_citadel::license::{License, LicenseProverParameters, SessionCookie};
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use rand_core::OsRng;
+use rand_core::{CryptoRng, OsRng, RngCore};
 
 static mut CONSTRAINTS: usize = 0;
 static LABEL: &[u8; 12] = b"dusk-network";
@@ -42,6 +45,27 @@ impl Circuit for Citadel {
     }
 }
 
+fn compute_random_license<R: RngCore + CryptoRng>(
+    rng: &mut R,
+) -> (License, LicenseProverParameters, SessionCookie) {
+    let r = JubJubScalar::random(&mut OsRng);
+    let ssk = SecretSpendKey::random(&mut OsRng);
+    let psk = ssk.public_spend_key();
+    let lsa = psk.gen_stealth_address(&r);
+
+    let ssk_sp = SecretSpendKey::random(&mut OsRng);
+    let psk_sp = ssk_sp.public_spend_key();
+
+    let attr = JubJubScalar::from(112233445566778899u64);
+    let k_lic = JubJubAffine::from(GENERATOR_EXTENDED * JubJubScalar::from(123456u64));
+    let lic = License::new(attr, ssk_sp, lsa, k_lic, &mut OsRng);
+
+    let pk_sp = JubJubAffine::from(*psk_sp.A());
+    let (lpp, sc) = LicenseProverParameters::new(lsa, ssk, lic.clone(), pk_sp, k_lic, rng);
+
+    (lic, lpp, sc)
+}
+
 fn citadel_benchmark(c: &mut Criterion) {
     // Compute the setup
     let pp = PublicParameters::setup(1 << CAPACITY, &mut OsRng).unwrap();
@@ -49,7 +73,7 @@ fn citadel_benchmark(c: &mut Criterion) {
         Compiler::compile::<Citadel>(&pp, LABEL).expect("failed to compile circuit");
 
     // Benchmark the prover
-    let (_license, lpp, sc) = License::random(&mut OsRng);
+    let (_lic, lpp, sc) = compute_random_license(&mut OsRng);
 
     unsafe {
         let log = &format!("Citadel Prover ({} constraints)", CONSTRAINTS);

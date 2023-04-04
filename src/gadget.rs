@@ -43,7 +43,8 @@ pub fn nullify_license<C: Composer>(
     composer.assert_equal(nullifier_lic, nullifier_lic_pi);
 
     // VERIFY THE SIGNATURES
-    let (sig_lic_u, sig_lic_r) = lpp.sig_lic.to_witness(composer);
+    let sig_lic_u = composer.append_witness(lpp.sig_lic_u);
+    let sig_lic_r = composer.append_point(lpp.sig_lic_r);
     let pk_sp = composer.append_point(sc.pk_sp);
     let attr = composer.append_witness(sc.attr);
 

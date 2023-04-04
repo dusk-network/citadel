@@ -7,15 +7,16 @@
 use dusk_jubjub::JubJubAffine;
 use dusk_jubjub::{GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED};
 use dusk_pki::{SecretKey, SecretSpendKey, StealthAddress};
+use dusk_poseidon::cipher::PoseidonCipher;
 use dusk_poseidon::sponge;
 use dusk_schnorr::Signature;
 use rand_core::{CryptoRng, RngCore};
 
+use dusk_bytes::Serializable;
+
 use dusk_plonk::prelude::*;
 use dusk_poseidon::tree::{PoseidonBranch, PoseidonLeaf, PoseidonTree};
 use nstack::annotation::Keyed;
-
-use rand_core::OsRng;
 
 const DEPTH: usize = 17; // depth of the 4-ary Merkle tree
 type Tree = PoseidonTree<DataLeaf, (), DEPTH>;
@@ -130,17 +131,61 @@ impl SessionCookie {
 
 #[derive(Debug, Clone)]
 pub struct License {
-    pub lsa: StealthAddress, // license public key
-    pub enc: BlsScalar,      // encryption of the license signature and attributes
-    pub nonce: BlsScalar,    // IV for the encryption
-    pub pos: BlsScalar,      // position of the license in the Merkle tree of licenses
+    pub lsa: StealthAddress,   // license public key
+    pub enc_1: PoseidonCipher, // encryption of the license signature and attributes
+    pub nonce_1: BlsScalar,    // IV for the encryption
+    pub enc_2: PoseidonCipher, // encryption of the license signature and attributes
+    pub nonce_2: BlsScalar,    // IV for the encryption
+    pub pos: BlsScalar,        // position of the license in the Merkle tree of licenses
+}
+
+impl License {
+    pub fn new<R: RngCore + CryptoRng>(
+        attr: JubJubScalar,
+        ssk_sp: SecretSpendKey,
+        lsa: StealthAddress,
+        k_lic: JubJubAffine,
+        rng: &mut R,
+    ) -> Self {
+        let lpk = JubJubAffine::from(*lsa.pk_r().as_ref());
+
+        let message = sponge::hash(&[lpk.get_x(), lpk.get_y(), BlsScalar::from(attr)]);
+
+        let sig_lic = Signature::new(&SecretKey::from(ssk_sp.a()), rng, message);
+        let sig_lic_r = JubJubAffine::from(sig_lic.R());
+
+        let nonce_1 = BlsScalar::random(rng);
+        let nonce_2 = BlsScalar::random(rng);
+
+        let enc_1 = PoseidonCipher::encrypt(
+            &[BlsScalar::from(*sig_lic.u()), BlsScalar::from(attr)],
+            &k_lic,
+            &nonce_1,
+        );
+        let enc_2 = PoseidonCipher::encrypt(
+            &[BlsScalar::from(sig_lic_r.get_x()), sig_lic_r.get_y()],
+            &k_lic,
+            &nonce_2,
+        );
+        let pos = BlsScalar::from(1u64);
+
+        Self {
+            lsa,
+            enc_1,
+            nonce_1,
+            enc_2,
+            nonce_2,
+            pos,
+        }
+    }
 }
 
 #[derive(Default, Debug, Clone)]
 pub struct LicenseProverParameters {
-    pub lpk: JubJubAffine, // license public key
-    pub lpk_p: JubJubAffine, // license public key prime
-    pub sig_lic: Signature,  // signature of the license
+    pub lpk: JubJubAffine,
+    pub lpk_p: JubJubAffine,     // license public key prime
+    pub sig_lic_u: JubJubScalar, // signature of the license
+    pub sig_lic_r: JubJubAffine, // signature of the license
 
     pub com_0: BlsScalar,      // Hash commitment 0
     pub com_1: JubJubExtended, // Pedersen Commitment 1
@@ -151,36 +196,35 @@ pub struct LicenseProverParameters {
     pub merkle_proof: PoseidonBranch<DEPTH>, // Merkle proof for the Proof of Validity
 }
 
-impl License {
-    pub fn random<R: RngCore + CryptoRng>(
+impl LicenseProverParameters {
+    pub fn new<R: RngCore + CryptoRng>(
+        lsa: StealthAddress,
+        ssk: SecretSpendKey,
+        lic: License,
+        pk_sp: JubJubAffine,
+        k_lic: JubJubAffine,
         rng: &mut R,
-    ) -> (Self, LicenseProverParameters, SessionCookie) {
-        // First, the user computes these values and requests a License
-        let r = JubJubScalar::random(&mut OsRng);
-        let ssk = SecretSpendKey::random(&mut OsRng);
-        let psk = ssk.public_spend_key();
+    ) -> (Self, SessionCookie) {
+        let dec_1 = lic
+            .enc_1
+            .decrypt(&k_lic, &lic.nonce_1)
+            .expect("decryption should succeed");
 
-        let lsa = psk.gen_stealth_address(&r);
+        let dec_2 = lic
+            .enc_2
+            .decrypt(&k_lic, &lic.nonce_2)
+            .expect("decryption should succeed");
+
+        let attr = JubJubScalar::from_bytes(&dec_1[1].to_bytes()).unwrap();
+        let sig_lic_u = JubJubScalar::from_bytes(&dec_1[0].to_bytes()).unwrap();
+        let sig_lic_r = JubJubAffine::from_raw_unchecked(
+            BlsScalar::from_bytes(&dec_2[0].to_bytes()).unwrap(),
+            BlsScalar::from_bytes(&dec_2[1].to_bytes()).unwrap(),
+        );
+
         let lsk = ssk.sk_r(&lsa);
-
-        let lpk = JubJubAffine::from(*lsa.pk_r().as_ref());
         let lpk_p = JubJubAffine::from(GENERATOR_NUMS_EXTENDED * lsk.as_ref());
 
-        // Second, the SP computes these values and grants the License
-        let ssk_sp = SecretSpendKey::random(&mut OsRng);
-        let psk_sp = ssk_sp.public_spend_key();
-        let pk_sp = JubJubAffine::from(*psk_sp.A());
-
-        let attr = JubJubScalar::from(112233445566778899u64);
-        let message = sponge::hash(&[lpk.get_x(), lpk.get_y(), BlsScalar::from(attr)]);
-
-        let sig_lic = Signature::new(&SecretKey::from(ssk_sp.a()), rng, message);
-
-        let enc = BlsScalar::random(rng);
-        let nonce = BlsScalar::random(rng);
-        let pos = BlsScalar::from(1u64);
-
-        // Third, the user computes these values to generate the ZKP later on
         let s_0 = BlsScalar::random(rng);
         let s_1 = JubJubScalar::random(rng);
         let s_2 = JubJubScalar::random(rng);
@@ -189,13 +233,13 @@ impl License {
         let tx_hash = BlsScalar::from(112233445566778899u64);
         let sig_tx = dusk_schnorr::Proof::new(&lsk, rng, tx_hash);
 
-        let com_0 = sponge::hash(&[pk_sp.get_x(), pk_sp.get_y(), s_0]);
+        let nullifier_lic = sponge::hash(&[lpk_p.get_x(), lpk_p.get_y(), BlsScalar::from(c)]);
 
+        let com_0 = sponge::hash(&[pk_sp.get_x(), pk_sp.get_y(), s_0]);
         let com_1 = (GENERATOR_EXTENDED * attr) + (GENERATOR_NUMS_EXTENDED * s_1);
         let com_2 = (GENERATOR_EXTENDED * c) + (GENERATOR_NUMS_EXTENDED * s_2);
 
-        let nullifier_lic = sponge::hash(&[lpk_p.get_x(), lpk_p.get_y(), BlsScalar::from(c)]);
-
+        let lpk = JubJubAffine::from(*lsa.pk_r().as_ref());
         let note_hash = sponge::hash(&[lpk.get_x(), lpk.get_y()]);
 
         let mut tree = Tree::default();
@@ -210,15 +254,10 @@ impl License {
 
         (
             Self {
-                lsa,
-                enc,
-                nonce,
-                pos,
-            },
-            LicenseProverParameters {
                 lpk,
                 lpk_p,
-                sig_lic,
+                sig_lic_u,
+                sig_lic_r,
 
                 com_0,
                 com_1,
@@ -226,7 +265,6 @@ impl License {
 
                 tx_hash,
                 sig_tx,
-
                 merkle_proof,
             },
             SessionCookie {
