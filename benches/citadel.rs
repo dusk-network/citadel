@@ -48,10 +48,9 @@ impl Circuit for Citadel {
 fn compute_random_license<R: RngCore + CryptoRng>(
     rng: &mut R,
 ) -> (License, LicenseProverParameters, SessionCookie) {
-    let r = JubJubScalar::random(&mut OsRng);
     let ssk = SecretSpendKey::random(&mut OsRng);
     let psk = ssk.public_spend_key();
-    let lsa = psk.gen_stealth_address(&r);
+    let lsa = psk.gen_stealth_address(&JubJubScalar::random(&mut OsRng));
 
     let ssk_sp = SecretSpendKey::random(&mut OsRng);
     let psk_sp = ssk_sp.public_spend_key();
@@ -60,8 +59,7 @@ fn compute_random_license<R: RngCore + CryptoRng>(
     let k_lic = JubJubAffine::from(GENERATOR_EXTENDED * JubJubScalar::from(123456u64));
     let lic = License::new(attr, ssk_sp, lsa, k_lic, &mut OsRng);
 
-    let pk_sp = JubJubAffine::from(*psk_sp.A());
-    let (lpp, sc) = LicenseProverParameters::new(lsa, ssk, lic.clone(), pk_sp, k_lic, rng);
+    let (lpp, sc) = LicenseProverParameters::new(lsa, ssk, lic.clone(), psk_sp, psk_sp, k_lic, rng);
 
     (lic, lpp, sc)
 }

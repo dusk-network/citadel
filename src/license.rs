@@ -6,7 +6,7 @@
 
 use dusk_jubjub::JubJubAffine;
 use dusk_jubjub::{GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED};
-use dusk_pki::{SecretKey, SecretSpendKey, StealthAddress};
+use dusk_pki::{PublicSpendKey, SecretKey, SecretSpendKey, StealthAddress};
 use dusk_poseidon::cipher::PoseidonCipher;
 use dusk_poseidon::sponge;
 use dusk_schnorr::Signature;
@@ -74,20 +74,79 @@ impl PoseidonLeaf for DataLeaf {
 }
 
 #[derive(Default, Debug, Clone)]
+pub struct Session {
+    pub session_hash: BlsScalar,  // hash of the session
+    pub nullifier_lic: BlsScalar, // license nullifier
+
+    pub com_0: BlsScalar,      // Hash commitment 0
+    pub com_1: JubJubExtended, // Pedersen Commitment 1
+    pub com_2: JubJubExtended, // Pedersen Commitment 2
+}
+
+impl Session {
+    pub fn from(public_inputs: Vec<BlsScalar>) -> Self {
+        // public inputs are in negated form, we negate them again to assert correctly
+        let nullifier_lic = -public_inputs[0];
+        let session_hash = -public_inputs[1];
+
+        let com_0 = -public_inputs[2];
+        let com_1 = JubJubExtended::from(JubJubAffine::from_raw_unchecked(
+            -public_inputs[3],
+            -public_inputs[4],
+        ));
+        let com_2 = JubJubExtended::from(JubJubAffine::from_raw_unchecked(
+            -public_inputs[5],
+            -public_inputs[6],
+        ));
+
+        Self {
+            session_hash,
+            nullifier_lic,
+
+            com_0,
+            com_1,
+            com_2,
+        }
+    }
+
+    pub fn verify(&self, sc: SessionCookie, pk_sp: JubJubAffine) {
+        assert_eq!(pk_sp, sc.pk_sp);
+
+        let session_hash = sponge::hash(&[sc.pk_ssp.get_x(), sc.pk_ssp.get_y(), sc.r]);
+
+        assert_eq!(session_hash, self.session_hash);
+
+        // public inputs are in negated form, we negate them again to assert correctly
+        let com_0 = sponge::hash(&[pk_sp.get_x(), pk_sp.get_y(), sc.s_0]);
+        assert_eq!(com_0, self.com_0);
+
+        let com_1 = (GENERATOR_EXTENDED * sc.attr) + (GENERATOR_NUMS_EXTENDED * sc.s_1);
+        assert_eq!(com_1, self.com_1);
+
+        let com_2 = (GENERATOR_EXTENDED * sc.c) + (GENERATOR_NUMS_EXTENDED * sc.s_2);
+        assert_eq!(com_2, self.com_2);
+    }
+}
+
+#[derive(Default, Debug, Clone)]
 pub struct SessionCookie {
-    pub nullifier_lic: BlsScalar,
+    pub pk_ssp: JubJubAffine,     // public key of the session SP
+    pub r: BlsScalar,             // randomness for session_hash
+    pub nullifier_lic: BlsScalar, // license nullifier
 
-    pub pk_sp: JubJubAffine,
-    pub attr: JubJubScalar,
-    pub c: JubJubScalar,
+    pub pk_sp: JubJubAffine, // public key of the SP
+    pub attr: JubJubScalar,  // attributes of the license
+    pub c: JubJubScalar,     // challenge value
 
-    pub s_0: BlsScalar,
-    pub s_1: JubJubScalar,
-    pub s_2: JubJubScalar,
+    pub s_0: BlsScalar,    // randomness for com_0
+    pub s_1: JubJubScalar, // randomness for com_1
+    pub s_2: JubJubScalar, // randomness for com_2
 }
 
 impl SessionCookie {
     pub fn new(
+        pk_ssp: JubJubAffine,
+        r: BlsScalar,
         nullifier_lic: BlsScalar,
 
         pk_sp: JubJubAffine,
@@ -99,6 +158,8 @@ impl SessionCookie {
         s_2: JubJubScalar,
     ) -> Self {
         Self {
+            pk_ssp,
+            r,
             nullifier_lic,
 
             pk_sp,
@@ -110,28 +171,11 @@ impl SessionCookie {
             s_2,
         }
     }
-
-    pub fn verify(&self, public_inputs: Vec<BlsScalar>, pk_sp: JubJubAffine) {
-        assert_eq!(pk_sp.get_x(), self.pk_sp.get_x());
-        assert_eq!(pk_sp.get_y(), self.pk_sp.get_y());
-
-        // public inputs are in negated form, we negate them again to assert correctly
-        let com_0 = sponge::hash(&[self.pk_sp.get_x(), self.pk_sp.get_y(), self.s_0]);
-        assert_eq!(com_0, -public_inputs[2]);
-
-        let com_1 = (GENERATOR_EXTENDED * self.attr) + (GENERATOR_NUMS_EXTENDED * self.s_1);
-        assert_eq!(JubJubAffine::from(com_1).get_x(), -public_inputs[3]);
-        assert_eq!(JubJubAffine::from(com_1).get_y(), -public_inputs[4]);
-
-        let com_2 = (GENERATOR_EXTENDED * self.c) + (GENERATOR_NUMS_EXTENDED * self.s_2);
-        assert_eq!(JubJubAffine::from(com_2).get_x(), -public_inputs[5]);
-        assert_eq!(JubJubAffine::from(com_2).get_y(), -public_inputs[6]);
-    }
 }
 
 #[derive(Debug, Clone)]
 pub struct License {
-    pub lsa: StealthAddress,   // license public key
+    pub lsa: StealthAddress,   // license stealth address
     pub enc_1: PoseidonCipher, // encryption of the license signature and attributes
     pub nonce_1: BlsScalar,    // IV for the encryption
     pub enc_2: PoseidonCipher, // encryption of the license signature and attributes
@@ -162,11 +206,10 @@ impl License {
             &k_lic,
             &nonce_1,
         );
-        let enc_2 = PoseidonCipher::encrypt(
-            &[BlsScalar::from(sig_lic_r.get_x()), sig_lic_r.get_y()],
-            &k_lic,
-            &nonce_2,
-        );
+
+        let enc_2 =
+            PoseidonCipher::encrypt(&[sig_lic_r.get_x(), sig_lic_r.get_y()], &k_lic, &nonce_2);
+
         let pos = BlsScalar::from(1u64);
 
         Self {
@@ -182,18 +225,17 @@ impl License {
 
 #[derive(Default, Debug, Clone)]
 pub struct LicenseProverParameters {
-    pub lpk: JubJubAffine,
-    pub lpk_p: JubJubAffine,     // license public key prime
-    pub sig_lic_u: JubJubScalar, // signature of the license
-    pub sig_lic_r: JubJubAffine, // signature of the license
+    pub lpk: JubJubAffine,   // license public key
+    pub lpk_p: JubJubAffine, // license public key prime
+    pub sig_lic: Signature,  // signature of the license
 
     pub com_0: BlsScalar,      // Hash commitment 0
     pub com_1: JubJubExtended, // Pedersen Commitment 1
     pub com_2: JubJubExtended, // Pedersen Commitment 2
 
-    pub tx_hash: BlsScalar, // hash of the transaction nullifying the license
-    pub sig_tx: dusk_schnorr::Proof, // signature of the tx_hash
-    pub merkle_proof: PoseidonBranch<DEPTH>, // Merkle proof for the Proof of Validity
+    pub session_hash: BlsScalar,               // hash of the session
+    pub sig_session_hash: dusk_schnorr::Proof, // signature of the ssa_hash
+    pub merkle_proof: PoseidonBranch<DEPTH>,   // Merkle proof for the Proof of Validity
 }
 
 impl LicenseProverParameters {
@@ -201,7 +243,8 @@ impl LicenseProverParameters {
         lsa: StealthAddress,
         ssk: SecretSpendKey,
         lic: License,
-        pk_sp: JubJubAffine,
+        psk_sp: PublicSpendKey,
+        psk_ssp: PublicSpendKey,
         k_lic: JubJubAffine,
         rng: &mut R,
     ) -> (Self, SessionCookie) {
@@ -216,11 +259,16 @@ impl LicenseProverParameters {
             .expect("decryption should succeed");
 
         let attr = JubJubScalar::from_bytes(&dec_1[1].to_bytes()).unwrap();
-        let sig_lic_u = JubJubScalar::from_bytes(&dec_1[0].to_bytes()).unwrap();
-        let sig_lic_r = JubJubAffine::from_raw_unchecked(
-            BlsScalar::from_bytes(&dec_2[0].to_bytes()).unwrap(),
-            BlsScalar::from_bytes(&dec_2[1].to_bytes()).unwrap(),
-        );
+        let sig_lic = Signature::from_bytes(
+            &[
+                dec_1[0].to_bytes(),
+                JubJubAffine::from_raw_unchecked(dec_2[0], dec_2[1]).to_bytes(),
+            ]
+            .concat()
+            .try_into()
+            .expect("slice with incorrect length"),
+        )
+        .unwrap();
 
         let lsk = ssk.sk_r(&lsa);
         let lpk_p = JubJubAffine::from(GENERATOR_NUMS_EXTENDED * lsk.as_ref());
@@ -230,10 +278,17 @@ impl LicenseProverParameters {
         let s_2 = JubJubScalar::random(rng);
 
         let c = JubJubScalar::from(20221126u64);
-        let tx_hash = BlsScalar::from(112233445566778899u64);
-        let sig_tx = dusk_schnorr::Proof::new(&lsk, rng, tx_hash);
+
+        let pk_ssp = JubJubAffine::from(*psk_ssp.A());
+        let r = BlsScalar::random(rng);
+
+        let session_hash = sponge::hash(&[pk_ssp.get_x(), pk_ssp.get_y(), r]);
+
+        let sig_session_hash = dusk_schnorr::Proof::new(&lsk, rng, session_hash);
 
         let nullifier_lic = sponge::hash(&[lpk_p.get_x(), lpk_p.get_y(), BlsScalar::from(c)]);
+
+        let pk_sp = JubJubAffine::from(*psk_sp.A());
 
         let com_0 = sponge::hash(&[pk_sp.get_x(), pk_sp.get_y(), s_0]);
         let com_1 = (GENERATOR_EXTENDED * attr) + (GENERATOR_NUMS_EXTENDED * s_1);
@@ -256,18 +311,19 @@ impl LicenseProverParameters {
             Self {
                 lpk,
                 lpk_p,
-                sig_lic_u,
-                sig_lic_r,
+                sig_lic,
 
                 com_0,
                 com_1,
                 com_2,
 
-                tx_hash,
-                sig_tx,
+                session_hash,
+                sig_session_hash,
                 merkle_proof,
             },
             SessionCookie {
+                pk_ssp,
+                r,
                 nullifier_lic,
                 pk_sp,
                 attr,

@@ -12,7 +12,7 @@ static LABEL: &[u8; 12] = b"dusk-network";
 const CAPACITY: usize = 15; // capacity required for the setup
 
 use zk_citadel::gadget;
-use zk_citadel::license::{License, LicenseProverParameters, SessionCookie};
+use zk_citadel::license::{License, LicenseProverParameters, Session, SessionCookie};
 
 use rand_core::{CryptoRng, OsRng, RngCore};
 
@@ -55,8 +55,7 @@ fn compute_random_license<R: RngCore + CryptoRng>(
     let lic = License::new(attr, ssk_sp, lsa, k_lic, &mut OsRng);
 
     // Third, the user computes these values to generate the ZKP later on
-    let pk_sp = JubJubAffine::from(*psk_sp.A());
-    let (lpp, sc) = LicenseProverParameters::new(lsa, ssk, lic.clone(), pk_sp, k_lic, rng);
+    let (lpp, sc) = LicenseProverParameters::new(lsa, ssk, lic.clone(), psk_sp, psk_sp, k_lic, rng);
 
     (lic, lpp, sc)
 }
@@ -77,7 +76,8 @@ fn test_full_citadel() {
         .expect("failed to verify proof");
 
     let pk_sp = sc.pk_sp;
-    sc.verify(public_inputs, pk_sp);
+    let session = Session::from(public_inputs);
+    session.verify(sc, pk_sp);
 }
 
 #[test]
@@ -115,6 +115,8 @@ fn test_verify_license_false_session_cookie() {
 
     // set a false session cookie
     let sc_false = SessionCookie::new(
+        sc.pk_ssp,
+        sc.r,
         sc.nullifier_lic,
         sc.pk_sp,
         JubJubScalar::from(1234u64),
@@ -123,5 +125,8 @@ fn test_verify_license_false_session_cookie() {
         sc.s_1,
         sc.s_2,
     );
-    sc_false.verify(public_inputs, sc.pk_sp);
+
+    let pk_sp = sc.pk_sp;
+    let session = Session::from(public_inputs);
+    session.verify(sc_false, pk_sp);
 }

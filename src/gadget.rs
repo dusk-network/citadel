@@ -18,7 +18,7 @@ const DEPTH: usize = 17; // depth of the 4-ary Merkle tree
 // these values in that particular order:
 //
 // public_inputs[0]: nullifier_lic
-// public_inputs[1]: tx_hash
+// public_inputs[1]: ssa_hash
 // public_inputs[2]: com_0
 // public_inputs[3]: com_1.x
 // public_inputs[4]: com_1.y
@@ -31,7 +31,7 @@ pub fn nullify_license<C: Composer>(
     lpp: &LicenseProverParameters,
     sc: &SessionCookie,
 ) -> Result<(), Error> {
-    // APPEND THE NOTE PUBLIC KEYS OF THE USER
+    // APPEND THE LICENSE PUBLIC KEYS OF THE USER
     let lpk = composer.append_point(lpp.lpk);
     let lpk_p = composer.append_point(lpp.lpk_p);
 
@@ -42,19 +42,27 @@ pub fn nullify_license<C: Composer>(
 
     composer.assert_equal(nullifier_lic, nullifier_lic_pi);
 
-    // VERIFY THE SIGNATURES
-    let sig_lic_u = composer.append_witness(lpp.sig_lic_u);
-    let sig_lic_r = composer.append_point(lpp.sig_lic_r);
+    // VERIFY THE LICENSE SIGNATURE
+    let (sig_lic_u, sig_lic_r) = lpp.sig_lic.to_witness(composer);
     let pk_sp = composer.append_point(sc.pk_sp);
     let attr = composer.append_witness(sc.attr);
 
     let message = sponge::gadget(composer, &[*lpk.x(), *lpk.y(), attr]);
     gadgets::single_key_verify(composer, sig_lic_u, sig_lic_r, pk_sp, message)?;
 
-    let (sig_tx_u, sig_tx_r, sig_tx_r_p) = lpp.sig_tx.to_witness(composer);
-    let tx_hash = composer.append_public(lpp.tx_hash);
+    // VERIFY THE SSA SIGNATURE
+    let (sig_session_hash_u, sig_session_hash_r, sig_session_hash_r_p) =
+        lpp.sig_session_hash.to_witness(composer);
+    let session_hash = composer.append_public(lpp.session_hash);
+
     gadgets::double_key_verify(
-        composer, sig_tx_u, sig_tx_r, sig_tx_r_p, lpk, lpk_p, tx_hash,
+        composer,
+        sig_session_hash_u,
+        sig_session_hash_r,
+        sig_session_hash_r_p,
+        lpk,
+        lpk_p,
+        session_hash,
     )?;
 
     // COMMIT TO THE PK_SP USING A HASH FUNCTION
