@@ -143,36 +143,6 @@ pub struct SessionCookie {
     pub s_2: JubJubScalar, // randomness for com_2
 }
 
-impl SessionCookie {
-    pub fn new(
-        pk_ssp: JubJubAffine,
-        r: BlsScalar,
-        nullifier_lic: BlsScalar,
-
-        pk_sp: JubJubAffine,
-        attr: JubJubScalar,
-        c: JubJubScalar,
-
-        s_0: BlsScalar,
-        s_1: JubJubScalar,
-        s_2: JubJubScalar,
-    ) -> Self {
-        Self {
-            pk_ssp,
-            r,
-            nullifier_lic,
-
-            pk_sp,
-            attr,
-            c,
-
-            s_0,
-            s_1,
-            s_2,
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct License {
     pub lsa: StealthAddress,   // license stealth address

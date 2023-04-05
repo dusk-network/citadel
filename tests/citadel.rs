@@ -114,17 +114,17 @@ fn test_verify_license_false_session_cookie() {
         .expect("failed to prove");
 
     // set a false session cookie
-    let sc_false = SessionCookie::new(
-        sc.pk_ssp,
-        sc.r,
-        sc.nullifier_lic,
-        sc.pk_sp,
-        JubJubScalar::from(1234u64),
-        sc.c,
-        sc.s_0,
-        sc.s_1,
-        sc.s_2,
-    );
+    let sc_false = SessionCookie {
+        pk_ssp: sc.pk_ssp,
+        r: sc.r,
+        nullifier_lic: sc.nullifier_lic,
+        pk_sp: sc.pk_sp,
+        attr: JubJubScalar::from(1234u64),
+        c: sc.c,
+        s_0: sc.s_0,
+        s_1: sc.s_1,
+        s_2: sc.s_2,
+    };
 
     let pk_sp = sc.pk_sp;
     let session = Session::from(public_inputs);
