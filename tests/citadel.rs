@@ -12,7 +12,7 @@ static LABEL: &[u8; 12] = b"dusk-network";
 const CAPACITY: usize = 15; // capacity required for the setup
 
 use zk_citadel::gadget;
-use zk_citadel::license::{License, LicenseProverParameters, Session, SessionCookie};
+use zk_citadel::license::{License, LicenseProverParameters, Request, Session, SessionCookie};
 
 use rand_core::{CryptoRng, OsRng, RngCore};
 
@@ -41,18 +41,22 @@ impl Circuit for Citadel {
 fn compute_random_license<R: RngCore + CryptoRng>(
     rng: &mut R,
 ) -> (License, LicenseProverParameters, SessionCookie) {
-    // First, the user computes these values and requests a License
+    // These are the keys of the user
     let ssk = SecretSpendKey::random(&mut OsRng);
     let psk = ssk.public_spend_key();
-    let lsa = psk.gen_stealth_address(&JubJubScalar::random(&mut OsRng));
 
-    // Second, the SP computes these values and grants the License
+    // These are the keys of the SP
     let ssk_sp = SecretSpendKey::random(&mut OsRng);
     let psk_sp = ssk_sp.public_spend_key();
 
-    let attr = JubJubScalar::from(112233445566778899u64);
+    // First, the user computes these values and requests a License
+    let lsa = psk.gen_stealth_address(&JubJubScalar::random(&mut OsRng));
     let k_lic = JubJubAffine::from(GENERATOR_EXTENDED * JubJubScalar::from(123456u64));
-    let lic = License::new(attr, ssk_sp, lsa, k_lic, &mut OsRng);
+    let req = Request::new(psk_sp, lsa, k_lic, &mut OsRng);
+
+    // Second, the SP computes these values and grants the License
+    let attr = JubJubScalar::from(112233445566778899u64);
+    let lic = License::new(attr, ssk_sp, req, &mut OsRng);
 
     // Third, the user computes these values to generate the ZKP later on
     let (lpp, sc) = LicenseProverParameters::new(lsa, ssk, lic.clone(), psk_sp, psk_sp, k_lic, rng);

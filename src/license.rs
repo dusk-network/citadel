@@ -5,8 +5,8 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use dusk_jubjub::JubJubAffine;
-use dusk_jubjub::{GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED};
-use dusk_pki::{PublicSpendKey, SecretKey, SecretSpendKey, StealthAddress};
+use dusk_jubjub::{dhke, GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED};
+use dusk_pki::{PublicKey, PublicSpendKey, SecretKey, SecretSpendKey, StealthAddress};
 use dusk_poseidon::cipher::PoseidonCipher;
 use dusk_poseidon::sponge;
 use dusk_schnorr::Signature;
@@ -73,6 +73,53 @@ impl PoseidonLeaf for DataLeaf {
     }
 }
 
+#[derive(Debug)]
+pub struct Request {
+    pub rsa: StealthAddress,   // request stealth address
+    pub enc_1: PoseidonCipher, // encryption of the license stealth address and k_lic
+    pub nonce_1: BlsScalar,    // IV for the encryption
+    pub enc_2: PoseidonCipher, // encryption of the license stealth address and k_lic
+    pub nonce_2: BlsScalar,    // IV for the encryption
+    pub enc_3: PoseidonCipher, // encryption of the license stealth address and k_lic
+    pub nonce_3: BlsScalar,    // IV for the encryption
+}
+
+impl Request {
+    pub fn new<R: RngCore + CryptoRng>(
+        psk_sp: PublicSpendKey,
+        lsa: StealthAddress,
+        k_lic: JubJubAffine,
+        rng: &mut R,
+    ) -> Self {
+        let nonce_1 = BlsScalar::random(rng);
+        let nonce_2 = BlsScalar::random(rng);
+        let nonce_3 = BlsScalar::random(rng);
+
+        let lpk = JubJubAffine::from(*lsa.pk_r().as_ref());
+        let r = JubJubAffine::from(*lsa.R());
+
+        let r_dh = JubJubScalar::random(rng);
+        let rsa = psk_sp.gen_stealth_address(&r_dh);
+        let k_dh = dhke(&r_dh, psk_sp.A());
+
+        let enc_1 = PoseidonCipher::encrypt(&[lpk.get_x(), lpk.get_y()], &k_dh, &nonce_1);
+
+        let enc_2 = PoseidonCipher::encrypt(&[r.get_x(), r.get_y()], &k_dh, &nonce_2);
+
+        let enc_3 = PoseidonCipher::encrypt(&[k_lic.get_x(), k_lic.get_y()], &k_dh, &nonce_3);
+
+        Self {
+            rsa,
+            enc_1,
+            nonce_1,
+            enc_2,
+            nonce_2,
+            enc_3,
+            nonce_3,
+        }
+    }
+}
+
 #[derive(Default, Debug, Clone)]
 pub struct Session {
     pub session_hash: BlsScalar,  // hash of the session
@@ -113,10 +160,8 @@ impl Session {
         assert_eq!(pk_sp, sc.pk_sp);
 
         let session_hash = sponge::hash(&[sc.pk_ssp.get_x(), sc.pk_ssp.get_y(), sc.r]);
-
         assert_eq!(session_hash, self.session_hash);
 
-        // public inputs are in negated form, we negate them again to assert correctly
         let com_0 = sponge::hash(&[pk_sp.get_x(), pk_sp.get_y(), sc.s_0]);
         assert_eq!(com_0, self.com_0);
 
@@ -157,11 +202,29 @@ impl License {
     pub fn new<R: RngCore + CryptoRng>(
         attr: JubJubScalar,
         ssk_sp: SecretSpendKey,
-        lsa: StealthAddress,
-        k_lic: JubJubAffine,
+        req: Request,
         rng: &mut R,
     ) -> Self {
-        let lpk = JubJubAffine::from(*lsa.pk_r().as_ref());
+        let k_dh = dhke(ssk_sp.a(), req.rsa.R());
+
+        let dec_1 = req
+            .enc_1
+            .decrypt(&k_dh, &req.nonce_1)
+            .expect("decryption should succeed");
+
+        let dec_2 = req
+            .enc_2
+            .decrypt(&k_dh, &req.nonce_2)
+            .expect("decryption should succeed");
+
+        let dec_3 = req
+            .enc_3
+            .decrypt(&k_dh, &req.nonce_3)
+            .expect("decryption should succeed");
+
+        let lpk = JubJubAffine::from_raw_unchecked(dec_1[0], dec_1[1]);
+        let r = JubJubAffine::from_raw_unchecked(dec_2[0], dec_2[1]);
+        let k_lic = JubJubAffine::from_raw_unchecked(dec_3[0], dec_3[1]);
 
         let message = sponge::hash(&[lpk.get_x(), lpk.get_y(), BlsScalar::from(attr)]);
 
@@ -183,7 +246,10 @@ impl License {
         let pos = BlsScalar::from(1u64);
 
         Self {
-            lsa,
+            lsa: StealthAddress::from_raw_unchecked(
+                JubJubExtended::from(r),
+                PublicKey::from_raw_unchecked(JubJubExtended::from(lpk)),
+            ),
             enc_1,
             nonce_1,
             enc_2,
