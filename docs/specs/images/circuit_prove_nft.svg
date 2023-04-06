@@ -6,7 +6,7 @@
    height="192.29425mm"
    width="402.57803mm"
    sodipodi:docname="circuit_prove_nft.svg"
-   inkscape:version="1.1.1 (c3084ef, 2021-09-22)"
+   inkscape:version="1.1.2 (b8e25be8, 2022-02-05)"
    inkscape:export-filename="/Users/xevi/Desktop/circuit.png"
    inkscape:export-xdpi="96"
    inkscape:export-ydpi="96"
@@ -26,16 +26,16 @@
      guidetolerance="10"
      inkscape:pageopacity="0"
      inkscape:pageshadow="2"
-     inkscape:window-width="1440"
-     inkscape:window-height="787"
+     inkscape:window-width="2560"
+     inkscape:window-height="1317"
      id="namedview4884"
      showgrid="false"
      inkscape:zoom="1.4031394"
-     inkscape:cx="602.57735"
-     inkscape:cy="180.6663"
-     inkscape:window-x="0"
+     inkscape:cx="728.72303"
+     inkscape:cy="294.69631"
+     inkscape:window-x="1920"
      inkscape:window-y="25"
-     inkscape:window-maximized="0"
+     inkscape:window-maximized="1"
      inkscape:current-layer="layer1"
      inkscape:document-rotation="0"
      inkscape:pagecheckerboard="0"
@@ -1128,12 +1128,12 @@
     <text
        id="text15801"
        y="11.840773"
-       x="49.958851"
+       x="34.083836"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.88056px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.264583"
        xml:space="preserve"><tspan
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.88056px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.264583"
          y="11.840773"
-         x="49.958851"
+         x="34.083836"
          id="tspan15799">pub.</tspan></text>
     <path
        style="fill:none;stroke:#000000;stroke-width:0.996572;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Arrow1Mend)"
@@ -1143,9 +1143,9 @@
     <rect
        style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:0.965517"
        id="rect15811"
-       width="81.076462"
+       width="120.40185"
        height="15.603312"
-       x="44.951977"
+       x="25.289284"
        y="7.8687153" />
     <text
        id="text15815"
@@ -1204,16 +1204,16 @@
        inkscape:connector-curvature="0" />
     <text
        id="text17925"
-       y="-18.229906"
-       x="69.839211"
+       y="-17.538286"
+       x="61.906544"
        style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:5.64444px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Italic';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.264583"
        xml:space="preserve"><tspan
          style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:5.64444px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Italic';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.264583"
-         y="-18.229906"
-         x="69.839211"
+         y="-17.538286"
+         x="61.906544"
          id="tspan17923">sig<tspan
    style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Italic';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal"
-   id="tspan114999">tx</tspan></tspan></text>
+   id="tspan114999">session_hash</tspan></tspan></text>
     <path
        style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Arrow1Mend)"
        d="M 75.304509,-15.672391 V 5.8046874"
@@ -1232,18 +1232,16 @@
     <text
        id="text17935"
        y="-17.290239"
-       x="42.990044"
+       x="19.677767"
        style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:5.64444px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Italic';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.264583"
        xml:space="preserve"><tspan
          style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:5.64444px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Italic';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.264583"
          y="-17.290239"
-         x="42.990044"
-         id="tspan17933">tx_hash<tspan
-   style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Italic';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal"
-   id="tspan111223" /></tspan></text>
+         x="19.677767"
+         id="tspan17933">session_hash</tspan></text>
     <path
        style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Arrow1Mend)"
-       d="M 54.321645,-15.857083 V 5.6199951"
+       d="M 38.446635,-15.857083 V 5.6199951"
        id="path17937"
        inkscape:connector-curvature="0" />
     <path
