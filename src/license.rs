@@ -130,7 +130,7 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn from(public_inputs: &Vec<BlsScalar>) -> Self {
+    pub fn from(public_inputs: &[BlsScalar]) -> Self {
         // public inputs are in negated form, we negate them again to assert correctly
         let nullifier_lic = -public_inputs[0];
         let session_hash = -public_inputs[1];
@@ -273,6 +273,7 @@ pub struct LicenseProverParameters {
 }
 
 impl LicenseProverParameters {
+    #[allow(clippy::too_many_arguments)]
     pub fn new<R: RngCore + CryptoRng>(
         lsa: &StealthAddress,
         ssk: &SecretSpendKey,
@@ -285,12 +286,12 @@ impl LicenseProverParameters {
     ) -> (Self, SessionCookie) {
         let dec_1 = lic
             .enc_1
-            .decrypt(&k_lic, &lic.nonce_1)
+            .decrypt(k_lic, &lic.nonce_1)
             .expect("decryption should succeed");
 
         let dec_2 = lic
             .enc_2
-            .decrypt(&k_lic, &lic.nonce_2)
+            .decrypt(k_lic, &lic.nonce_2)
             .expect("decryption should succeed");
 
         let attr = JubJubScalar::from_bytes(&dec_1[1].to_bytes()).unwrap();
@@ -305,7 +306,7 @@ impl LicenseProverParameters {
         )
         .unwrap();
 
-        let lsk = ssk.sk_r(&lsa);
+        let lsk = ssk.sk_r(lsa);
         let lpk_p = JubJubAffine::from(GENERATOR_NUMS_EXTENDED * lsk.as_ref());
 
         let s_0 = BlsScalar::random(rng);
