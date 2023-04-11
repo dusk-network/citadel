@@ -23,8 +23,8 @@ pub struct Citadel {
 }
 
 impl Citadel {
-    pub fn new(lpp: LicenseProverParameters, sc: SessionCookie) -> Self {
-        Self { lpp, sc }
+    pub fn new(lpp: &LicenseProverParameters, sc: &SessionCookie) -> Self {
+        Self { lpp: *lpp, sc: *sc }
     }
 }
 
@@ -42,24 +42,26 @@ fn compute_random_license<R: RngCore + CryptoRng>(
     rng: &mut R,
 ) -> (License, LicenseProverParameters, SessionCookie) {
     // These are the keys of the user
-    let ssk = SecretSpendKey::random(&mut OsRng);
+    let ssk = SecretSpendKey::random(rng);
     let psk = ssk.public_spend_key();
 
     // These are the keys of the SP
-    let ssk_sp = SecretSpendKey::random(&mut OsRng);
+    let ssk_sp = SecretSpendKey::random(rng);
     let psk_sp = ssk_sp.public_spend_key();
 
     // First, the user computes these values and requests a License
-    let lsa = psk.gen_stealth_address(&JubJubScalar::random(&mut OsRng));
+    let lsa = psk.gen_stealth_address(&JubJubScalar::random(rng));
     let k_lic = JubJubAffine::from(GENERATOR_EXTENDED * JubJubScalar::from(123456u64));
-    let req = Request::new(psk_sp, lsa, k_lic, &mut OsRng);
+    let req = Request::new(&psk_sp, &lsa, &k_lic, rng);
 
     // Second, the SP computes these values and grants the License
     let attr = JubJubScalar::from(112233445566778899u64);
-    let lic = License::new(attr, ssk_sp, req, &mut OsRng);
+    let lic = License::new(&attr, &ssk_sp, &req, rng);
 
     // Third, the user computes these values to generate the ZKP later on
-    let (lpp, sc) = LicenseProverParameters::new(lsa, ssk, lic.clone(), psk_sp, psk_sp, k_lic, rng);
+    let c = JubJubScalar::from(20221126u64);
+    let (lpp, sc) =
+        LicenseProverParameters::new(&lsa, &ssk, &lic, &psk_sp, &psk_sp, &k_lic, &c, rng);
 
     (lic, lpp, sc)
 }
@@ -72,7 +74,7 @@ fn test_full_citadel() {
 
     let (_lic, lpp, sc) = compute_random_license(&mut OsRng);
     let (proof, public_inputs) = prover
-        .prove(&mut OsRng, &Citadel::new(lpp.clone(), sc.clone()))
+        .prove(&mut OsRng, &Citadel::new(&lpp, &sc))
         .expect("failed to prove");
 
     verifier
@@ -80,7 +82,7 @@ fn test_full_citadel() {
         .expect("failed to verify proof");
 
     let pk_sp = sc.pk_sp;
-    let session = Session::from(public_inputs);
+    let session = Session::from(&public_inputs);
     session.verify(sc, pk_sp);
 }
 
@@ -93,7 +95,7 @@ fn test_nullify_license_circuit_false_public_input() {
 
     let (_lic, lpp, sc) = compute_random_license(&mut OsRng);
     let (proof, public_inputs) = prover
-        .prove(&mut OsRng, &Citadel::new(lpp.clone(), sc.clone()))
+        .prove(&mut OsRng, &Citadel::new(&lpp, &sc))
         .expect("failed to prove");
 
     // set a false public input
@@ -114,7 +116,7 @@ fn test_verify_license_false_session_cookie() {
 
     let (_lic, lpp, sc) = compute_random_license(&mut OsRng);
     let (_proof, public_inputs) = prover
-        .prove(&mut OsRng, &Citadel::new(lpp.clone(), sc.clone()))
+        .prove(&mut OsRng, &Citadel::new(&lpp, &sc))
         .expect("failed to prove");
 
     // set a false session cookie
@@ -131,6 +133,6 @@ fn test_verify_license_false_session_cookie() {
     };
 
     let pk_sp = sc.pk_sp;
-    let session = Session::from(public_inputs);
+    let session = Session::from(&public_inputs);
     session.verify(sc_false, pk_sp);
 }

@@ -24,6 +24,7 @@ type Tree = PoseidonTree<DataLeaf, (), DEPTH>;
 #[derive(Debug, Default, Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
 pub struct DataLeaf {
     note_hash: BlsScalar,
+
     pos: u64,
 }
 
@@ -73,22 +74,21 @@ impl PoseidonLeaf for DataLeaf {
     }
 }
 
-#[derive(Debug)]
 pub struct Request {
-    pub rsa: StealthAddress,   // request stealth address
-    pub enc_1: PoseidonCipher, // encryption of the license stealth address and k_lic
-    pub nonce_1: BlsScalar,    // IV for the encryption
-    pub enc_2: PoseidonCipher, // encryption of the license stealth address and k_lic
-    pub nonce_2: BlsScalar,    // IV for the encryption
-    pub enc_3: PoseidonCipher, // encryption of the license stealth address and k_lic
-    pub nonce_3: BlsScalar,    // IV for the encryption
+    rsa: StealthAddress,   // request stealth address
+    enc_1: PoseidonCipher, // encryption of the license stealth address and k_lic
+    nonce_1: BlsScalar,    // IV for the encryption
+    enc_2: PoseidonCipher, // encryption of the license stealth address and k_lic
+    nonce_2: BlsScalar,    // IV for the encryption
+    enc_3: PoseidonCipher, // encryption of the license stealth address and k_lic
+    nonce_3: BlsScalar,    // IV for the encryption
 }
 
 impl Request {
     pub fn new<R: RngCore + CryptoRng>(
-        psk_sp: PublicSpendKey,
-        lsa: StealthAddress,
-        k_lic: JubJubAffine,
+        psk_sp: &PublicSpendKey,
+        lsa: &StealthAddress,
+        k_lic: &JubJubAffine,
         rng: &mut R,
     ) -> Self {
         let nonce_1 = BlsScalar::random(rng);
@@ -120,7 +120,6 @@ impl Request {
     }
 }
 
-#[derive(Default, Debug, Clone)]
 pub struct Session {
     pub session_hash: BlsScalar,  // hash of the session
     pub nullifier_lic: BlsScalar, // license nullifier
@@ -131,7 +130,7 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn from(public_inputs: Vec<BlsScalar>) -> Self {
+    pub fn from(public_inputs: &Vec<BlsScalar>) -> Self {
         // public inputs are in negated form, we negate them again to assert correctly
         let nullifier_lic = -public_inputs[0];
         let session_hash = -public_inputs[1];
@@ -173,7 +172,7 @@ impl Session {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct SessionCookie {
     pub pk_ssp: JubJubAffine,     // public key of the session SP
     pub r: BlsScalar,             // randomness for session_hash
@@ -188,7 +187,6 @@ pub struct SessionCookie {
     pub s_2: JubJubScalar, // randomness for com_2
 }
 
-#[derive(Debug, Clone)]
 pub struct License {
     pub lsa: StealthAddress,   // license stealth address
     pub enc_1: PoseidonCipher, // encryption of the license signature and attributes
@@ -200,9 +198,9 @@ pub struct License {
 
 impl License {
     pub fn new<R: RngCore + CryptoRng>(
-        attr: JubJubScalar,
-        ssk_sp: SecretSpendKey,
-        req: Request,
+        attr: &JubJubScalar,
+        ssk_sp: &SecretSpendKey,
+        req: &Request,
         rng: &mut R,
     ) -> Self {
         let k_dh = dhke(ssk_sp.a(), req.rsa.R());
@@ -226,7 +224,7 @@ impl License {
         let r = JubJubAffine::from_raw_unchecked(dec_2[0], dec_2[1]);
         let k_lic = JubJubAffine::from_raw_unchecked(dec_3[0], dec_3[1]);
 
-        let message = sponge::hash(&[lpk.get_x(), lpk.get_y(), BlsScalar::from(attr)]);
+        let message = sponge::hash(&[lpk.get_x(), lpk.get_y(), BlsScalar::from(*attr)]);
 
         let sig_lic = Signature::new(&SecretKey::from(ssk_sp.a()), rng, message);
         let sig_lic_r = JubJubAffine::from(sig_lic.R());
@@ -235,7 +233,7 @@ impl License {
         let nonce_2 = BlsScalar::random(rng);
 
         let enc_1 = PoseidonCipher::encrypt(
-            &[BlsScalar::from(*sig_lic.u()), BlsScalar::from(attr)],
+            &[BlsScalar::from(*sig_lic.u()), BlsScalar::from(*attr)],
             &k_lic,
             &nonce_1,
         );
@@ -259,7 +257,7 @@ impl License {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct LicenseProverParameters {
     pub lpk: JubJubAffine,   // license public key
     pub lpk_p: JubJubAffine, // license public key prime
@@ -276,12 +274,13 @@ pub struct LicenseProverParameters {
 
 impl LicenseProverParameters {
     pub fn new<R: RngCore + CryptoRng>(
-        lsa: StealthAddress,
-        ssk: SecretSpendKey,
-        lic: License,
-        psk_sp: PublicSpendKey,
-        psk_ssp: PublicSpendKey,
-        k_lic: JubJubAffine,
+        lsa: &StealthAddress,
+        ssk: &SecretSpendKey,
+        lic: &License,
+        psk_sp: &PublicSpendKey,
+        psk_ssp: &PublicSpendKey,
+        k_lic: &JubJubAffine,
+        c: &JubJubScalar,
         rng: &mut R,
     ) -> (Self, SessionCookie) {
         let dec_1 = lic
@@ -313,8 +312,6 @@ impl LicenseProverParameters {
         let s_1 = JubJubScalar::random(rng);
         let s_2 = JubJubScalar::random(rng);
 
-        let c = JubJubScalar::from(20221126u64);
-
         let pk_ssp = JubJubAffine::from(*psk_ssp.A());
         let r = BlsScalar::random(rng);
 
@@ -322,7 +319,7 @@ impl LicenseProverParameters {
 
         let sig_session_hash = dusk_schnorr::Proof::new(&lsk, rng, session_hash);
 
-        let nullifier_lic = sponge::hash(&[lpk_p.get_x(), lpk_p.get_y(), BlsScalar::from(c)]);
+        let nullifier_lic = sponge::hash(&[lpk_p.get_x(), lpk_p.get_y(), BlsScalar::from(*c)]);
 
         let pk_sp = JubJubAffine::from(*psk_sp.A());
 
@@ -363,7 +360,7 @@ impl LicenseProverParameters {
                 nullifier_lic,
                 pk_sp,
                 attr,
-                c,
+                c: *c,
                 s_0,
                 s_1,
                 s_2,
