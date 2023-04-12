@@ -268,13 +268,13 @@ pub struct LicenseProverParameters {
     pub com_2: JubJubExtended, // Pedersen Commitment 2
 
     pub session_hash: BlsScalar,               // hash of the session
-    pub sig_session_hash: dusk_schnorr::Proof, // signature of the ssa_hash
+    pub sig_session_hash: dusk_schnorr::Proof, // signature of the session_hash
     pub merkle_proof: PoseidonBranch<DEPTH>,   // Merkle proof for the Proof of Validity
 }
 
 impl LicenseProverParameters {
     #[allow(clippy::too_many_arguments)]
-    pub fn new<R: RngCore + CryptoRng>(
+    pub fn compute_parameters<R: RngCore + CryptoRng>(
         lsa: &StealthAddress,
         ssk: &SecretSpendKey,
         lic: &License,

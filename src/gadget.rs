@@ -18,7 +18,7 @@ const DEPTH: usize = 17; // depth of the 4-ary Merkle tree
 // these values in that particular order:
 //
 // public_inputs[0]: nullifier_lic
-// public_inputs[1]: ssa_hash
+// public_inputs[1]: session_hash
 // public_inputs[2]: com_0
 // public_inputs[3]: com_1.x
 // public_inputs[4]: com_1.y
