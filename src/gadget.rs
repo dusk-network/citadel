@@ -50,7 +50,7 @@ pub fn nullify_license<C: Composer>(
     let message = sponge::gadget(composer, &[*lpk.x(), *lpk.y(), attr]);
     gadgets::single_key_verify(composer, sig_lic_u, sig_lic_r, pk_sp, message)?;
 
-    // VERIFY THE SSA SIGNATURE
+    // VERIFY THE SESSION HASH SIGNATURE
     let (sig_session_hash_u, sig_session_hash_r, sig_session_hash_r_p) =
         lpp.sig_session_hash.to_witness(composer);
     let session_hash = composer.append_public(lpp.session_hash);
@@ -88,12 +88,12 @@ pub fn nullify_license<C: Composer>(
 
     composer.assert_equal_public_point(com_2, lpp.com_2);
 
-    // COMPUTE THE HASH OF THE NOTE
-    let note_hash = sponge::gadget(composer, &[*lpk.x(), *lpk.y()]);
+    // COMPUTE THE HASH OF THE LICENSE
+    let license_hash = sponge::gadget(composer, &[*lpk.x(), *lpk.y()]);
 
     // VERIFY THE MERKLE PROOF
     let root_pi = composer.append_public(*lpp.merkle_proof.root());
-    let root = tree::merkle_opening::<C, DEPTH>(composer, &lpp.merkle_proof, note_hash);
+    let root = tree::merkle_opening::<C, DEPTH>(composer, &lpp.merkle_proof, license_hash);
 
     composer.assert_equal(root, root_pi);
 

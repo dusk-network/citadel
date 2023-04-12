@@ -23,7 +23,7 @@ type Tree = PoseidonTree<DataLeaf, (), DEPTH>;
 
 #[derive(Debug, Default, Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
 pub struct DataLeaf {
-    note_hash: BlsScalar,
+    license_hash: BlsScalar,
 
     pos: u64,
 }
@@ -37,14 +37,14 @@ impl Keyed<()> for DataLeaf {
 
 impl DataLeaf {
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        let note_hash = BlsScalar::random(rng);
+        let license_hash = BlsScalar::random(rng);
         let pos = 0;
 
-        Self { note_hash, pos }
+        Self { license_hash, pos }
     }
     pub fn new(hash: BlsScalar, n: u64) -> DataLeaf {
         DataLeaf {
-            note_hash: hash,
+            license_hash: hash,
             pos: n,
         }
     }
@@ -53,7 +53,7 @@ impl DataLeaf {
 impl From<u64> for DataLeaf {
     fn from(n: u64) -> DataLeaf {
         DataLeaf {
-            note_hash: BlsScalar::from(n),
+            license_hash: BlsScalar::from(n),
             pos: n,
         }
     }
@@ -61,8 +61,8 @@ impl From<u64> for DataLeaf {
 
 impl PoseidonLeaf for DataLeaf {
     fn poseidon_hash(&self) -> BlsScalar {
-        // the note hash (the leaf) is computed into the circuit
-        self.note_hash
+        // the license hash (the leaf) is computed into the circuit
+        self.license_hash
     }
 
     fn pos(&self) -> &u64 {
@@ -329,10 +329,10 @@ impl LicenseProverParameters {
         let com_2 = (GENERATOR_EXTENDED * c) + (GENERATOR_NUMS_EXTENDED * s_2);
 
         let lpk = JubJubAffine::from(*lsa.pk_r().as_ref());
-        let note_hash = sponge::hash(&[lpk.get_x(), lpk.get_y()]);
+        let license_hash = sponge::hash(&[lpk.get_x(), lpk.get_y()]);
 
         let mut tree = Tree::default();
-        let pos_tree = tree.push(DataLeaf::new(note_hash, 0));
+        let pos_tree = tree.push(DataLeaf::new(license_hash, 0));
 
         for i in 1..1024 {
             let l = DataLeaf::from(i as u64);
