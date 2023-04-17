@@ -1,15 +1,15 @@
-\subsection{The Roles involved} 
+\subsection{The Roles Involved} 
 
 \begin{itemize}
-    \item \textbf{User:} An entity that interacts with the wallet to request licenses and prove ownership of those.
-    \item \textbf{Service Provider (SP):} An entity offering an off-chain service that receives requests for licenses, and upon acceptance, issues them.
-    \item \textbf{Session Service Provider (SSP):} It provides the service upon verification that a service request is correct. It can be the same individual that the SP or another one.
+    \item \textbf{User:} an entity that interacts with the wallet to request licenses and prove ownership of those.
+    \item \textbf{Service Provider (SP):} an entity offering an off-chain service that receives requests for licenses, and upon acceptance, issues them.
+    \item \textbf{Session Service Provider (SSP):} the entity that provides the service upon verification that a service request is correct. The SSP may be the same as the SP entity or a different one.
 \end{itemize}
 
-\subsection{The Elements involved} 
+\subsection{The Elements Involved} 
 
 \begin{itemize}
-    \item \textbf{Request:} A request includes the encryption of a stealth address belonging to the user, where the license has to be sent to, and a symmetric key. The structure is as follows:
+    \item \textbf{Request:} a request includes the encryption of a stealth address belonging to the user, where the license has to be sent to, and a symmetric key. The structure is as follows:
 
     \begin{center}
         \begin{tabular}{ |c|c|c|c| } 
@@ -18,13 +18,13 @@
         \hline
         $(\rpk, R)$ & StealthAddress & It is a request stealth address of the SP. \\
         $\enc$ & PoseidonCipher & It is a ciphertext of size 6. \\
-        $\nonce$ & BlsScalar & It is a randomness needed to compute $\enc$. \\ 
+        $\nonce$ & BlsScalar & Randomness needed to compute $\enc$. \\ 
         \hline
         \end{tabular}
     \end{center}
 
 
-    \item \textbf{License:} A license is an asset that represents the right of a user to use a given service. The structure is as follows:
+    \item \textbf{License:} a license is an asset that represents the right of a user to use a given service. The structure is as follows:
 
     \begin{center}
         \begin{tabular}{ |c|c|c|c| } 
@@ -33,13 +33,13 @@
         \hline
         $(\lpk, R)$ & StealthAddress & It is a license stealth address of the user. \\
         $\enc$ & PoseidonCipher & It is a ciphertext of size 4. \\
-        $\nonce$ & BlsScalar & It is a randomness needed to compute $\enc$. \\ 
-        $\pos$ & BlsScalar & It is the position of the license into a Merkle tree of licenses. \\ 
+        $\nonce$ & BlsScalar & Randomness needed to compute $\enc$. \\ 
+        $\pos$ & BlsScalar & It is the position of the license in the Merkle tree of licenses. \\ 
         \hline
         \end{tabular}
     \end{center}
 
-    \item \textbf{LicenseProverParameters:} A prover needs some auxiliary parameters to compute the proof that nullifies a license when desired to be spent. The structure is as follows:
+    \item \textbf{LicenseProverParameters:} a prover needs some auxiliary parameters to compute the proof that nullifies a license when desired to be spent. Some of the elements of this table are related to the session and session cookie elements. The structure is as follows:
 
     \begin{center}
         \begin{tabular}{ |c|c|c|c| } 
@@ -47,27 +47,27 @@
         \textbf{Element} & \textbf{Type} & \textbf{Info.} \\
         \hline
         $\lpk$ & JubJubAffine & The license public key.\\ 
-        $\lpk'$ & JubJubAffine & The license public key prime.\\ 
+        $\lpk'$ & JubJubAffine & A variation of the license public key computed with a different generator.\\ 
         $\lsig$ & Signature & The signature of the license. \\ 
         $\com_0^{hash}$ & BlsScalar & A hash commitment of the public key of the SP. \\ 
         $\com_1$ & JubJubExtended & A Pedersen Commitment of the attributes. \\ 
         $\com_2$ & JubJubExtended & A Pedersen Commitment of the $c$ value. \\ 
-        $\mathsf{session\_hash}$ & BlsScalar & The hash of the public key of the SSP plus some randomness. \\ 
-        $\mathsf{sig\_session\_hash}$ & dusk\_schnorr::Proof & The signature of the session hash. \\ 
+        $\mathsf{session\_hash}$ & BlsScalar & The hash of the public key of the SSP together with some randomness. \\ 
+        $\mathsf{sig\_session\_hash}$ & dusk\_schnorr::Proof & The signature of the session hash signed by the user. \\ 
         $\mathsf{merkle\_proof}$ & PoseidonBranch & Membership proof of the license in the Merkle tree of licenses. \\ 
 
         \hline
         \end{tabular}
     \end{center}
 
-    \item \textbf{Session:} A session is a public struct known by all the validators. The structure is as follows:
+    \item \textbf{Session:} a session is a public struct known by all the validators. The structure is as follows:
 
     \begin{center}
         \begin{tabular}{ |c|c|c|c| } 
         \hline
         \textbf{Element} & \textbf{Type} & \textbf{Info.} \\
         \hline
-        $\mathsf{session\_hash}$ & BlsScalar & The hash of the public key of the SSP plus some randomness. \\ 
+        $\mathsf{session\_hash}$ & BlsScalar & The hash of the public key of the SSP together with some randomness. \\ 
         $\lnullifier$ & BlsScalar & The nullifier of a given license. \\ 
         $\com_0^{hash}$ & BlsScalar & A hash commitment of the public key of the SP. \\ 
         $\com_1$ & JubJubExtended & A Pedersen Commitment of the attributes. \\ 
@@ -76,7 +76,7 @@
         \end{tabular}
     \end{center}
 
-    \item \textbf{Session Cookie:} A session cookie is a secret value known only by the user and the SSP. It contains a set of openings to a given set of commitments. The structure is as follows:
+    \item \textbf{SessionCookie:} a session cookie is a secret value known only by the user and the SSP. It contains a set of openings to a given set of commitments. The structure is as follows:
 
     \begin{center}
         \begin{tabular}{ |c|c|c|c| } 
@@ -89,9 +89,9 @@
         $\pk_{\SP}$ & JubJubAffine & The public key of the SP. \\ 
         $\attr$ & JubJubScalar & The attributes of the user. \\ 
         $c$ & JubJubScalar & The challenge value. \\ 
-        $\mathsf{s_0}$ & JubJubScalar & The randomness used to compute the commitment 0. \\
-        $\mathsf{s_1}$ & BlsScalar & The randomness used to compute the commitment 1. \\
-        $\mathsf{s_2}$ & BlsScalar & The randomness used to compute the commitment 2. \\
+        $\mathsf{s_0}$ & JubJubScalar & Randomness used to compute the $\com_0^{hash}$. \\
+        $\mathsf{s_1}$ & BlsScalar & Randomness used to compute the $\com_1$. \\
+        $\mathsf{s_2}$ & BlsScalar & Randomness used to compute the $\com_2$. \\
         \hline
         \end{tabular}
     \end{center}
