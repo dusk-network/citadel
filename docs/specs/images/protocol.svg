@@ -25,12 +25,12 @@
      inkscape:document-units="mm"
      showgrid="false"
      inkscape:zoom="0.90583672"
-     inkscape:cx="600.54973"
-     inkscape:cy="545.90412"
-     inkscape:window-width="1505"
-     inkscape:window-height="969"
-     inkscape:window-x="2240"
-     inkscape:window-y="25"
+     inkscape:cx="593.37405"
+     inkscape:cy="558.59957"
+     inkscape:window-width="1840"
+     inkscape:window-height="1166"
+     inkscape:window-x="2740"
+     inkscape:window-y="56"
      inkscape:window-maximized="0"
      inkscape:current-layer="layer1" />
   <defs
@@ -238,14 +238,14 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.5833px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.264583"
-       x="231.84514"
+       x="235.79063"
        y="38.506519"
        id="text4441"><tspan
          sodipodi:role="line"
          id="tspan4439"
          style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.5833px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.264583"
-         x="231.84514"
-         y="38.506519">SP / SSP</tspan></text>
+         x="235.79063"
+         y="38.506519">LP / SP</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.264583"
@@ -256,7 +256,7 @@
          id="tspan6622"
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.264583"
          x="-25.085907"
-         y="67.785103">(1) send_license_req</tspan></text>
+         y="67.785103">(1) request_license</tspan></text>
     <path
        style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-start:url(#marker17730)"
        d="M 96.165804,72.025266 H -62.01549"
@@ -283,7 +283,7 @@
          id="tspan3127"
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.264583"
          x="134.68286"
-         y="78.897614">(2) get_license_req</tspan></text>
+         y="78.897614">(2) get_license_request</tspan></text>
     <path
        style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-start:url(#marker17730)"
        d="M 255.93468,83.137773 H 97.753305"
@@ -298,7 +298,7 @@
          id="tspan7105"
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.264583"
          x="134.68286"
-         y="95.830963">(3) send_license</tspan></text>
+         y="95.830963">(3) issue_license</tspan></text>
     <path
        style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-start:url(#marker17730)"
        d="M 99.723986,100.07112 H 257.90536"
@@ -328,7 +328,7 @@
          id="tspan73186"
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.264583"
          x="57.591091"
-         y="149.14413">(6) req_service</tspan></text>
+         y="149.14413">(6) request_service</tspan></text>
     <path
        style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-start:url(#marker17730)"
        d="M 256.18611,153.38478 H -62.841637"
@@ -358,7 +358,7 @@
          id="tspan146488"
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.264583"
          x="-25.085907"
-         y="127.58094">(5) call_nullify_license</tspan></text>
+         y="127.58094">(5) use_license</tspan></text>
     <path
        style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-start:url(#marker17730)"
        d="M 96.165804,131.82132 H -62.01549"
