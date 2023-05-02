@@ -86,7 +86,7 @@ pub struct Request {
 
 impl Request {
     pub fn new<R: RngCore + CryptoRng>(
-        psk_sp: &PublicSpendKey,
+        psk_lp: &PublicSpendKey,
         lsa: &StealthAddress,
         k_lic: &JubJubAffine,
         rng: &mut R,
@@ -99,8 +99,8 @@ impl Request {
         let r = JubJubAffine::from(*lsa.R());
 
         let r_dh = JubJubScalar::random(rng);
-        let rsa = psk_sp.gen_stealth_address(&r_dh);
-        let k_dh = dhke(&r_dh, psk_sp.A());
+        let rsa = psk_lp.gen_stealth_address(&r_dh);
+        let k_dh = dhke(&r_dh, psk_lp.A());
 
         let enc_1 = PoseidonCipher::encrypt(&[lpk.get_x(), lpk.get_y()], &k_dh, &nonce_1);
 
@@ -121,8 +121,8 @@ impl Request {
 }
 
 pub struct Session {
-    pub session_hash: BlsScalar,  // hash of the session
-    pub nullifier_lic: BlsScalar, // license nullifier
+    pub session_hash: BlsScalar,
+    pub session_id: BlsScalar,
 
     pub com_0: BlsScalar,      // Hash commitment 0
     pub com_1: JubJubExtended, // Pedersen Commitment 1
@@ -132,7 +132,7 @@ pub struct Session {
 impl Session {
     pub fn from(public_inputs: &[BlsScalar]) -> Self {
         // public inputs are in negated form, we negate them again to assert correctly
-        let nullifier_lic = -public_inputs[0];
+        let session_id = -public_inputs[0];
         let session_hash = -public_inputs[1];
 
         let com_0 = -public_inputs[2];
@@ -147,7 +147,7 @@ impl Session {
 
         Self {
             session_hash,
-            nullifier_lic,
+            session_id,
 
             com_0,
             com_1,
@@ -155,13 +155,13 @@ impl Session {
         }
     }
 
-    pub fn verify(&self, sc: SessionCookie, pk_sp: JubJubAffine) {
-        assert_eq!(pk_sp, sc.pk_sp);
+    pub fn verify(&self, sc: SessionCookie, pk_lp: JubJubAffine) {
+        assert_eq!(pk_lp, sc.pk_lp);
 
-        let session_hash = sponge::hash(&[sc.pk_ssp.get_x(), sc.pk_ssp.get_y(), sc.r]);
+        let session_hash = sponge::hash(&[sc.pk_sp.get_x(), sc.pk_sp.get_y(), sc.r]);
         assert_eq!(session_hash, self.session_hash);
 
-        let com_0 = sponge::hash(&[pk_sp.get_x(), pk_sp.get_y(), sc.s_0]);
+        let com_0 = sponge::hash(&[pk_lp.get_x(), pk_lp.get_y(), sc.s_0]);
         assert_eq!(com_0, self.com_0);
 
         let com_1 = (GENERATOR_EXTENDED * sc.attr) + (GENERATOR_NUMS_EXTENDED * sc.s_1);
@@ -174,11 +174,11 @@ impl Session {
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct SessionCookie {
-    pub pk_ssp: JubJubAffine,     // public key of the session SP
-    pub r: BlsScalar,             // randomness for session_hash
-    pub nullifier_lic: BlsScalar, // license nullifier
-
     pub pk_sp: JubJubAffine, // public key of the SP
+    pub r: BlsScalar,        // randomness for session_hash
+    pub session_id: BlsScalar,
+
+    pub pk_lp: JubJubAffine, // public key of the LP
     pub attr: JubJubScalar,  // attributes of the license
     pub c: JubJubScalar,     // challenge value
 
@@ -199,11 +199,11 @@ pub struct License {
 impl License {
     pub fn new<R: RngCore + CryptoRng>(
         attr: &JubJubScalar,
-        ssk_sp: &SecretSpendKey,
+        ssk_lp: &SecretSpendKey,
         req: &Request,
         rng: &mut R,
     ) -> Self {
-        let k_dh = dhke(ssk_sp.a(), req.rsa.R());
+        let k_dh = dhke(ssk_lp.a(), req.rsa.R());
 
         let dec_1 = req
             .enc_1
@@ -226,7 +226,7 @@ impl License {
 
         let message = sponge::hash(&[lpk.get_x(), lpk.get_y(), BlsScalar::from(*attr)]);
 
-        let sig_lic = Signature::new(&SecretKey::from(ssk_sp.a()), rng, message);
+        let sig_lic = Signature::new(&SecretKey::from(ssk_lp.a()), rng, message);
         let sig_lic_r = JubJubAffine::from(sig_lic.R());
 
         let nonce_1 = BlsScalar::random(rng);
@@ -278,8 +278,8 @@ impl LicenseProverParameters {
         lsa: &StealthAddress,
         ssk: &SecretSpendKey,
         lic: &License,
+        psk_lp: &PublicSpendKey,
         psk_sp: &PublicSpendKey,
-        psk_ssp: &PublicSpendKey,
         k_lic: &JubJubAffine,
         c: &JubJubScalar,
         rng: &mut R,
@@ -313,18 +313,18 @@ impl LicenseProverParameters {
         let s_1 = JubJubScalar::random(rng);
         let s_2 = JubJubScalar::random(rng);
 
-        let pk_ssp = JubJubAffine::from(*psk_ssp.A());
+        let pk_sp = JubJubAffine::from(*psk_sp.A());
         let r = BlsScalar::random(rng);
 
-        let session_hash = sponge::hash(&[pk_ssp.get_x(), pk_ssp.get_y(), r]);
+        let session_hash = sponge::hash(&[pk_sp.get_x(), pk_sp.get_y(), r]);
 
         let sig_session_hash = dusk_schnorr::Proof::new(&lsk, rng, session_hash);
 
-        let nullifier_lic = sponge::hash(&[lpk_p.get_x(), lpk_p.get_y(), BlsScalar::from(*c)]);
+        let session_id = sponge::hash(&[lpk_p.get_x(), lpk_p.get_y(), BlsScalar::from(*c)]);
 
-        let pk_sp = JubJubAffine::from(*psk_sp.A());
+        let pk_lp = JubJubAffine::from(*psk_lp.A());
 
-        let com_0 = sponge::hash(&[pk_sp.get_x(), pk_sp.get_y(), s_0]);
+        let com_0 = sponge::hash(&[pk_lp.get_x(), pk_lp.get_y(), s_0]);
         let com_1 = (GENERATOR_EXTENDED * attr) + (GENERATOR_NUMS_EXTENDED * s_1);
         let com_2 = (GENERATOR_EXTENDED * c) + (GENERATOR_NUMS_EXTENDED * s_2);
 
@@ -356,10 +356,10 @@ impl LicenseProverParameters {
                 merkle_proof,
             },
             SessionCookie {
-                pk_ssp,
-                r,
-                nullifier_lic,
                 pk_sp,
+                r,
+                session_id,
+                pk_lp,
                 attr,
                 c: *c,
                 s_0,

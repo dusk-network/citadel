@@ -17,7 +17,7 @@ const DEPTH: usize = 17; // depth of the 4-ary Merkle tree
 // out of this circuit, the generated public inputs vector collects
 // these values in that particular order:
 //
-// public_inputs[0]: nullifier_lic
+// public_inputs[0]: session_id
 // public_inputs[1]: session_hash
 // public_inputs[2]: com_0
 // public_inputs[3]: com_1.x
@@ -26,7 +26,7 @@ const DEPTH: usize = 17; // depth of the 4-ary Merkle tree
 // public_inputs[6]: com_2.y
 // public_inputs[7]: root
 
-pub fn nullify_license<C: Composer>(
+pub fn use_license<C: Composer>(
     composer: &mut C,
     lpp: &LicenseProverParameters,
     sc: &SessionCookie,
@@ -35,20 +35,20 @@ pub fn nullify_license<C: Composer>(
     let lpk = composer.append_point(lpp.lpk);
     let lpk_p = composer.append_point(lpp.lpk_p);
 
-    // COMPUTE THE LICENSE NULLIFIER
+    // COMPUTE THE SESSION ID
     let c = composer.append_witness(sc.c);
-    let nullifier_lic_pi = composer.append_public(sc.nullifier_lic);
-    let nullifier_lic = sponge::gadget(composer, &[*lpk_p.x(), *lpk_p.y(), c]);
+    let session_id_pi = composer.append_public(sc.session_id);
+    let session_id = sponge::gadget(composer, &[*lpk_p.x(), *lpk_p.y(), c]);
 
-    composer.assert_equal(nullifier_lic, nullifier_lic_pi);
+    composer.assert_equal(session_id, session_id_pi);
 
     // VERIFY THE LICENSE SIGNATURE
     let (sig_lic_u, sig_lic_r) = lpp.sig_lic.to_witness(composer);
-    let pk_sp = composer.append_point(sc.pk_sp);
+    let pk_lp = composer.append_point(sc.pk_lp);
     let attr = composer.append_witness(sc.attr);
 
     let message = sponge::gadget(composer, &[*lpk.x(), *lpk.y(), attr]);
-    gadgets::single_key_verify(composer, sig_lic_u, sig_lic_r, pk_sp, message)?;
+    gadgets::single_key_verify(composer, sig_lic_u, sig_lic_r, pk_lp, message)?;
 
     // VERIFY THE SESSION HASH SIGNATURE
     let (sig_session_hash_u, sig_session_hash_r, sig_session_hash_r_p) =
@@ -65,10 +65,10 @@ pub fn nullify_license<C: Composer>(
         session_hash,
     )?;
 
-    // COMMIT TO THE PK_SP USING A HASH FUNCTION
+    // COMMIT TO THE PK_LP USING A HASH FUNCTION
     let s_0 = composer.append_witness(sc.s_0);
     let com_0_pi = composer.append_public(lpp.com_0);
-    let com_0 = sponge::gadget(composer, &[*pk_sp.x(), *pk_sp.y(), s_0]);
+    let com_0 = sponge::gadget(composer, &[*pk_lp.x(), *pk_lp.y(), s_0]);
 
     composer.assert_equal(com_0, com_0_pi);
 
