@@ -1,5 +1,5 @@
 
-In Citadel, each party involved in the protocol keeps static keys, as we detail now. Let $G, G'\gets\mathbb{J}$ be two generators for the subgroup $\mathbb{J}$ of order $t$ of the Jubjub. The keys of each party as the following.
+In Citadel, each party involved in the protocol keeps static keys, as we detail now. Let $G, G'\gets\mathbb{J}$ be two generators for the subgroup $\mathbb{J}$ of order $t$ of the Jubjub elliptic curve. The keys of each party are the following.
 
 \begin{itemize}%[label=$\bullet$]
 	\item \textit{Secret key:} $\sk = (a,b)$, where $a,b\gets \F_t$.
@@ -47,7 +47,7 @@ The workflow of the Citadel protocol is depicted in Figure \ref{fig:protocol}, a
 
 	\item (\textbf{LP}) $\mathsf{issue\_license}$ : upon receiving a request from a user, define a set of attributes $\attr$ representing the license, and compute a digital signature as follows:
 
-		$$\lsig = \sign_{\sk_{\SP}}(\lpk, \attr)$$.
+		$$\lsig = \sign_{\sk_{\SP}}(\lpk, \attr).$$
 
 	Then, send the following license to the network:
 
@@ -62,7 +62,7 @@ The workflow of the Citadel protocol is depicted in Figure \ref{fig:protocol}, a
 	\item (\textbf{user}) $\mathsf{use\_license}$ : when using the license, open a session with a specific SP by executing a call to the license contract. The following steps are performed:
 
 	\begin{itemize}
-		\item The user issues a transaction that calls the license contract, which includes a ZKP that is computed out of the gadget depicted in Figure \ref{fig:circuit_prove_nft}.
+		\item The user issues a transaction that calls the license contract, which includes a ZKP that is computed out of the gadget depicted in Figure \ref{fig:circuit_prove_nft}. Notice that here, the user signs $\mathsf{session\_hash}$ using $\lsk$. Likewise, the user here will need to compute $\lpk' = \lsk G'$.
 		\item The network validators will execute the smart contract, which verifies the proof. Upon success, the following session will be added to a shared list of sessions:
 
 			$$\Session = \{\mathsf{session\_hash}, \sessionid, \com_0^{hash}, \com_1, \com_2\},$$
