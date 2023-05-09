@@ -41,6 +41,10 @@ impl Circuit for Citadel {
 fn compute_random_license<R: RngCore + CryptoRng>(
     rng: &mut R,
 ) -> (License, LicenseProverParameters, SessionCookie) {
+    // Example values
+    const USER_ATTRIBUTES: u64 = 112233445566778899u64;
+    const CHALLENGE: u64 = 20221126u64;
+
     // These are the keys of the user
     let ssk = SecretSpendKey::random(rng);
     let psk = ssk.public_spend_key();
@@ -51,15 +55,16 @@ fn compute_random_license<R: RngCore + CryptoRng>(
 
     // First, the user computes these values and requests a License
     let lsa = psk.gen_stealth_address(&JubJubScalar::random(rng));
-    let k_lic = JubJubAffine::from(GENERATOR_EXTENDED * JubJubScalar::from(123456u64));
+
+    let k_lic = JubJubAffine::from(GENERATOR_EXTENDED * JubJubScalar::random(rng)); // TODO: address issue #35 and modify this
     let req = Request::new(&psk_lp, &lsa, &k_lic, rng);
 
     // Second, the LP computes these values and grants the License
-    let attr = JubJubScalar::from(112233445566778899u64);
+    let attr = JubJubScalar::from(USER_ATTRIBUTES);
     let lic = License::new(&attr, &ssk_lp, &req, rng);
 
     // Third, the user computes these values to generate the ZKP later on
-    let c = JubJubScalar::from(20221126u64);
+    let c = JubJubScalar::from(CHALLENGE);
     let (lpp, sc) = LicenseProverParameters::compute_parameters(
         &lsa, &ssk, &lic, &psk_lp, &psk_lp, &k_lic, &c, rng,
     );
