@@ -55,7 +55,6 @@ fn compute_random_license<R: RngCore + CryptoRng>(
 
     // First, the user computes these values and requests a License
     let lsa = psk.gen_stealth_address(&JubJubScalar::random(rng));
-
     let k_lic = JubJubAffine::from(GENERATOR_EXTENDED * JubJubScalar::random(rng)); // TODO: address issue #35 and modify this
     let req = Request::new(&psk_lp, &lsa, &k_lic, rng);
 
