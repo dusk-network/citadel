@@ -10,22 +10,25 @@ use dusk_plonk::prelude::*;
 
 use zk_citadel::gadget;
 use zk_citadel::license::{License, LicenseProverParameters, Request, SessionCookie};
+use zk_citadel::state::State;
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand_core::{CryptoRng, OsRng, RngCore};
 
 static mut CONSTRAINTS: usize = 0;
 static LABEL: &[u8; 12] = b"dusk-network";
+
 const CAPACITY: usize = 15; // capacity required for the setup
+const DEPTH: usize = 17; // depth of the 4-ary Merkle tree
 
 #[derive(Default, Debug)]
 pub struct Citadel {
-    lpp: LicenseProverParameters,
+    lpp: LicenseProverParameters<DEPTH>,
     sc: SessionCookie,
 }
 
 impl Citadel {
-    pub fn new(lpp: &LicenseProverParameters, sc: &SessionCookie) -> Self {
+    pub fn new(lpp: &LicenseProverParameters<DEPTH>, sc: &SessionCookie) -> Self {
         Self { lpp: *lpp, sc: *sc }
     }
 }
@@ -47,7 +50,7 @@ impl Circuit for Citadel {
 
 fn compute_random_license<R: RngCore + CryptoRng>(
     rng: &mut R,
-) -> (License, LicenseProverParameters, SessionCookie) {
+) -> (License, LicenseProverParameters<DEPTH>, SessionCookie) {
     // Example values
     const USER_ATTRIBUTES: u64 = 112233445566778899u64;
     const CHALLENGE: u64 = 20221126u64;
@@ -68,11 +71,21 @@ fn compute_random_license<R: RngCore + CryptoRng>(
     // Second, the LP computes these values and grants the License
     let attr = JubJubScalar::from(USER_ATTRIBUTES);
     let lic = License::new(&attr, &ssk_lp, &req, rng);
+    let mut state = State::new();
+    state.append_license(&lic);
 
     // Third, the user computes these values to generate the ZKP later on
     let c = JubJubScalar::from(CHALLENGE);
     let (lpp, sc) = LicenseProverParameters::compute_parameters(
-        &lsa, &ssk, &lic, &psk_lp, &psk_lp, &k_lic, &c, rng,
+        &lsa,
+        &ssk,
+        &lic,
+        &psk_lp,
+        &psk_lp,
+        &k_lic,
+        &c,
+        rng,
+        &mut state.tree,
     );
 
     (lic, lpp, sc)

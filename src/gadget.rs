@@ -12,8 +12,6 @@ use dusk_schnorr::gadgets;
 
 use crate::license::{LicenseProverParameters, SessionCookie};
 
-const DEPTH: usize = 17; // depth of the 4-ary Merkle tree
-
 // out of this circuit, the generated public inputs vector collects
 // these values in that particular order:
 //
@@ -26,9 +24,9 @@ const DEPTH: usize = 17; // depth of the 4-ary Merkle tree
 // public_inputs[6]: com_2.y
 // public_inputs[7]: root
 
-pub fn use_license<C: Composer>(
+pub fn use_license<C: Composer, const DEPTH: usize>(
     composer: &mut C,
-    lpp: &LicenseProverParameters,
+    lpp: &LicenseProverParameters<DEPTH>,
     sc: &SessionCookie,
 ) -> Result<(), Error> {
     // APPEND THE LICENSE PUBLIC KEYS OF THE USER

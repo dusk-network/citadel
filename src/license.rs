@@ -15,64 +15,9 @@ use rand_core::{CryptoRng, RngCore};
 use dusk_bytes::Serializable;
 
 use dusk_plonk::prelude::*;
-use dusk_poseidon::tree::{PoseidonBranch, PoseidonLeaf, PoseidonTree};
-use nstack::annotation::Keyed;
+use dusk_poseidon::tree::{PoseidonBranch, PoseidonTree};
 
-const DEPTH: usize = 17; // depth of the 4-ary Merkle tree
-type Tree = PoseidonTree<DataLeaf, (), DEPTH>;
-
-#[derive(Debug, Default, Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
-pub struct DataLeaf {
-    license_hash: BlsScalar,
-
-    pos: u64,
-}
-
-// Keyed needs to be implemented for a leaf type and the tree key.
-impl Keyed<()> for DataLeaf {
-    fn key(&self) -> &() {
-        &()
-    }
-}
-
-impl DataLeaf {
-    pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        let license_hash = BlsScalar::random(rng);
-        let pos = 0;
-
-        Self { license_hash, pos }
-    }
-    pub fn new(hash: BlsScalar, n: u64) -> DataLeaf {
-        DataLeaf {
-            license_hash: hash,
-            pos: n,
-        }
-    }
-}
-
-impl From<u64> for DataLeaf {
-    fn from(n: u64) -> DataLeaf {
-        DataLeaf {
-            license_hash: BlsScalar::from(n),
-            pos: n,
-        }
-    }
-}
-
-impl PoseidonLeaf for DataLeaf {
-    fn poseidon_hash(&self) -> BlsScalar {
-        // the license hash (the leaf) is computed into the circuit
-        self.license_hash
-    }
-
-    fn pos(&self) -> &u64 {
-        &self.pos
-    }
-
-    fn set_pos(&mut self, pos: u64) {
-        self.pos = pos;
-    }
-}
+use crate::state::DataLeaf;
 
 pub struct Request {
     rsa: StealthAddress,   // request stealth address
@@ -258,7 +203,7 @@ impl License {
 }
 
 #[derive(Default, Debug, Clone, Copy)]
-pub struct LicenseProverParameters {
+pub struct LicenseProverParameters<const DEPTH: usize> {
     pub lpk: JubJubAffine,   // license public key
     pub lpk_p: JubJubAffine, // license public key prime
     pub sig_lic: Signature,  // signature of the license
@@ -272,7 +217,7 @@ pub struct LicenseProverParameters {
     pub merkle_proof: PoseidonBranch<DEPTH>,   // Merkle proof for the Proof of Validity
 }
 
-impl LicenseProverParameters {
+impl<const DEPTH: usize> LicenseProverParameters<DEPTH> {
     #[allow(clippy::too_many_arguments)]
     pub fn compute_parameters<R: RngCore + CryptoRng>(
         lsa: &StealthAddress,
@@ -283,6 +228,7 @@ impl LicenseProverParameters {
         k_lic: &JubJubAffine,
         c: &JubJubScalar,
         rng: &mut R,
+        tree: &mut PoseidonTree<DataLeaf, (), DEPTH>,
     ) -> (Self, SessionCookie) {
         let dec_1 = lic
             .enc_1
@@ -331,12 +277,18 @@ impl LicenseProverParameters {
         let lpk = JubJubAffine::from(*lsa.pk_r().as_ref());
         let license_hash = sponge::hash(&[lpk.get_x(), lpk.get_y()]);
 
-        let mut tree = Tree::default();
-        let pos_tree = tree.push(DataLeaf::new(license_hash, 0));
+        let mut pos_tree = 0;
 
-        for i in 1..1024 {
-            let l = DataLeaf::from(i as u64);
-            tree.push(l);
+        for i in 0..(4 ^ DEPTH) {
+            let it = i.try_into().unwrap();
+
+            let leaf = tree.get(it);
+            let leaf_prime = DataLeaf::new(license_hash, it);
+
+            match leaf {
+                Some(leaf) if leaf == leaf_prime => pos_tree = it,
+                _ => (),
+            }
         }
 
         let merkle_proof = tree.branch(pos_tree).expect("Tree was read successfully");
