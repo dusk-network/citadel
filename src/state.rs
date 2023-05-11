@@ -18,6 +18,9 @@ pub struct State<const DEPTH: usize> {
 }
 
 impl<const DEPTH: usize> State<DEPTH> {
+    pub fn default() -> Self {
+        Self::new()
+    }
     pub fn new() -> State<DEPTH> {
         State {
             tree: PoseidonTree::<DataLeaf, (), DEPTH>::default(),
