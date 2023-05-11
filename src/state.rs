@@ -79,6 +79,7 @@ impl PoseidonLeaf for DataLeaf {
         &u64::MAX
     }
 
+    #[allow(clippy::no_effect)]
     fn set_pos(&mut self, _pos: u64) {
         ();
     }
