@@ -64,7 +64,7 @@ fn compute_random_license<R: RngCore + CryptoRng>(
     // Second, the LP computes these values and grants the License
     let attr = JubJubScalar::from(USER_ATTRIBUTES);
     let lic = License::new(&attr, &ssk_lp, &req, rng);
-    let mut state = State::new();
+    let mut state = State::new(); // the compiler takes DEPTH from expected 'lpp' to return
     state.append_license(&lic);
 
     // Third, the user computes these values to generate the ZKP later on
