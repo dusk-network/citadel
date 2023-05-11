@@ -15,9 +15,9 @@ use rand_core::{CryptoRng, RngCore};
 use dusk_bytes::Serializable;
 
 use dusk_plonk::prelude::*;
-use dusk_poseidon::tree::{PoseidonBranch, PoseidonTree};
+use dusk_poseidon::tree::PoseidonBranch;
 
-use crate::state::DataLeaf;
+use crate::state::State;
 
 pub struct Request {
     rsa: StealthAddress,   // request stealth address
@@ -228,7 +228,7 @@ impl<const DEPTH: usize> LicenseProverParameters<DEPTH> {
         k_lic: &JubJubAffine,
         c: &JubJubScalar,
         rng: &mut R,
-        tree: &mut PoseidonTree<DataLeaf, (), DEPTH>,
+        state: &State<DEPTH>,
     ) -> (Self, SessionCookie) {
         let dec_1 = lic
             .enc_1
@@ -276,22 +276,7 @@ impl<const DEPTH: usize> LicenseProverParameters<DEPTH> {
 
         let lpk = JubJubAffine::from(*lsa.pk_r().as_ref());
         let license_hash = sponge::hash(&[lpk.get_x(), lpk.get_y()]);
-
-        let mut pos_tree = 0;
-
-        for i in 0..(4 ^ DEPTH) {
-            let it = i.try_into().unwrap();
-
-            let leaf = tree.get(it);
-            let leaf_prime = DataLeaf::new(license_hash, it);
-
-            match leaf {
-                Some(leaf) if leaf == leaf_prime => pos_tree = it,
-                _ => (),
-            }
-        }
-
-        let merkle_proof = tree.branch(pos_tree).expect("Tree was read successfully");
+        let merkle_proof = state.get_merkle_proof(&license_hash);
 
         (
             Self {
