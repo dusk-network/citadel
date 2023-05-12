@@ -38,11 +38,13 @@ impl<const DEPTH: usize> State<DEPTH> {
 
         for i in 0..(4 ^ DEPTH) {
             let it = i.try_into().unwrap();
-
             let leaf = self.tree.get(it);
 
             match leaf {
-                Some(leaf) if leaf.license_hash == *license_hash => pos = it,
+                Some(leaf) if leaf.license_hash == *license_hash => {
+                    pos = it;
+                    break;
+                }
                 _ => (),
             }
         }
