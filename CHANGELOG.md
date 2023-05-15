@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add the specification for Citadel [#21]
 - Add the implementation of the new structs [#30]
 - Add the implementation of the new license methods [#32]
+- Add the state module [#40]
 
 ### Changed
 
@@ -27,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add workflows for the Github Actions
 
 <!-- ISSUES -->
+[#40]: https://github.com/dusk-network/citadel/issues/40
 [#34]: https://github.com/dusk-network/citadel/issues/34
 [#32]: https://github.com/dusk-network/citadel/issues/32
 [#30]: https://github.com/dusk-network/citadel/issues/30

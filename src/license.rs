@@ -15,64 +15,9 @@ use rand_core::{CryptoRng, RngCore};
 use dusk_bytes::Serializable;
 
 use dusk_plonk::prelude::*;
-use dusk_poseidon::tree::{PoseidonBranch, PoseidonLeaf, PoseidonTree};
-use nstack::annotation::Keyed;
+use dusk_poseidon::tree::PoseidonBranch;
 
-const DEPTH: usize = 17; // depth of the 4-ary Merkle tree
-type Tree = PoseidonTree<DataLeaf, (), DEPTH>;
-
-#[derive(Debug, Default, Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
-pub struct DataLeaf {
-    license_hash: BlsScalar,
-
-    pos: u64,
-}
-
-// Keyed needs to be implemented for a leaf type and the tree key.
-impl Keyed<()> for DataLeaf {
-    fn key(&self) -> &() {
-        &()
-    }
-}
-
-impl DataLeaf {
-    pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        let license_hash = BlsScalar::random(rng);
-        let pos = 0;
-
-        Self { license_hash, pos }
-    }
-    pub fn new(hash: BlsScalar, n: u64) -> DataLeaf {
-        DataLeaf {
-            license_hash: hash,
-            pos: n,
-        }
-    }
-}
-
-impl From<u64> for DataLeaf {
-    fn from(n: u64) -> DataLeaf {
-        DataLeaf {
-            license_hash: BlsScalar::from(n),
-            pos: n,
-        }
-    }
-}
-
-impl PoseidonLeaf for DataLeaf {
-    fn poseidon_hash(&self) -> BlsScalar {
-        // the license hash (the leaf) is computed into the circuit
-        self.license_hash
-    }
-
-    fn pos(&self) -> &u64 {
-        &self.pos
-    }
-
-    fn set_pos(&mut self, pos: u64) {
-        self.pos = pos;
-    }
-}
+use crate::state::State;
 
 pub struct Request {
     rsa: StealthAddress,   // request stealth address
@@ -187,13 +132,14 @@ pub struct SessionCookie {
     pub s_2: JubJubScalar, // randomness for com_2
 }
 
+#[derive(Default, Clone)]
 pub struct License {
     pub lsa: StealthAddress,   // license stealth address
     pub enc_1: PoseidonCipher, // encryption of the license signature and attributes
     pub nonce_1: BlsScalar,    // IV for the encryption
     pub enc_2: PoseidonCipher, // encryption of the license signature and attributes
     pub nonce_2: BlsScalar,    // IV for the encryption
-    pub pos: BlsScalar,        // position of the license in the Merkle tree of licenses
+    pub pos: u64,              // position of the license in the Merkle tree of licenses
 }
 
 impl License {
@@ -241,7 +187,7 @@ impl License {
         let enc_2 =
             PoseidonCipher::encrypt(&[sig_lic_r.get_x(), sig_lic_r.get_y()], &k_lic, &nonce_2);
 
-        let pos = BlsScalar::from(1u64);
+        let pos = 0u64;
 
         Self {
             lsa: StealthAddress::from_raw_unchecked(
@@ -258,7 +204,7 @@ impl License {
 }
 
 #[derive(Default, Debug, Clone, Copy)]
-pub struct LicenseProverParameters {
+pub struct LicenseProverParameters<const DEPTH: usize> {
     pub lpk: JubJubAffine,   // license public key
     pub lpk_p: JubJubAffine, // license public key prime
     pub sig_lic: Signature,  // signature of the license
@@ -272,10 +218,9 @@ pub struct LicenseProverParameters {
     pub merkle_proof: PoseidonBranch<DEPTH>,   // Merkle proof for the Proof of Validity
 }
 
-impl LicenseProverParameters {
+impl<const DEPTH: usize> LicenseProverParameters<DEPTH> {
     #[allow(clippy::too_many_arguments)]
     pub fn compute_parameters<R: RngCore + CryptoRng>(
-        lsa: &StealthAddress,
         ssk: &SecretSpendKey,
         lic: &License,
         psk_lp: &PublicSpendKey,
@@ -283,6 +228,7 @@ impl LicenseProverParameters {
         k_lic: &JubJubAffine,
         c: &JubJubScalar,
         rng: &mut R,
+        state: &State<DEPTH>,
     ) -> (Self, SessionCookie) {
         let dec_1 = lic
             .enc_1
@@ -306,7 +252,9 @@ impl LicenseProverParameters {
         )
         .unwrap();
 
-        let lsk = ssk.sk_r(lsa);
+        let lpk = JubJubAffine::from(*lic.lsa.pk_r().as_ref());
+
+        let lsk = ssk.sk_r(&lic.lsa);
         let lpk_p = JubJubAffine::from(GENERATOR_NUMS_EXTENDED * lsk.as_ref());
 
         let s_0 = BlsScalar::random(rng);
@@ -328,18 +276,7 @@ impl LicenseProverParameters {
         let com_1 = (GENERATOR_EXTENDED * attr) + (GENERATOR_NUMS_EXTENDED * s_1);
         let com_2 = (GENERATOR_EXTENDED * c) + (GENERATOR_NUMS_EXTENDED * s_2);
 
-        let lpk = JubJubAffine::from(*lsa.pk_r().as_ref());
-        let license_hash = sponge::hash(&[lpk.get_x(), lpk.get_y()]);
-
-        let mut tree = Tree::default();
-        let pos_tree = tree.push(DataLeaf::new(license_hash, 0));
-
-        for i in 1..1024 {
-            let l = DataLeaf::from(i as u64);
-            tree.push(l);
-        }
-
-        let merkle_proof = tree.branch(pos_tree).expect("Tree was read successfully");
+        let merkle_proof = state.get_merkle_proof(lic);
 
         (
             Self {
