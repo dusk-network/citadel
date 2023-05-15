@@ -13,7 +13,7 @@ use nstack::annotation::Keyed;
 use crate::license::License;
 
 pub struct State<const DEPTH: usize> {
-    pub tree: PoseidonTree<DataLeaf, (), DEPTH>,
+    tree: PoseidonTree<DataLeaf, (), DEPTH>,
 }
 
 impl<const DEPTH: usize> Default for State<DEPTH> {
