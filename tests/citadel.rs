@@ -68,9 +68,11 @@ fn compute_random_license<R: RngCore + CryptoRng>(
     state.append_license(&lic);
 
     // Third, the user computes these values to generate the ZKP later on
+    let vk = ssk.view_key();
+    let lics = state.get_licenses(&vk);
     let c = JubJubScalar::from(CHALLENGE);
     let (lpp, sc) = LicenseProverParameters::compute_parameters(
-        &lsa, &ssk, &lic, &psk_lp, &psk_lp, &k_lic, &c, rng, &state,
+        &ssk, &lics[0], &psk_lp, &psk_lp, &k_lic, &c, rng, &state,
     );
 
     (lic, lpp, sc)

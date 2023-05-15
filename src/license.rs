@@ -132,13 +132,14 @@ pub struct SessionCookie {
     pub s_2: JubJubScalar, // randomness for com_2
 }
 
+#[derive(Default, Clone)]
 pub struct License {
     pub lsa: StealthAddress,   // license stealth address
     pub enc_1: PoseidonCipher, // encryption of the license signature and attributes
     pub nonce_1: BlsScalar,    // IV for the encryption
     pub enc_2: PoseidonCipher, // encryption of the license signature and attributes
     pub nonce_2: BlsScalar,    // IV for the encryption
-    pub pos: BlsScalar,        // position of the license in the Merkle tree of licenses
+    pub pos: u64,              // position of the license in the Merkle tree of licenses
 }
 
 impl License {
@@ -186,7 +187,7 @@ impl License {
         let enc_2 =
             PoseidonCipher::encrypt(&[sig_lic_r.get_x(), sig_lic_r.get_y()], &k_lic, &nonce_2);
 
-        let pos = BlsScalar::from(1u64);
+        let pos = 0u64;
 
         Self {
             lsa: StealthAddress::from_raw_unchecked(
@@ -220,7 +221,6 @@ pub struct LicenseProverParameters<const DEPTH: usize> {
 impl<const DEPTH: usize> LicenseProverParameters<DEPTH> {
     #[allow(clippy::too_many_arguments)]
     pub fn compute_parameters<R: RngCore + CryptoRng>(
-        lsa: &StealthAddress,
         ssk: &SecretSpendKey,
         lic: &License,
         psk_lp: &PublicSpendKey,
@@ -252,7 +252,9 @@ impl<const DEPTH: usize> LicenseProverParameters<DEPTH> {
         )
         .unwrap();
 
-        let lsk = ssk.sk_r(lsa);
+        let lpk = JubJubAffine::from(*lic.lsa.pk_r().as_ref());
+
+        let lsk = ssk.sk_r(&lic.lsa);
         let lpk_p = JubJubAffine::from(GENERATOR_NUMS_EXTENDED * lsk.as_ref());
 
         let s_0 = BlsScalar::random(rng);
@@ -274,9 +276,7 @@ impl<const DEPTH: usize> LicenseProverParameters<DEPTH> {
         let com_1 = (GENERATOR_EXTENDED * attr) + (GENERATOR_NUMS_EXTENDED * s_1);
         let com_2 = (GENERATOR_EXTENDED * c) + (GENERATOR_NUMS_EXTENDED * s_2);
 
-        let lpk = JubJubAffine::from(*lsa.pk_r().as_ref());
-        let license_hash = sponge::hash(&[lpk.get_x(), lpk.get_y()]);
-        let merkle_proof = state.get_merkle_proof(&license_hash);
+        let merkle_proof = state.get_merkle_proof(&lic);
 
         (
             Self {
