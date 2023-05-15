@@ -32,16 +32,18 @@ impl<const DEPTH: usize> State<DEPTH> {
         self.tree.push(DataLeaf { lic: lic.clone() });
     }
 
+    // TODO: we should update this function when starting to use the new
+    // implementation of the Merkle tree
     pub fn get_licenses(&self, vk: &ViewKey) -> Vec<License> {
         let mut lic_vec = Vec::new();
-        for i in 0u64..(4 ^ DEPTH as u64) {
+        for i in 0u64..(4u64.pow(DEPTH as u32)) {
             let leaf = self.tree.get(i);
 
             match leaf {
                 Some(leaf) if vk.owns(&leaf.lic.lsa) => {
                     lic_vec.push(leaf.lic);
                 }
-                _ => (),
+                _ => break,
             }
         }
 

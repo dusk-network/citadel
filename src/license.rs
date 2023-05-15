@@ -276,7 +276,7 @@ impl<const DEPTH: usize> LicenseProverParameters<DEPTH> {
         let com_1 = (GENERATOR_EXTENDED * attr) + (GENERATOR_NUMS_EXTENDED * s_1);
         let com_2 = (GENERATOR_EXTENDED * c) + (GENERATOR_NUMS_EXTENDED * s_2);
 
-        let merkle_proof = state.get_merkle_proof(&lic);
+        let merkle_proof = state.get_merkle_proof(lic);
 
         (
             Self {
