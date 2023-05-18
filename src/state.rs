@@ -4,16 +4,22 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+use std::collections::BTreeMap;
 use dusk_pki::ViewKey;
 use dusk_plonk::prelude::*;
 use dusk_poseidon::sponge;
-use dusk_poseidon::tree::{PoseidonBranch, PoseidonLeaf, PoseidonTree};
-use nstack::annotation::Keyed;
+// use dusk_poseidon::tree::{PoseidonBranch, PoseidonLeaf, PoseidonTree};
+use dusk_merkle::poseidon::{Opening, Tree, Item};
 
-use crate::license::License;
+// use nstack::annotation::Keyed;
+
+use crate::license::{License, Unit, ARITY};
+
+type PoseidonItem = Item<Unit>;
 
 pub struct State<const DEPTH: usize> {
-    tree: PoseidonTree<DataLeaf, (), DEPTH>,
+    tree: Tree<Unit, DEPTH, ARITY>,
+    licenses: BTreeMap<u64, License>,
 }
 
 impl<const DEPTH: usize> Default for State<DEPTH> {
@@ -25,60 +31,59 @@ impl<const DEPTH: usize> Default for State<DEPTH> {
 impl<const DEPTH: usize> State<DEPTH> {
     pub fn new() -> State<DEPTH> {
         State {
-            tree: PoseidonTree::<DataLeaf, (), DEPTH>::default(),
+            tree: Tree::<Unit, DEPTH, ARITY>::new(),
+            licenses: BTreeMap::new(),
         }
     }
     pub fn append_license(&mut self, lic: &License) {
-        self.tree.push(DataLeaf { lic: lic.clone() });
+        let lpk = JubJubAffine::from(lic.lsa.pk_r().as_ref());
+
+        let item = PoseidonItem {
+                hash: sponge::hash(&[lpk.get_x(), lpk.get_y()]),
+                data: Unit,
+            };
+
+        self.tree.insert(0, item);
+        self.licenses.insert( lic.pos, lic.clone() );
     }
 
-    // TODO: we should update this function when starting to use the new
-    // implementation of the Merkle tree
     pub fn get_licenses(&self, vk: &ViewKey) -> Vec<License> {
-        let mut lic_vec = Vec::new();
-        for i in 0u64..(4u64.pow(DEPTH as u32)) {
-            let leaf = self.tree.get(i);
-
-            match leaf {
-                Some(leaf) if vk.owns(&leaf.lic.lsa) => {
-                    lic_vec.push(leaf.lic);
-                }
-                _ => break,
-            }
-        }
-
-        lic_vec
+        self.licenses
+            .iter()
+            .filter_map(|(_, lic)| vk.owns(&lic.lsa).then_some(lic))
+            .cloned()
+            .collect()
     }
-    pub fn get_merkle_proof(&self, lic: &License) -> PoseidonBranch<DEPTH> {
-        self.tree
-            .branch(lic.pos)
+
+    pub fn get_merkle_proof(&self, lic: &License) -> Opening<Unit, DEPTH, ARITY> {
+        self.tree.opening(lic.pos)
             .expect("Tree was read successfully")
     }
 }
 
-#[derive(Default, Clone)]
-pub struct DataLeaf {
-    pub lic: License,
-}
+// #[derive(Default, Clone)]
+// pub struct DataLeaf {
+//     pub lic: License,
+// }
 
 // Keyed needs to be implemented for a leaf type and the tree key.
-impl Keyed<()> for DataLeaf {
-    fn key(&self) -> &() {
-        &()
-    }
-}
+// impl Keyed<()> for DataLeaf {
+//     fn key(&self) -> &() {
+//         &()
+//     }
+// }
 
-impl PoseidonLeaf for DataLeaf {
-    fn poseidon_hash(&self) -> BlsScalar {
-        let lpk = JubJubAffine::from(self.lic.lsa.pk_r().as_ref());
-        sponge::hash(&[lpk.get_x(), lpk.get_y()])
-    }
-
-    fn pos(&self) -> &u64 {
-        &self.lic.pos
-    }
-
-    fn set_pos(&mut self, pos: u64) {
-        self.lic.pos = pos;
-    }
-}
+// impl PoseidonLeaf for DataLeaf {
+//     fn poseidon_hash(&self) -> BlsScalar {
+//         let lpk = JubJubAffine::from(self.lic.lsa.pk_r().as_ref());
+//         sponge::hash(&[lpk.get_x(), lpk.get_y()])
+//     }
+//
+//     fn pos(&self) -> &u64 {
+//         &self.lic.pos
+//     }
+//
+//     fn set_pos(&mut self, pos: u64) {
+//         self.lic.pos = pos;
+//     }
+// }

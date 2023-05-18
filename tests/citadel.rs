@@ -10,7 +10,7 @@ use dusk_plonk::prelude::*;
 
 static LABEL: &[u8; 12] = b"dusk-network";
 
-const CAPACITY: usize = 15; // capacity required for the setup
+const CAPACITY: usize = 16; // capacity required for the setup
 const DEPTH: usize = 17; // depth of the 4-ary Merkle tree
 
 use zk_citadel::gadget;
