@@ -89,8 +89,8 @@ pub fn use_license<C: Composer, const DEPTH: usize>(
     let license_hash = sponge::gadget(composer, &[*lpk.x(), *lpk.y()]);
 
     // VERIFY THE MERKLE PROOF
-    let root = lpp.merkle_proof.gadget(composer, license_hash);
     let root_pi = composer.append_public(lpp.merkle_proof.root().hash);
+    let root = lpp.merkle_proof.gadget(composer, license_hash);
     composer.assert_equal(root, root_pi);
 
     Ok(())

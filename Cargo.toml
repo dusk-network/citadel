@@ -19,8 +19,7 @@ dusk-pki = { version = "0.11", default-features = false}
 dusk-schnorr = { version = "0.12" }
 rand_core = { version = "0.6", default-features=false, features = ["getrandom"] }
 nstack = { version = "0.16" }
-rkyv = { version = "0.7", optional = true, default-features = false, features = ["size_32"] }
-
+rkyv = { version = "0.7", optional = true, default-features = false }
 
 [dev-dependencies]
 criterion = "0.3"
