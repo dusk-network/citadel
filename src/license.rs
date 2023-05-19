@@ -4,19 +4,18 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+use dusk_bytes::Serializable;
 use dusk_jubjub::JubJubAffine;
 use dusk_jubjub::{dhke, GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED};
+use dusk_merkle::poseidon::Tree;
+use dusk_merkle::{poseidon::Item, poseidon::Opening, Aggregate};
 use dusk_pki::{PublicKey, PublicSpendKey, SecretKey, SecretSpendKey, StealthAddress};
 use dusk_poseidon::cipher::PoseidonCipher;
 use dusk_poseidon::sponge;
-use dusk_merkle::{Aggregate, poseidon::Opening, poseidon::Item};
 use dusk_schnorr::Signature;
 use rand_core::{CryptoRng, RngCore};
-use dusk_merkle::poseidon::Tree;
-use dusk_bytes::Serializable;
 
 use dusk_plonk::prelude::*;
-// use dusk_poseidon::tree::PoseidonBranch;
 
 use crate::state::State;
 
@@ -26,13 +25,13 @@ pub const ARITY: usize = 4;
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Unit;
 
-impl <const H: usize, const A: usize> Aggregate<H, A> for Unit {
+impl<const H: usize, const A: usize> Aggregate<H, A> for Unit {
     const EMPTY_SUBTREES: [Self; H] = [Unit; H];
 
     fn aggregate<'a, I>(_items: I) -> Self
-        where
-            Self: 'a,
-            I: Iterator<Item = &'a Self>,
+    where
+        Self: 'a,
+        I: Iterator<Item = &'a Self>,
     {
         Unit
     }
@@ -234,37 +233,35 @@ pub struct LicenseProverParameters<const DEPTH: usize> {
     pub com_1: JubJubExtended, // Pedersen Commitment 1
     pub com_2: JubJubExtended, // Pedersen Commitment 2
 
-    pub session_hash: BlsScalar,               // hash of the session
-    pub sig_session_hash: dusk_schnorr::Proof, // signature of the session_hash
-    pub merkle_proof: Opening<Unit, DEPTH, ARITY>,   // Merkle proof for the Proof of Validity
+    pub session_hash: BlsScalar,                   // hash of the session
+    pub sig_session_hash: dusk_schnorr::Proof,     // signature of the session_hash
+    pub merkle_proof: Opening<Unit, DEPTH, ARITY>, // Merkle proof for the Proof of Validity
 }
 
 impl Default for LicenseProverParameters<DEPTH> {
-        fn default() -> Self {
-            let mut tree = Tree::new();
-            let item = PoseidonItem {
-                hash: BlsScalar::zero(),
-                data: Unit,
-            };
-            tree.insert(0, item);
-            let merkle_proof =
-                tree.opening(0).expect("There is a leaf at position 0");
-            Self {
-                lpk: JubJubAffine::default(),
-                lpk_p: JubJubAffine::default(),
-                sig_lic: Signature::default(),
+    fn default() -> Self {
+        let mut tree = Tree::new();
+        let item = PoseidonItem {
+            hash: BlsScalar::zero(),
+            data: Unit,
+        };
+        tree.insert(0, item);
+        let merkle_proof = tree.opening(0).expect("There is a leaf at position 0");
+        Self {
+            lpk: JubJubAffine::default(),
+            lpk_p: JubJubAffine::default(),
+            sig_lic: Signature::default(),
 
-                com_0: BlsScalar::default(),
-                com_1: JubJubExtended::default(),
-                com_2: JubJubExtended::default(),
+            com_0: BlsScalar::default(),
+            com_1: JubJubExtended::default(),
+            com_2: JubJubExtended::default(),
 
-                session_hash: BlsScalar::default(),
-                sig_session_hash: dusk_schnorr::Proof::default(),
-                merkle_proof,
-            }
+            session_hash: BlsScalar::default(),
+            sig_session_hash: dusk_schnorr::Proof::default(),
+            merkle_proof,
         }
     }
-
+}
 
 impl<const DEPTH: usize> LicenseProverParameters<DEPTH> {
     #[allow(clippy::too_many_arguments)]

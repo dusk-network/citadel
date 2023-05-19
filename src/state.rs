@@ -4,14 +4,11 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use std::collections::BTreeMap;
+use dusk_merkle::poseidon::{Item, Opening, Tree};
 use dusk_pki::ViewKey;
 use dusk_plonk::prelude::*;
 use dusk_poseidon::sponge;
-// use dusk_poseidon::tree::{PoseidonBranch, PoseidonLeaf, PoseidonTree};
-use dusk_merkle::poseidon::{Opening, Tree, Item};
-
-// use nstack::annotation::Keyed;
+use std::collections::BTreeMap;
 
 use crate::license::{License, Unit, ARITY};
 
@@ -39,12 +36,12 @@ impl<const DEPTH: usize> State<DEPTH> {
         let lpk = JubJubAffine::from(lic.lsa.pk_r().as_ref());
 
         let item = PoseidonItem {
-                hash: sponge::hash(&[lpk.get_x(), lpk.get_y()]),
-                data: Unit,
-            };
+            hash: sponge::hash(&[lpk.get_x(), lpk.get_y()]),
+            data: Unit,
+        };
 
         self.tree.insert(0, item);
-        self.licenses.insert( lic.pos, lic.clone() );
+        self.licenses.insert(lic.pos, lic.clone());
     }
 
     pub fn get_licenses(&self, vk: &ViewKey) -> Vec<License> {
@@ -56,34 +53,8 @@ impl<const DEPTH: usize> State<DEPTH> {
     }
 
     pub fn get_merkle_proof(&self, lic: &License) -> Opening<Unit, DEPTH, ARITY> {
-        self.tree.opening(lic.pos)
+        self.tree
+            .opening(lic.pos)
             .expect("Tree was read successfully")
     }
 }
-
-// #[derive(Default, Clone)]
-// pub struct DataLeaf {
-//     pub lic: License,
-// }
-
-// Keyed needs to be implemented for a leaf type and the tree key.
-// impl Keyed<()> for DataLeaf {
-//     fn key(&self) -> &() {
-//         &()
-//     }
-// }
-
-// impl PoseidonLeaf for DataLeaf {
-//     fn poseidon_hash(&self) -> BlsScalar {
-//         let lpk = JubJubAffine::from(self.lic.lsa.pk_r().as_ref());
-//         sponge::hash(&[lpk.get_x(), lpk.get_y()])
-//     }
-//
-//     fn pos(&self) -> &u64 {
-//         &self.lic.pos
-//     }
-//
-//     fn set_pos(&mut self, pos: u64) {
-//         self.lic.pos = pos;
-//     }
-// }
