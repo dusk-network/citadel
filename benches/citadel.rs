@@ -40,6 +40,9 @@ impl Circuit for Citadel {
         C: Composer,
     {
         gadget::use_license(composer, &self.lpp, &self.sc)?;
+        unsafe {
+            CONSTRAINTS = composer.constraints();
+        }
         Ok(())
     }
 }
