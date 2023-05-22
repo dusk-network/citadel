@@ -18,17 +18,18 @@ use rand_core::{CryptoRng, OsRng, RngCore};
 static mut CONSTRAINTS: usize = 0;
 static LABEL: &[u8; 12] = b"dusk-network";
 
-const CAPACITY: usize = 15; // capacity required for the setup
-const DEPTH: usize = 17; // depth of the 4-ary Merkle tree
+const CAPACITY: usize = 16; // capacity required for the setup
+const DEPTH: usize = 17; // depth of the n-ary Merkle tree
+pub const ARITY: usize = 4; // arity of the Merkle tree
 
 #[derive(Default, Debug)]
 pub struct Citadel {
-    lpp: LicenseProverParameters<DEPTH>,
+    lpp: LicenseProverParameters<DEPTH, ARITY>,
     sc: SessionCookie,
 }
 
 impl Citadel {
-    pub fn new(lpp: &LicenseProverParameters<DEPTH>, sc: &SessionCookie) -> Self {
+    pub fn new(lpp: &LicenseProverParameters<DEPTH, ARITY>, sc: &SessionCookie) -> Self {
         Self { lpp: *lpp, sc: *sc }
     }
 }
@@ -39,18 +40,17 @@ impl Circuit for Citadel {
         C: Composer,
     {
         gadget::use_license(composer, &self.lpp, &self.sc)?;
-
-        unsafe {
-            CONSTRAINTS = composer.constraints();
-        }
-
         Ok(())
     }
 }
 
 fn compute_random_license<R: RngCore + CryptoRng>(
     rng: &mut R,
-) -> (License, LicenseProverParameters<DEPTH>, SessionCookie) {
+) -> (
+    License,
+    LicenseProverParameters<DEPTH, ARITY>,
+    SessionCookie,
+) {
     // Example values
     const USER_ATTRIBUTES: u64 = 112233445566778899u64;
     const CHALLENGE: u64 = 20221126u64;
@@ -70,9 +70,9 @@ fn compute_random_license<R: RngCore + CryptoRng>(
 
     // Second, the LP computes these values and grants the License
     let attr = JubJubScalar::from(USER_ATTRIBUTES);
-    let lic = License::new(&attr, &ssk_lp, &req, rng);
+    let mut lic = License::new(&attr, &ssk_lp, &req, rng);
     let mut state = State::new(); // the compiler takes DEPTH from expected 'lpp' to return
-    state.append_license(&lic);
+    state.append_license(&mut lic);
 
     // Third, the user computes these values to generate the ZKP later on
     let vk = ssk.view_key();

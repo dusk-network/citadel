@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Migrated Merkle tree implementation from Poseidon252 0.28 to dusk_merkle 0.2 [#41]
+
 ## [0.2.0] - 2023-05-17
 
 ### Added

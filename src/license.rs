@@ -4,20 +4,20 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+use dusk_bytes::Serializable;
 use dusk_jubjub::JubJubAffine;
 use dusk_jubjub::{dhke, GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED};
+use dusk_merkle::poseidon::Opening;
+use dusk_merkle::poseidon::Tree;
 use dusk_pki::{PublicKey, PublicSpendKey, SecretKey, SecretSpendKey, StealthAddress};
 use dusk_poseidon::cipher::PoseidonCipher;
 use dusk_poseidon::sponge;
 use dusk_schnorr::Signature;
 use rand_core::{CryptoRng, RngCore};
 
-use dusk_bytes::Serializable;
-
 use dusk_plonk::prelude::*;
-use dusk_poseidon::tree::PoseidonBranch;
 
-use crate::state::State;
+use crate::state::{PoseidonItem, State, Unit};
 
 pub struct Request {
     rsa: StealthAddress,   // request stealth address
@@ -203,8 +203,8 @@ impl License {
     }
 }
 
-#[derive(Default, Debug, Clone, Copy)]
-pub struct LicenseProverParameters<const DEPTH: usize> {
+#[derive(Debug, Clone, Copy)]
+pub struct LicenseProverParameters<const DEPTH: usize, const ARITY: usize> {
     pub lpk: JubJubAffine,   // license public key
     pub lpk_p: JubJubAffine, // license public key prime
     pub sig_lic: Signature,  // signature of the license
@@ -213,12 +213,37 @@ pub struct LicenseProverParameters<const DEPTH: usize> {
     pub com_1: JubJubExtended, // Pedersen Commitment 1
     pub com_2: JubJubExtended, // Pedersen Commitment 2
 
-    pub session_hash: BlsScalar,               // hash of the session
-    pub sig_session_hash: dusk_schnorr::Proof, // signature of the session_hash
-    pub merkle_proof: PoseidonBranch<DEPTH>,   // Merkle proof for the Proof of Validity
+    pub session_hash: BlsScalar,                   // hash of the session
+    pub sig_session_hash: dusk_schnorr::Proof,     // signature of the session_hash
+    pub merkle_proof: Opening<Unit, DEPTH, ARITY>, // Merkle proof for the Proof of Validity
 }
 
-impl<const DEPTH: usize> LicenseProverParameters<DEPTH> {
+impl<const DEPTH: usize, const ARITY: usize> Default for LicenseProverParameters<DEPTH, ARITY> {
+    fn default() -> Self {
+        let mut tree = Tree::new();
+        let item = PoseidonItem {
+            hash: BlsScalar::zero(),
+            data: Unit,
+        };
+        tree.insert(0, item);
+        let merkle_proof = tree.opening(0).expect("There is a leaf at position 0");
+        Self {
+            lpk: JubJubAffine::default(),
+            lpk_p: JubJubAffine::default(),
+            sig_lic: Signature::default(),
+
+            com_0: BlsScalar::default(),
+            com_1: JubJubExtended::default(),
+            com_2: JubJubExtended::default(),
+
+            session_hash: BlsScalar::default(),
+            sig_session_hash: dusk_schnorr::Proof::default(),
+            merkle_proof,
+        }
+    }
+}
+
+impl<const DEPTH: usize, const ARITY: usize> LicenseProverParameters<DEPTH, ARITY> {
     #[allow(clippy::too_many_arguments)]
     pub fn compute_parameters<R: RngCore + CryptoRng>(
         ssk: &SecretSpendKey,
@@ -228,7 +253,7 @@ impl<const DEPTH: usize> LicenseProverParameters<DEPTH> {
         k_lic: &JubJubAffine,
         c: &JubJubScalar,
         rng: &mut R,
-        state: &State<DEPTH>,
+        state: &State<DEPTH, ARITY>,
     ) -> (Self, SessionCookie) {
         let dec_1 = lic
             .enc_1

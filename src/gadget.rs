@@ -7,7 +7,6 @@
 use dusk_jubjub::{GENERATOR, GENERATOR_NUMS};
 use dusk_plonk::prelude::*;
 use dusk_poseidon::sponge;
-use dusk_poseidon::tree::{self};
 use dusk_schnorr::gadgets;
 
 use crate::license::{LicenseProverParameters, SessionCookie};
@@ -24,9 +23,9 @@ use crate::license::{LicenseProverParameters, SessionCookie};
 // public_inputs[6]: com_2.y
 // public_inputs[7]: root
 
-pub fn use_license<C: Composer, const DEPTH: usize>(
+pub fn use_license<C: Composer, const DEPTH: usize, const ARITY: usize>(
     composer: &mut C,
-    lpp: &LicenseProverParameters<DEPTH>,
+    lpp: &LicenseProverParameters<DEPTH, ARITY>,
     sc: &SessionCookie,
 ) -> Result<(), Error> {
     // APPEND THE LICENSE PUBLIC KEYS OF THE USER
@@ -90,9 +89,8 @@ pub fn use_license<C: Composer, const DEPTH: usize>(
     let license_hash = sponge::gadget(composer, &[*lpk.x(), *lpk.y()]);
 
     // VERIFY THE MERKLE PROOF
-    let root_pi = composer.append_public(*lpp.merkle_proof.root());
-    let root = tree::merkle_opening::<C, DEPTH>(composer, &lpp.merkle_proof, license_hash);
-
+    let root_pi = composer.append_public(lpp.merkle_proof.root().hash);
+    let root = lpp.merkle_proof.gadget(composer, license_hash);
     composer.assert_equal(root, root_pi);
 
     Ok(())
