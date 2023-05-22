@@ -23,9 +23,9 @@ use crate::license::{LicenseProverParameters, SessionCookie};
 // public_inputs[6]: com_2.y
 // public_inputs[7]: root
 
-pub fn use_license<C: Composer, const DEPTH: usize>(
+pub fn use_license<C: Composer, const DEPTH: usize, const ARITY: usize>(
     composer: &mut C,
-    lpp: &LicenseProverParameters<DEPTH>,
+    lpp: &LicenseProverParameters<DEPTH, ARITY>,
     sc: &SessionCookie,
 ) -> Result<(), Error> {
     // APPEND THE LICENSE PUBLIC KEYS OF THE USER

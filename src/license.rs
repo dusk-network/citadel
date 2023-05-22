@@ -7,8 +7,8 @@
 use dusk_bytes::Serializable;
 use dusk_jubjub::JubJubAffine;
 use dusk_jubjub::{dhke, GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED};
+use dusk_merkle::poseidon::Opening;
 use dusk_merkle::poseidon::Tree;
-use dusk_merkle::{poseidon::Item, poseidon::Opening, Aggregate};
 use dusk_pki::{PublicKey, PublicSpendKey, SecretKey, SecretSpendKey, StealthAddress};
 use dusk_poseidon::cipher::PoseidonCipher;
 use dusk_poseidon::sponge;
@@ -17,27 +17,7 @@ use rand_core::{CryptoRng, RngCore};
 
 use dusk_plonk::prelude::*;
 
-use crate::state::State;
-
-pub const DEPTH: usize = 17;
-pub const ARITY: usize = 4;
-
-#[derive(Default, Debug, Clone, Copy)]
-pub struct Unit;
-
-impl<const H: usize, const A: usize> Aggregate<H, A> for Unit {
-    const EMPTY_SUBTREES: [Self; H] = [Unit; H];
-
-    fn aggregate<'a, I>(_items: I) -> Self
-    where
-        Self: 'a,
-        I: Iterator<Item = &'a Self>,
-    {
-        Unit
-    }
-}
-
-type PoseidonItem = Item<Unit>;
+use crate::state::{PoseidonItem, State, Unit};
 
 pub struct Request {
     rsa: StealthAddress,   // request stealth address
@@ -224,7 +204,7 @@ impl License {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct LicenseProverParameters<const DEPTH: usize> {
+pub struct LicenseProverParameters<const DEPTH: usize, const ARITY: usize> {
     pub lpk: JubJubAffine,   // license public key
     pub lpk_p: JubJubAffine, // license public key prime
     pub sig_lic: Signature,  // signature of the license
@@ -238,7 +218,7 @@ pub struct LicenseProverParameters<const DEPTH: usize> {
     pub merkle_proof: Opening<Unit, DEPTH, ARITY>, // Merkle proof for the Proof of Validity
 }
 
-impl Default for LicenseProverParameters<DEPTH> {
+impl<const DEPTH: usize, const ARITY: usize> Default for LicenseProverParameters<DEPTH, ARITY> {
     fn default() -> Self {
         let mut tree = Tree::new();
         let item = PoseidonItem {
@@ -263,7 +243,7 @@ impl Default for LicenseProverParameters<DEPTH> {
     }
 }
 
-impl<const DEPTH: usize> LicenseProverParameters<DEPTH> {
+impl<const DEPTH: usize, const ARITY: usize> LicenseProverParameters<DEPTH, ARITY> {
     #[allow(clippy::too_many_arguments)]
     pub fn compute_parameters<R: RngCore + CryptoRng>(
         ssk: &SecretSpendKey,
@@ -273,7 +253,7 @@ impl<const DEPTH: usize> LicenseProverParameters<DEPTH> {
         k_lic: &JubJubAffine,
         c: &JubJubScalar,
         rng: &mut R,
-        state: &State<DEPTH>,
+        state: &State<DEPTH, ARITY>,
     ) -> (Self, SessionCookie) {
         let dec_1 = lic
             .enc_1

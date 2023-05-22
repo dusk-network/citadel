@@ -5,34 +5,50 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use dusk_merkle::poseidon::{Item, Opening, Tree};
+use dusk_merkle::Aggregate;
 use dusk_pki::ViewKey;
 use dusk_plonk::prelude::*;
 use dusk_poseidon::sponge;
 use std::collections::BTreeMap;
 
-use crate::license::{License, Unit, ARITY};
+use crate::license::License;
 
-type PoseidonItem = Item<Unit>;
+#[derive(Default, Debug, Clone, Copy)]
+pub struct Unit;
 
-pub struct State<const DEPTH: usize> {
+impl<const H: usize, const A: usize> Aggregate<H, A> for Unit {
+    const EMPTY_SUBTREES: [Self; H] = [Unit; H];
+
+    fn aggregate<'a, I>(_items: I) -> Self
+    where
+        Self: 'a,
+        I: Iterator<Item = &'a Self>,
+    {
+        Unit
+    }
+}
+
+pub type PoseidonItem = Item<Unit>;
+
+pub struct State<const DEPTH: usize, const ARITY: usize> {
     tree: Tree<Unit, DEPTH, ARITY>,
     licenses: BTreeMap<u64, License>,
 }
 
-impl<const DEPTH: usize> Default for State<DEPTH> {
+impl<const DEPTH: usize, const ARITY: usize> Default for State<DEPTH, ARITY> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<const DEPTH: usize> State<DEPTH> {
-    pub fn new() -> State<DEPTH> {
+impl<const DEPTH: usize, const ARITY: usize> State<DEPTH, ARITY> {
+    pub fn new() -> State<DEPTH, ARITY> {
         State {
             tree: Tree::<Unit, DEPTH, ARITY>::new(),
             licenses: BTreeMap::new(),
         }
     }
-    pub fn append_license(&mut self, lic: &License) {
+    pub fn append_license(&mut self, lic: &mut License) {
         let lpk = JubJubAffine::from(lic.lsa.pk_r().as_ref());
 
         let item = PoseidonItem {
@@ -40,7 +56,8 @@ impl<const DEPTH: usize> State<DEPTH> {
             data: Unit,
         };
 
-        self.tree.insert(0, item);
+        lic.pos = self.licenses.len() as u64;
+        self.tree.insert(lic.pos, item);
         self.licenses.insert(lic.pos, lic.clone());
     }
 
