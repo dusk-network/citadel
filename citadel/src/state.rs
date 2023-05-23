@@ -4,15 +4,14 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use dusk_merkle::poseidon::{Item, Opening, Tree};
-use dusk_merkle::Aggregate;
+use dusk_merkle::poseidon::{Opening, Tree};
 use dusk_pki::ViewKey;
 use dusk_plonk::prelude::*;
 use dusk_poseidon::sponge;
 use std::collections::BTreeMap;
 
-use zk_citadel_shared::License;
 use zk_citadel_shared::unit::{PoseidonItem, Unit};
+use zk_citadel_shared::License;
 
 pub struct State<const DEPTH: usize, const ARITY: usize> {
     tree: Tree<Unit, DEPTH, ARITY>,

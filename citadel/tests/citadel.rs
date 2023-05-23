@@ -14,9 +14,9 @@ const CAPACITY: usize = 16; // capacity required for the setup
 const DEPTH: usize = 17; // depth of the n-ary Merkle tree
 pub const ARITY: usize = 4; // arity of the Merkle tree
 
-use zk_citadel_shared::{gadget, License, LicenseProverParameters, Request, Session, SessionCookie};
 use zk_citadel::license::{compute_parameters, new_license, new_request};
 use zk_citadel::state::State;
+use zk_citadel_shared::{gadget, License, LicenseProverParameters, Session, SessionCookie};
 
 use rand_core::{CryptoRng, OsRng, RngCore};
 
@@ -76,9 +76,7 @@ fn compute_random_license<R: RngCore + CryptoRng>(
     let vk = ssk.view_key();
     let lics = state.get_licenses(&vk);
     let c = JubJubScalar::from(CHALLENGE);
-    let (lpp, sc) = compute_parameters(
-        &ssk, &lics[0], &psk_lp, &psk_lp, &k_lic, &c, rng, &state,
-    );
+    let (lpp, sc) = compute_parameters(&ssk, &lics[0], &psk_lp, &psk_lp, &k_lic, &c, rng, &state);
 
     (lic, lpp, sc)
 }

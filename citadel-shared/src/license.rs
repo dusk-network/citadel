@@ -4,16 +4,14 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use dusk_bytes::Serializable;
 use dusk_jubjub::JubJubAffine;
-use dusk_jubjub::{dhke, GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED};
+use dusk_jubjub::{GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED};
 use dusk_merkle::poseidon::Opening;
 use dusk_merkle::poseidon::Tree;
-use dusk_pki::{PublicKey, PublicSpendKey, SecretKey, SecretSpendKey, StealthAddress};
+use dusk_pki::StealthAddress;
 use dusk_poseidon::cipher::PoseidonCipher;
 use dusk_poseidon::sponge;
 use dusk_schnorr::Signature;
-// use rand_core::{CryptoRng, RngCore};
 
 use dusk_plonk::prelude::*;
 
@@ -145,4 +143,3 @@ impl<const DEPTH: usize, const ARITY: usize> Default for LicenseProverParameters
         }
     }
 }
-

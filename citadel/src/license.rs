@@ -7,8 +7,6 @@
 use dusk_bytes::Serializable;
 use dusk_jubjub::JubJubAffine;
 use dusk_jubjub::{dhke, GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED};
-use dusk_merkle::poseidon::Opening;
-use dusk_merkle::poseidon::Tree;
 use dusk_pki::{PublicKey, PublicSpendKey, SecretKey, SecretSpendKey, StealthAddress};
 use dusk_poseidon::cipher::PoseidonCipher;
 use dusk_poseidon::sponge;
@@ -19,7 +17,7 @@ use dusk_plonk::prelude::*;
 
 use crate::state::State;
 
-use zk_citadel_shared::{License, LicenseProverParameters, Request, Session, SessionCookie};
+use zk_citadel_shared::{License, LicenseProverParameters, Request, SessionCookie};
 
 pub fn new_request<R: RngCore + CryptoRng>(
     psk_lp: &PublicSpendKey,
@@ -96,8 +94,7 @@ pub fn new_license<R: RngCore + CryptoRng>(
         &nonce_1,
     );
 
-    let enc_2 =
-        PoseidonCipher::encrypt(&[sig_lic_r.get_x(), sig_lic_r.get_y()], &k_lic, &nonce_2);
+    let enc_2 = PoseidonCipher::encrypt(&[sig_lic_r.get_x(), sig_lic_r.get_y()], &k_lic, &nonce_2);
 
     let pos = 0u64;
 

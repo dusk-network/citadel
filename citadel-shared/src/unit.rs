@@ -4,17 +4,11 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use alloc::vec::Vec;
 use bytecheck::CheckBytes;
 use rkyv::{Archive, Deserialize, Serialize};
 
-use dusk_merkle::poseidon::{Item, Opening, Tree};
+use dusk_merkle::poseidon::Item;
 use dusk_merkle::Aggregate;
-use dusk_pki::ViewKey;
-use dusk_plonk::prelude::*;
-use dusk_poseidon::sponge;
-
-use crate::license::License;
 
 #[derive(Default, Debug, Clone, Copy, Archive, Serialize, Deserialize)]
 #[archive_attr(derive(CheckBytes))]
