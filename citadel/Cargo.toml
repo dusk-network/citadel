@@ -20,6 +20,7 @@ dusk-schnorr = { version = "0.12" }
 rand_core = { version = "0.6", default-features=false, features = ["getrandom"] }
 nstack = { version = "0.16" }
 rkyv = { version = "0.7", optional = true, default-features = false }
+zk-citadel-shared = { path = "../citadel-shared" }
 
 [dev-dependencies]
 criterion = "0.3"

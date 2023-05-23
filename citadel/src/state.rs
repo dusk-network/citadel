@@ -11,24 +11,8 @@ use dusk_plonk::prelude::*;
 use dusk_poseidon::sponge;
 use std::collections::BTreeMap;
 
-use crate::license::License;
-
-#[derive(Default, Debug, Clone, Copy)]
-pub struct Unit;
-
-impl<const H: usize, const A: usize> Aggregate<H, A> for Unit {
-    const EMPTY_SUBTREES: [Self; H] = [Unit; H];
-
-    fn aggregate<'a, I>(_items: I) -> Self
-    where
-        Self: 'a,
-        I: Iterator<Item = &'a Self>,
-    {
-        Unit
-    }
-}
-
-pub type PoseidonItem = Item<Unit>;
+use zk_citadel_shared::License;
+use zk_citadel_shared::unit::{PoseidonItem, Unit};
 
 pub struct State<const DEPTH: usize, const ARITY: usize> {
     tree: Tree<Unit, DEPTH, ARITY>,
