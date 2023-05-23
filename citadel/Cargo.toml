@@ -1,0 +1,29 @@
+[package]
+name = "zk-citadel"
+version = "0.2.0"
+repository = "https://github.com/dusk-network/citadel"
+description = "Implementation of Citadel, a SSI system integrated in Dusk Network."
+categories = ["cryptography", "authentication", "mathematics", "science"]
+keywords = ["cryptography", "self-sovereign", "identity", "zk-snarks", "zero-knowledge"]
+edition = "2021"
+license = "MPL-2.0"
+
+[dependencies]
+dusk-bytes = "0.1"
+dusk-poseidon = { version = "0.28" }
+dusk-merkle = { version = "0.2", features = ["rkyv-impl", "poseidon", "zk", "size_32"] }
+dusk-plonk = { version = "0.13", default-features = false, features = ["alloc"] }
+dusk-bls12_381 = { version = "0.11", default-features = false }
+dusk-jubjub = { version = "0.12", default-features = false }
+dusk-pki = { version = "0.11", default-features = false}
+dusk-schnorr = { version = "0.12" }
+rand_core = { version = "0.6", default-features=false, features = ["getrandom"] }
+nstack = { version = "0.16" }
+rkyv = { version = "0.7", optional = true, default-features = false }
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "citadel"
+harness = false
