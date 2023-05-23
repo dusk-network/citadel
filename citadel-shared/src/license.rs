@@ -4,6 +4,9 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+use bytecheck::CheckBytes;
+use rkyv::{Archive, Deserialize, Serialize};
+
 use dusk_jubjub::JubJubAffine;
 use dusk_jubjub::{GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED};
 use dusk_merkle::poseidon::Opening;
@@ -17,6 +20,8 @@ use dusk_plonk::prelude::*;
 
 use crate::unit::{PoseidonItem, Unit};
 
+#[derive(Debug, Clone, PartialEq, Archive, Serialize, Deserialize)]
+#[archive_attr(derive(CheckBytes))]
 pub struct Request {
     pub rsa: StealthAddress,   // request stealth address
     pub enc_1: PoseidonCipher, // encryption of the license stealth address and k_lic
@@ -27,6 +32,8 @@ pub struct Request {
     pub nonce_3: BlsScalar,    // IV for the encryption
 }
 
+#[derive(Debug, Clone, PartialEq, Archive, Serialize, Deserialize)]
+#[archive_attr(derive(CheckBytes))]
 pub struct Session {
     pub session_hash: BlsScalar,
     pub session_id: BlsScalar,
@@ -79,7 +86,8 @@ impl Session {
     }
 }
 
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Archive, Serialize, Deserialize)]
+#[archive_attr(derive(CheckBytes))]
 pub struct SessionCookie {
     pub pk_sp: JubJubAffine, // public key of the SP
     pub r: BlsScalar,        // randomness for session_hash
@@ -94,7 +102,8 @@ pub struct SessionCookie {
     pub s_2: JubJubScalar, // randomness for com_2
 }
 
-#[derive(Default, Clone, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq, Archive, Serialize, Deserialize)]
+#[archive_attr(derive(CheckBytes))]
 pub struct License {
     pub lsa: StealthAddress,   // license stealth address
     pub enc_1: PoseidonCipher, // encryption of the license signature and attributes
