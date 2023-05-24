@@ -17,6 +17,8 @@ use dusk_schnorr::Signature;
 
 use dusk_plonk::prelude::*;
 
+pub type PoseidonItem = Item<()>;
+
 #[derive(Debug, Clone, PartialEq, Archive, Serialize, Deserialize)]
 #[archive_attr(derive(CheckBytes))]
 pub struct Request {
@@ -93,7 +95,6 @@ impl Session {
     }
 }
 
-/// SessionId.
 #[derive(Debug, Clone, Copy, PartialEq, Archive, Serialize, Deserialize)]
 #[archive_attr(derive(CheckBytes))]
 pub struct SessionId {
@@ -149,15 +150,15 @@ pub struct LicenseProverParameters<const DEPTH: usize, const ARITY: usize> {
     pub com_1: JubJubExtended, // Pedersen Commitment 1
     pub com_2: JubJubExtended, // Pedersen Commitment 2
 
-    pub session_hash: BlsScalar,                   // hash of the session
-    pub sig_session_hash: dusk_schnorr::Proof,     // signature of the session_hash
+    pub session_hash: BlsScalar,                 // hash of the session
+    pub sig_session_hash: dusk_schnorr::Proof,   // signature of the session_hash
     pub merkle_proof: Opening<(), DEPTH, ARITY>, // Merkle proof for the Proof of Validity
 }
 
 impl<const DEPTH: usize, const ARITY: usize> Default for LicenseProverParameters<DEPTH, ARITY> {
     fn default() -> Self {
         let mut tree = Tree::new();
-        let item = Item::<()> {
+        let item = PoseidonItem {
             hash: BlsScalar::zero(),
             data: (),
         };

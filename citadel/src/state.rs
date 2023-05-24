@@ -12,6 +12,8 @@ use std::collections::BTreeMap;
 
 use zk_citadel_shared::License;
 
+pub type PoseidonItem = Item<()>;
+
 pub struct State<const DEPTH: usize, const ARITY: usize> {
     tree: Tree<(), DEPTH, ARITY>,
     licenses: BTreeMap<u64, License>,
@@ -33,7 +35,7 @@ impl<const DEPTH: usize, const ARITY: usize> State<DEPTH, ARITY> {
     pub fn append_license(&mut self, lic: &mut License) {
         let lpk = JubJubAffine::from(lic.lsa.pk_r().as_ref());
 
-        let item = Item::<()> {
+        let item = PoseidonItem {
             hash: sponge::hash(&[lpk.get_x(), lpk.get_y()]),
             data: (),
         };

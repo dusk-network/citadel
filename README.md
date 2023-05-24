@@ -12,6 +12,7 @@ This repository contains the implementation of Citadel, a protocol that integrat
 The library can be tested by running:
 
 ```
+cd citadel
 cargo t --release
 ```
 
@@ -20,5 +21,6 @@ cargo t --release
 The library can be benchmarked by running:
 
 ```
+cd citadel
 cargo bench
 ```
