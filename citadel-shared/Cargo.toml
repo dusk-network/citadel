@@ -15,9 +15,9 @@ dusk-bytes = "0.1"
 dusk-jubjub = { version = "0.12", default-features = false, features = ["rkyv-impl"] }
 dusk-pki = { version = "0.11", default-features = false, features = ["rkyv-impl"] }
 dusk-poseidon = { version = "0.28", default-features = false, features = ["rkyv-impl", "alloc"] }
-dusk-merkle = { version = "0.2", features = ["rkyv-impl", "poseidon", "zk", "size_32"] }
+#dusk-merkle = { version = "0.2", features = ["rkyv-impl", "poseidon", "zk", "size_32"] }
+dusk-merkle = { path = "../../merkle", features = ["rkyv-impl", "poseidon", "zk", "size_32"] }
 dusk-plonk = { version = "0.13", default-features = false, features = ["rkyv-impl", "alloc"] }
 dusk-schnorr = { version = "0.12", default-features = false, features = ["alloc"] }
-#nstack = { version = "0.16" }
 rkyv = { version = "0.7", default-features = false }
 bytecheck = { version = "0.6", default-features = false }

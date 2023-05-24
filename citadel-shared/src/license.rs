@@ -9,16 +9,13 @@ use rkyv::{Archive, Deserialize, Serialize};
 
 use dusk_jubjub::JubJubAffine;
 use dusk_jubjub::{GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED};
-use dusk_merkle::poseidon::Opening;
-use dusk_merkle::poseidon::Tree;
-use dusk_pki::StealthAddress;
+use dusk_merkle::poseidon::{Item, Opening, Tree};
+use dusk_pki::{Ownable, StealthAddress};
 use dusk_poseidon::cipher::PoseidonCipher;
 use dusk_poseidon::sponge;
 use dusk_schnorr::Signature;
 
 use dusk_plonk::prelude::*;
-
-use crate::unit::{PoseidonItem, Unit};
 
 #[derive(Debug, Clone, PartialEq, Archive, Serialize, Deserialize)]
 #[archive_attr(derive(CheckBytes))]
@@ -30,6 +27,12 @@ pub struct Request {
     pub nonce_2: BlsScalar,    // IV for the encryption
     pub enc_3: PoseidonCipher, // encryption of the license stealth address and k_lic
     pub nonce_3: BlsScalar,    // IV for the encryption
+}
+
+impl Ownable for Request {
+    fn stealth_address(&self) -> &StealthAddress {
+        &self.rsa
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Archive, Serialize, Deserialize)]
@@ -84,6 +87,23 @@ impl Session {
         let com_2 = (GENERATOR_EXTENDED * sc.c) + (GENERATOR_NUMS_EXTENDED * sc.s_2);
         assert_eq!(com_2, self.com_2);
     }
+
+    pub fn session_id(&self) -> SessionId {
+        SessionId::new(self.session_id)
+    }
+}
+
+/// SessionId.
+#[derive(Debug, Clone, Copy, PartialEq, Archive, Serialize, Deserialize)]
+#[archive_attr(derive(CheckBytes))]
+pub struct SessionId {
+    id: BlsScalar,
+}
+
+impl SessionId {
+    pub fn new(id: BlsScalar) -> SessionId {
+        SessionId { id }
+    }
 }
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Archive, Serialize, Deserialize)]
@@ -113,6 +133,12 @@ pub struct License {
     pub pos: u64,              // position of the license in the Merkle tree of licenses
 }
 
+impl Ownable for License {
+    fn stealth_address(&self) -> &StealthAddress {
+        &self.lsa
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct LicenseProverParameters<const DEPTH: usize, const ARITY: usize> {
     pub lpk: JubJubAffine,   // license public key
@@ -125,15 +151,15 @@ pub struct LicenseProverParameters<const DEPTH: usize, const ARITY: usize> {
 
     pub session_hash: BlsScalar,                   // hash of the session
     pub sig_session_hash: dusk_schnorr::Proof,     // signature of the session_hash
-    pub merkle_proof: Opening<Unit, DEPTH, ARITY>, // Merkle proof for the Proof of Validity
+    pub merkle_proof: Opening<(), DEPTH, ARITY>, // Merkle proof for the Proof of Validity
 }
 
 impl<const DEPTH: usize, const ARITY: usize> Default for LicenseProverParameters<DEPTH, ARITY> {
     fn default() -> Self {
         let mut tree = Tree::new();
-        let item = PoseidonItem {
+        let item = Item::<()> {
             hash: BlsScalar::zero(),
-            data: Unit,
+            data: (),
         };
         tree.insert(0, item);
         let merkle_proof = tree.opening(0).expect("There is a leaf at position 0");

@@ -10,7 +10,6 @@ extern crate alloc;
 
 pub mod gadget;
 pub mod license;
-pub mod unit;
 
 pub use gadget::use_license;
 
