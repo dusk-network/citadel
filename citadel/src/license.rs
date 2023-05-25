@@ -19,95 +19,118 @@ use crate::state::State;
 
 use zk_citadel_shared::{License, LicenseProverParameters, Request, SessionCookie};
 
-pub fn new_request<R: RngCore + CryptoRng>(
-    psk_lp: &PublicSpendKey,
-    lsa: &StealthAddress,
-    k_lic: &JubJubAffine,
-    rng: &mut R,
-) -> Request {
-    let nonce_1 = BlsScalar::random(rng);
-    let nonce_2 = BlsScalar::random(rng);
-    let nonce_3 = BlsScalar::random(rng);
+pub trait RequestUtil {
+    fn new<R: RngCore + CryptoRng>(
+        psk_lp: &PublicSpendKey,
+        lsa: &StealthAddress,
+        k_lic: &JubJubAffine,
+        rng: &mut R,
+    ) -> Self;
+}
 
-    let lpk = JubJubAffine::from(*lsa.pk_r().as_ref());
-    let r = JubJubAffine::from(*lsa.R());
+impl RequestUtil for Request {
+    fn new<R: RngCore + CryptoRng>(
+        psk_lp: &PublicSpendKey,
+        lsa: &StealthAddress,
+        k_lic: &JubJubAffine,
+        rng: &mut R,
+    ) -> Self {
+        let nonce_1 = BlsScalar::random(rng);
+        let nonce_2 = BlsScalar::random(rng);
+        let nonce_3 = BlsScalar::random(rng);
 
-    let r_dh = JubJubScalar::random(rng);
-    let rsa = psk_lp.gen_stealth_address(&r_dh);
-    let k_dh = dhke(&r_dh, psk_lp.A());
+        let lpk = JubJubAffine::from(*lsa.pk_r().as_ref());
+        let r = JubJubAffine::from(*lsa.R());
 
-    let enc_1 = PoseidonCipher::encrypt(&[lpk.get_x(), lpk.get_y()], &k_dh, &nonce_1);
+        let r_dh = JubJubScalar::random(rng);
+        let rsa = psk_lp.gen_stealth_address(&r_dh);
+        let k_dh = dhke(&r_dh, psk_lp.A());
 
-    let enc_2 = PoseidonCipher::encrypt(&[r.get_x(), r.get_y()], &k_dh, &nonce_2);
+        let enc_1 = PoseidonCipher::encrypt(&[lpk.get_x(), lpk.get_y()], &k_dh, &nonce_1);
 
-    let enc_3 = PoseidonCipher::encrypt(&[k_lic.get_x(), k_lic.get_y()], &k_dh, &nonce_3);
+        let enc_2 = PoseidonCipher::encrypt(&[r.get_x(), r.get_y()], &k_dh, &nonce_2);
 
-    Request {
-        rsa,
-        enc_1,
-        nonce_1,
-        enc_2,
-        nonce_2,
-        enc_3,
-        nonce_3,
+        let enc_3 = PoseidonCipher::encrypt(&[k_lic.get_x(), k_lic.get_y()], &k_dh, &nonce_3);
+
+        Request {
+            rsa,
+            enc_1,
+            nonce_1,
+            enc_2,
+            nonce_2,
+            enc_3,
+            nonce_3,
+        }
     }
 }
 
-pub fn new_license<R: RngCore + CryptoRng>(
-    attr: &JubJubScalar,
-    ssk_lp: &SecretSpendKey,
-    req: &Request,
-    rng: &mut R,
-) -> License {
-    let k_dh = dhke(ssk_lp.a(), req.rsa.R());
+pub trait LicenseUtil {
+    fn new<R: RngCore + CryptoRng>(
+        attr: &JubJubScalar,
+        ssk_lp: &SecretSpendKey,
+        req: &Request,
+        rng: &mut R,
+    ) -> Self;
+}
 
-    let dec_1 = req
-        .enc_1
-        .decrypt(&k_dh, &req.nonce_1)
-        .expect("decryption should succeed");
+impl LicenseUtil for License {
+    fn new<R: RngCore + CryptoRng>(
+        attr: &JubJubScalar,
+        ssk_lp: &SecretSpendKey,
+        req: &Request,
+        rng: &mut R,
+    ) -> Self {
+        let k_dh = dhke(ssk_lp.a(), req.rsa.R());
 
-    let dec_2 = req
-        .enc_2
-        .decrypt(&k_dh, &req.nonce_2)
-        .expect("decryption should succeed");
+        let dec_1 = req
+            .enc_1
+            .decrypt(&k_dh, &req.nonce_1)
+            .expect("decryption should succeed");
 
-    let dec_3 = req
-        .enc_3
-        .decrypt(&k_dh, &req.nonce_3)
-        .expect("decryption should succeed");
+        let dec_2 = req
+            .enc_2
+            .decrypt(&k_dh, &req.nonce_2)
+            .expect("decryption should succeed");
 
-    let lpk = JubJubAffine::from_raw_unchecked(dec_1[0], dec_1[1]);
-    let r = JubJubAffine::from_raw_unchecked(dec_2[0], dec_2[1]);
-    let k_lic = JubJubAffine::from_raw_unchecked(dec_3[0], dec_3[1]);
+        let dec_3 = req
+            .enc_3
+            .decrypt(&k_dh, &req.nonce_3)
+            .expect("decryption should succeed");
 
-    let message = sponge::hash(&[lpk.get_x(), lpk.get_y(), BlsScalar::from(*attr)]);
+        let lpk = JubJubAffine::from_raw_unchecked(dec_1[0], dec_1[1]);
+        let r = JubJubAffine::from_raw_unchecked(dec_2[0], dec_2[1]);
+        let k_lic = JubJubAffine::from_raw_unchecked(dec_3[0], dec_3[1]);
 
-    let sig_lic = Signature::new(&SecretKey::from(ssk_lp.a()), rng, message);
-    let sig_lic_r = JubJubAffine::from(sig_lic.R());
+        let message = sponge::hash(&[lpk.get_x(), lpk.get_y(), BlsScalar::from(*attr)]);
 
-    let nonce_1 = BlsScalar::random(rng);
-    let nonce_2 = BlsScalar::random(rng);
+        let sig_lic = Signature::new(&SecretKey::from(ssk_lp.a()), rng, message);
+        let sig_lic_r = JubJubAffine::from(sig_lic.R());
 
-    let enc_1 = PoseidonCipher::encrypt(
-        &[BlsScalar::from(*sig_lic.u()), BlsScalar::from(*attr)],
-        &k_lic,
-        &nonce_1,
-    );
+        let nonce_1 = BlsScalar::random(rng);
+        let nonce_2 = BlsScalar::random(rng);
 
-    let enc_2 = PoseidonCipher::encrypt(&[sig_lic_r.get_x(), sig_lic_r.get_y()], &k_lic, &nonce_2);
+        let enc_1 = PoseidonCipher::encrypt(
+            &[BlsScalar::from(*sig_lic.u()), BlsScalar::from(*attr)],
+            &k_lic,
+            &nonce_1,
+        );
 
-    let pos = 0u64;
+        let enc_2 =
+            PoseidonCipher::encrypt(&[sig_lic_r.get_x(), sig_lic_r.get_y()], &k_lic, &nonce_2);
 
-    License {
-        lsa: StealthAddress::from_raw_unchecked(
-            JubJubExtended::from(r),
-            PublicKey::from_raw_unchecked(JubJubExtended::from(lpk)),
-        ),
-        enc_1,
-        nonce_1,
-        enc_2,
-        nonce_2,
-        pos,
+        let pos = 0u64;
+
+        License {
+            lsa: StealthAddress::from_raw_unchecked(
+                JubJubExtended::from(r),
+                PublicKey::from_raw_unchecked(JubJubExtended::from(lpk)),
+            ),
+            enc_1,
+            nonce_1,
+            enc_2,
+            nonce_2,
+            pos,
+        }
     }
 }
 

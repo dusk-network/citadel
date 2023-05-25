@@ -14,9 +14,11 @@ const CAPACITY: usize = 16; // capacity required for the setup
 const DEPTH: usize = 17; // depth of the n-ary Merkle tree
 pub const ARITY: usize = 4; // arity of the Merkle tree
 
-use zk_citadel::license::{compute_parameters, new_license, new_request};
+use zk_citadel::license::{compute_parameters, LicenseUtil, RequestUtil};
 use zk_citadel::state::State;
-use zk_citadel_shared::{gadget, License, LicenseProverParameters, Session, SessionCookie};
+use zk_citadel_shared::{
+    gadget, License, LicenseProverParameters, Request, Session, SessionCookie,
+};
 
 use rand_core::{CryptoRng, OsRng, RngCore};
 
@@ -64,11 +66,11 @@ fn compute_random_license<R: RngCore + CryptoRng>(
     // First, the user computes these values and requests a License
     let lsa = psk.gen_stealth_address(&JubJubScalar::random(rng));
     let k_lic = JubJubAffine::from(GENERATOR_EXTENDED * JubJubScalar::random(rng)); // TODO: address issue #35 and modify this
-    let req = new_request(&psk_lp, &lsa, &k_lic, rng);
+    let req = Request::new(&psk_lp, &lsa, &k_lic, rng);
 
     // Second, the LP computes these values and grants the License
     let attr = JubJubScalar::from(USER_ATTRIBUTES);
-    let mut lic = new_license(&attr, &ssk_lp, &req, rng);
+    let mut lic = License::new(&attr, &ssk_lp, &req, rng);
     let mut state = State::new(); // the compiler takes DEPTH from expected 'lpp' to return
     state.append_license(&mut lic);
 
