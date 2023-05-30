@@ -17,7 +17,7 @@ use rand_core::{CryptoRng, RngCore};
 
 use dusk_plonk::prelude::*;
 
-use crate::state::{PoseidonItem, State, Unit};
+use crate::state::{PoseidonItem, State};
 
 pub struct Request {
     rsa: StealthAddress,   // request stealth address
@@ -215,7 +215,7 @@ pub struct LicenseProverParameters<const DEPTH: usize, const ARITY: usize> {
 
     pub session_hash: BlsScalar,                   // hash of the session
     pub sig_session_hash: dusk_schnorr::Proof,     // signature of the session_hash
-    pub merkle_proof: Opening<Unit, DEPTH, ARITY>, // Merkle proof for the Proof of Validity
+    pub merkle_proof: Opening<(), DEPTH, ARITY>, // Merkle proof for the Proof of Validity
 }
 
 impl<const DEPTH: usize, const ARITY: usize> Default for LicenseProverParameters<DEPTH, ARITY> {
@@ -223,7 +223,7 @@ impl<const DEPTH: usize, const ARITY: usize> Default for LicenseProverParameters
         let mut tree = Tree::new();
         let item = PoseidonItem {
             hash: BlsScalar::zero(),
-            data: Unit,
+            data: (),
         };
         tree.insert(0, item);
         let merkle_proof = tree.opening(0).expect("There is a leaf at position 0");

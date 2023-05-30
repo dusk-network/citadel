@@ -5,7 +5,6 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use dusk_merkle::poseidon::{Item, Opening, Tree};
-use dusk_merkle::Aggregate;
 use dusk_pki::ViewKey;
 use dusk_plonk::prelude::*;
 use dusk_poseidon::sponge;
@@ -13,25 +12,10 @@ use std::collections::BTreeMap;
 
 use crate::license::License;
 
-#[derive(Default, Debug, Clone, Copy)]
-pub struct Unit;
-
-impl<const H: usize, const A: usize> Aggregate<H, A> for Unit {
-    const EMPTY_SUBTREES: [Self; H] = [Unit; H];
-
-    fn aggregate<'a, I>(_items: I) -> Self
-    where
-        Self: 'a,
-        I: Iterator<Item = &'a Self>,
-    {
-        Unit
-    }
-}
-
-pub type PoseidonItem = Item<Unit>;
+pub type PoseidonItem = Item<()>;
 
 pub struct State<const DEPTH: usize, const ARITY: usize> {
-    tree: Tree<Unit, DEPTH, ARITY>,
+    tree: Tree<(), DEPTH, ARITY>,
     licenses: BTreeMap<u64, License>,
 }
 
@@ -44,7 +28,7 @@ impl<const DEPTH: usize, const ARITY: usize> Default for State<DEPTH, ARITY> {
 impl<const DEPTH: usize, const ARITY: usize> State<DEPTH, ARITY> {
     pub fn new() -> State<DEPTH, ARITY> {
         State {
-            tree: Tree::<Unit, DEPTH, ARITY>::new(),
+            tree: Tree::<(), DEPTH, ARITY>::new(),
             licenses: BTreeMap::new(),
         }
     }
@@ -53,7 +37,7 @@ impl<const DEPTH: usize, const ARITY: usize> State<DEPTH, ARITY> {
 
         let item = PoseidonItem {
             hash: sponge::hash(&[lpk.get_x(), lpk.get_y()]),
-            data: Unit,
+            data: (),
         };
 
         lic.pos = self.licenses.len() as u64;
@@ -69,7 +53,7 @@ impl<const DEPTH: usize, const ARITY: usize> State<DEPTH, ARITY> {
             .collect()
     }
 
-    pub fn get_merkle_proof(&self, lic: &License) -> Opening<Unit, DEPTH, ARITY> {
+    pub fn get_merkle_proof(&self, lic: &License) -> Opening<(), DEPTH, ARITY> {
         self.tree
             .opening(lic.pos)
             .expect("Tree was read successfully")
