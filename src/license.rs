@@ -213,8 +213,8 @@ pub struct LicenseProverParameters<const DEPTH: usize, const ARITY: usize> {
     pub com_1: JubJubExtended, // Pedersen Commitment 1
     pub com_2: JubJubExtended, // Pedersen Commitment 2
 
-    pub session_hash: BlsScalar,                   // hash of the session
-    pub sig_session_hash: dusk_schnorr::Proof,     // signature of the session_hash
+    pub session_hash: BlsScalar,                 // hash of the session
+    pub sig_session_hash: dusk_schnorr::Proof,   // signature of the session_hash
     pub merkle_proof: Opening<(), DEPTH, ARITY>, // Merkle proof for the Proof of Validity
 }
 
