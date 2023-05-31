@@ -65,7 +65,8 @@ fn compute_random_license<R: RngCore + CryptoRng>(
     // First, the user computes these values and requests a License
     let lsa = psk.gen_stealth_address(&JubJubScalar::random(rng));
     let lsk = ssk.sk_r(&lsa);
-    let k_lic = JubJubAffine::from(GENERATOR_EXTENDED * sponge::truncated::hash(&[(*lsk.as_ref()).into()]));
+    let k_lic =
+        JubJubAffine::from(GENERATOR_EXTENDED * sponge::truncated::hash(&[(*lsk.as_ref()).into()]));
     let req = Request::new(&psk_lp, &lsa, &k_lic, rng);
 
     // Second, the LP computes these values and grants the License
