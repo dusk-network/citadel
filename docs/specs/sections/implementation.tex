@@ -4,20 +4,22 @@ Protocol implementation involves realization of the protocol building blocks as 
 
 \begin{itemize}%[label=$\bullet$]
 	\item User software.
-	\item License provider software.
-	\item Service provider software.
+	\item License Provider software.
+	\item Service Provider software.
 	\item Citadel contract.
 \end{itemize}
 
 \begin{flushleft}
-Data communication between protocol participants is realized via the following communication modes:
+Data communication between protocol participants is realized in the following communication modes:
 \end{flushleft}
 
 \begin{itemize}%[label=$\bullet$]
-	\item Transactions changing the contract state.
-	\item Queries against the contract state.
-	\item Storing data directly in blockchain by issuing recipient-less transactions.
+	\item Transactions which change the contract state.
+	\item Queries which do not change the contract state.
+	\item Storing data directly in blockchain by issuing transactions.
 	\item Retrieving data from blockchain by scanning transactions.
+	\item Delegating ZK proof calculation.
+	\item Off-chain call.
 \end{itemize}
 
 \begin{flushleft}
@@ -31,7 +33,9 @@ The following diagram illustrates an interaction between protocol participants a
 	\label{fig:implementation}
 \end{figure}
 
-On the diagram we can see various communication modes being used. Initially, the user publishes recipient-less transaction containing a request as payload into the blockchain. Subsequently, license provider can scan the blockchain for transactions containing relevant requests. License provider can obtain requests via other routes as well, for example via http or email, passing requests on blockchain is only one of possible ways. Once License Provider gets a hold of a request, it can perform appropriate verification and issue a license. Issuing a license involves another mode of communication - a smart contract transaction call. Smart contract transaction call is also a blockchain transaction, yet to not to confuse the reader, we show it on the diagram while skipping the detail that blockchain is involved.
+\begin{flushleft}
+On the diagram we can see various communication modes being used. Initially, the user publishes recipient-less transaction containing a request as payload into the blockchain. Subsequently, license provider can scan the blockchain for transactions containing relevant requests. License provider can obtain requests via other routes as well, for example via http or email, passing requests on blockchain is only one of possible ways. Once License Provider gets a hold of a request, it can perform appropriate verification and issue a license. Issuing a license involves another mode of communication - a smart contract transaction call. Smart contract transaction call is also a blockchain transaction, yet to not to confuse the reader, we show it on the diagram while skipping the detail that blockchain is involved. User obtains licenses using a mode of communication based on contract queries. In addition, for privacy reasons, user obtains a bulk of information not pertaining exclusively to her, and the filers it out by herself. To economize the size of data transfer, block-height range is given to allow the transfer to include only a subset of available records. All modes of communication used so far were on-chain. Communication between user and ServiceProvider, on the other hand, is off-chain. When Service Provider wants to establish a session, it calls a contract to obtain session for a given session id.
+\end{flushleft}
 
 The diagram illustrates following flow of data and interactions between participants:
 
@@ -42,7 +46,7 @@ The diagram illustrates following flow of data and interactions between particip
 	\item License provider sends the license to License Contract via a smart contract call transaction.
 	\item User obtains licenses for a given block-height range.
 	\item User filters out licenses addressed to her or him.
-	\item User calculates a proof.
+	\item User calculates a proof (the proof calculation might be delegated).
 	\item User calls use-license to redeem a license, via a smart contract call.
 	\item License Contract attempts to verify the proof and, if verified, adds a new session to a list of sessions.
 	\item User requests a service from a Service Provider (off-chain).
@@ -80,4 +84,6 @@ Contract provides the following methods:
 \textit{issue-license} adds a license to a Merkle tree of licenses. \textit{get-licenses} provides a list of new licenses added in a given block-height range \textit{use-license} attempts to verify the proof and, if verified, adds a new session to a list of sessions, nullifies the license in the Merkle tree. \textit{get-session} finds a session in a list of sessions and returns it to the caller.
 \end{flushleft}
 
+\subsection{License ZK Proof Calculation}
 
+License ZK proof calculation will either be performed by user or delegated to node. At the time of writing details of delegation are not known yet, but will be filled in here once this information is available.
