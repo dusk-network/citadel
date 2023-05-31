@@ -1,24 +1,28 @@
 
 \subsection{Participants} 
-Protocol implementation involves realization of the protocol cryptographic building blocks as well as the means of data communication between them. Building blocks are placed at the following locations, which correspond to protocol participants:
+Protocol implementation involves realization of the protocol building blocks as well as providing means of data communication between them. Building blocks are placed at the following locations, which correspond to protocol participants:
 
 \begin{itemize}%[label=$\bullet$]
-	\item Citadel contract.
 	\item User software.
 	\item License provider software.
 	\item Service provider software.
+	\item Citadel contract.
 \end{itemize}
 
-Data communication between protocol participants is realized by the following communication modes:
+\begin{flushleft}
+Data communication between protocol participants is realized via the following communication modes:
+\end{flushleft}
 
 \begin{itemize}%[label=$\bullet$]
-	\item Transaction changing the contract state.
-	\item Query against the contract state
-	\item Storing data directly in blockchain by issuing recipient-less transaction
-	\item Retrieving data from blockchain by scanning transactions
+	\item Transactions changing the contract state.
+	\item Queries against the contract state.
+	\item Storing data directly in blockchain by issuing recipient-less transactions.
+	\item Retrieving data from blockchain by scanning transactions.
 \end{itemize}
 
-The following diagram illustrates the interaction between protocol participants and indicates the communication means used.
+\begin{flushleft}
+The following diagram illustrates an interaction between protocol participants and indicates the communication means used.
+\end{flushleft}
 
 \begin{figure}[h]
 	\centering
@@ -27,10 +31,13 @@ The following diagram illustrates the interaction between protocol participants 
 	\label{fig:implementation}
 \end{figure}
 
+On the diagram we can see various communication modes being used. Initially, the user publishes recipient-less transaction containing a request as payload into the blockchain. Subsequently, license provider can scan the blockchain for transactions containing relevant requests. License provider can obtain requests via other routes as well, for example via http or email, passing requests on blockchain is only one of possible routes. Once License Provider gets a hold of a request, it can perform appropriate verification and issue a license. Issuing a license involves another mode of communication - a smart contract transaction call. Smart contract transaction call is also a blockchain transaction, yet to not to confuse the reader, we show it on the diagram while skipping the detail that blockchain is involved.
 
 \subsection{License Contract}
 
+\begin{flushleft}
 License contract maintains state consisting of the following data:
+\end{flushleft}
 
 \begin{itemize}%[label=$\bullet$]
 	\item List of sessions.
@@ -39,15 +46,19 @@ License contract maintains state consisting of the following data:
 \end{itemize}
 
 
+\begin{flushleft}
 Contract provides the following methods:
+\end{flushleft}
 
 \begin{itemize}%[label=$\bullet$]
-	\item issue-license
-	\item use-license
-	\item get-session
+	\item \textit{issue-license}
+	\item \textit{use-license}
+	\item \textit{get-session}
 \end{itemize}
 
 
+\begin{flushleft}
 \textit{issue-license} adds a license to a Merkle tree of licenses. \textit{use-license} attempts to verify the proof and, if verified, adds a new session to a list of sessions, nullifies the license in the Merkle tree. \textit{get-session} finds a session in a list of sessions and returns it to the caller.
+\end{flushleft}
 
 
