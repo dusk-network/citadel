@@ -8,9 +8,10 @@ use dusk_jubjub::GENERATOR_EXTENDED;
 use dusk_pki::SecretSpendKey;
 use dusk_plonk::prelude::*;
 
+use dusk_merkle::poseidon::{Item, Tree};
+use dusk_poseidon::sponge;
 use zk_citadel::gadget;
 use zk_citadel::license::{License, LicenseProverParameters, Request, SessionCookie};
-use zk_citadel::state::State;
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand_core::{CryptoRng, OsRng, RngCore};
@@ -76,15 +77,22 @@ fn compute_random_license<R: RngCore + CryptoRng>(
     // Second, the LP computes these values and grants the License
     let attr = JubJubScalar::from(USER_ATTRIBUTES);
     let mut lic = License::new(&attr, &ssk_lp, &req, rng);
-    let mut state = State::new(); // the compiler takes DEPTH from expected 'lpp' to return
-    state.append_license(&mut lic);
+
+    let mut tree = Tree::<(), DEPTH, ARITY>::new();
+    let lpk = JubJubAffine::from(lic.lsa.pk_r().as_ref());
+
+    let item = Item {
+        hash: sponge::hash(&[lpk.get_x(), lpk.get_y()]),
+        data: (),
+    };
+
+    lic.pos = 0;
+    tree.insert(lic.pos, item);
 
     // Third, the user computes these values to generate the ZKP later on
-    let vk = ssk.view_key();
-    let lics = state.get_licenses(&vk);
     let c = JubJubScalar::from(CHALLENGE);
     let (lpp, sc) = LicenseProverParameters::compute_parameters(
-        &ssk, &lics[0], &psk_lp, &psk_lp, &k_lic, &c, rng, &state,
+        &ssk, &lic, &psk_lp, &psk_lp, &k_lic, &c, rng, &tree,
     );
 
     (lic, lpp, sc)

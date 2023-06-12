@@ -7,9 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Remove the local state module [#54]
+
 ### Changed
 
 - Migrated Merkle tree implementation from Poseidon252 0.28 to dusk_merkle 0.2 [#41]
+- Updated dusk_merkle to 0.4
 
 ## [0.2.0] - 2023-05-17
 
@@ -34,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add workflows for the Github Actions
 
 <!-- ISSUES -->
+[#54]: https://github.com/dusk-network/citadel/issues/54
 [#40]: https://github.com/dusk-network/citadel/issues/40
 [#34]: https://github.com/dusk-network/citadel/issues/34
 [#32]: https://github.com/dusk-network/citadel/issues/32
