@@ -21,6 +21,24 @@ use zk_citadel::license::{License, LicenseProverParameters, Request, Session, Se
 
 use rand_core::{CryptoRng, OsRng, RngCore};
 
+#[macro_use]
+extern crate lazy_static;
+
+pub struct Keys {
+    prover: Prover<Citadel>,
+    verifier: Verifier<Citadel>,
+}
+
+lazy_static! {
+    static ref KEYS: Keys = {
+        let pp = PublicParameters::setup(1 << CAPACITY, &mut OsRng).unwrap();
+        let (prover, verifier) =
+            Compiler::compile::<Citadel>(&pp, LABEL).expect("failed to compile circuit");
+
+        Keys { prover, verifier }
+    };
+}
+
 #[derive(Default, Debug)]
 pub struct Citadel {
     lpp: LicenseProverParameters<DEPTH, ARITY>,
@@ -95,16 +113,13 @@ fn compute_random_license<R: RngCore + CryptoRng>(
 
 #[test]
 fn test_full_citadel() {
-    let pp = PublicParameters::setup(1 << CAPACITY, &mut OsRng).unwrap();
-    let (prover, verifier) =
-        Compiler::compile::<Citadel>(&pp, LABEL).expect("failed to compile circuit");
-
     let (_lic, lpp, sc) = compute_random_license(&mut OsRng);
-    let (proof, public_inputs) = prover
+    let (proof, public_inputs) = KEYS
+        .prover
         .prove(&mut OsRng, &Citadel::new(&lpp, &sc))
         .expect("failed to prove");
 
-    verifier
+    KEYS.verifier
         .verify(&proof, &public_inputs)
         .expect("failed to verify proof");
 
@@ -116,12 +131,9 @@ fn test_full_citadel() {
 #[test]
 #[should_panic]
 fn test_use_license_circuit_false_public_input() {
-    let pp = PublicParameters::setup(1 << CAPACITY, &mut OsRng).unwrap();
-    let (prover, verifier) =
-        Compiler::compile::<Citadel>(&pp, LABEL).expect("failed to compile circuit");
-
     let (_lic, lpp, sc) = compute_random_license(&mut OsRng);
-    let (proof, public_inputs) = prover
+    let (proof, public_inputs) = KEYS
+        .prover
         .prove(&mut OsRng, &Citadel::new(&lpp, &sc))
         .expect("failed to prove");
 
@@ -129,7 +141,7 @@ fn test_use_license_circuit_false_public_input() {
     let mut false_public_inputs = public_inputs;
     false_public_inputs[0] = BlsScalar::random(&mut OsRng);
 
-    verifier
+    KEYS.verifier
         .verify(&proof, &false_public_inputs)
         .expect("failed to verify proof");
 }
@@ -137,12 +149,9 @@ fn test_use_license_circuit_false_public_input() {
 #[test]
 #[should_panic]
 fn test_verify_license_false_session_cookie() {
-    let pp = PublicParameters::setup(1 << CAPACITY, &mut OsRng).unwrap();
-    let (prover, _verifier) =
-        Compiler::compile::<Citadel>(&pp, LABEL).expect("failed to compile circuit");
-
     let (_lic, lpp, sc) = compute_random_license(&mut OsRng);
-    let (_proof, public_inputs) = prover
+    let (_proof, public_inputs) = KEYS
+        .prover
         .prove(&mut OsRng, &Citadel::new(&lpp, &sc))
         .expect("failed to prove");
 
