@@ -252,7 +252,7 @@ impl<const DEPTH: usize, const ARITY: usize> LicenseProverParameters<DEPTH, ARIT
         k_lic: &JubJubAffine,
         c: &JubJubScalar,
         rng: &mut R,
-        tree: &Tree<(), DEPTH, ARITY>,
+        merkle_proof: Opening<(), DEPTH, ARITY>,
     ) -> (Self, SessionCookie) {
         let dec_1 = lic
             .enc_1
@@ -299,8 +299,6 @@ impl<const DEPTH: usize, const ARITY: usize> LicenseProverParameters<DEPTH, ARIT
         let com_0 = sponge::hash(&[pk_lp.get_x(), pk_lp.get_y(), s_0]);
         let com_1 = (GENERATOR_EXTENDED * attr) + (GENERATOR_NUMS_EXTENDED * s_1);
         let com_2 = (GENERATOR_EXTENDED * c) + (GENERATOR_NUMS_EXTENDED * s_2);
-
-        let merkle_proof = tree.opening(lic.pos).expect("Tree was read successfully");
 
         (
             Self {
