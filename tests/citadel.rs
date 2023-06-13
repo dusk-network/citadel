@@ -12,8 +12,8 @@ use dusk_poseidon::sponge;
 
 static LABEL: &[u8; 12] = b"dusk-network";
 
-const CAPACITY: usize = 16; // capacity required for the setup
-const DEPTH: usize = 17; // depth of the n-ary Merkle tree
+const CAPACITY: usize = 15; // capacity required for the setup
+const DEPTH: usize = 9; // depth of the n-ary Merkle tree
 const ARITY: usize = 4; // arity of the Merkle tree
 
 use zk_citadel::gadget;
