@@ -23,6 +23,7 @@ rkyv = { version = "0.7", optional = true, default-features = false }
 
 [dev-dependencies]
 criterion = "0.3"
+lazy_static = "1.4"
 
 [[bench]]
 name = "citadel"
