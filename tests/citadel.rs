@@ -102,10 +102,19 @@ fn compute_random_license<R: RngCore + CryptoRng>(
     lic.pos = 0;
     tree.insert(lic.pos, item);
 
+    let merkle_proof = tree.opening(lic.pos).expect("Tree was read successfully");
+
     // Third, the user computes these values to generate the ZKP later on
     let c = JubJubScalar::from(CHALLENGE);
     let (lpp, sc) = LicenseProverParameters::compute_parameters(
-        &ssk, &lic, &psk_lp, &psk_lp, &k_lic, &c, rng, &tree,
+        &ssk,
+        &lic,
+        &psk_lp,
+        &psk_lp,
+        &k_lic,
+        &c,
+        rng,
+        merkle_proof,
     );
 
     (lic, lpp, sc)
