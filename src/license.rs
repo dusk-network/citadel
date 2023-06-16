@@ -15,9 +15,16 @@ use dusk_poseidon::cipher::PoseidonCipher;
 use dusk_poseidon::sponge;
 use dusk_schnorr::Signature;
 use rand_core::{CryptoRng, RngCore};
+#[cfg(feature = "rkyv-impl")]
+use rkyv::{Archive, Deserialize, Serialize};
 
 use dusk_plonk::prelude::*;
 
+#[cfg_attr(
+    feature = "rkyv-impl",
+    derive(Archive, Serialize, Deserialize),
+    archive_attr(derive(bytecheck::CheckBytes))
+)]
 pub struct Request {
     rsa: StealthAddress,   // request stealth address
     enc_1: PoseidonCipher, // encryption of the license stealth address and k_lic
