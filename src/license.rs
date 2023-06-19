@@ -28,13 +28,13 @@ use dusk_plonk::prelude::*;
 )]
 #[derive(Debug)]
 pub struct Request {
-    rsa: StealthAddress,   // request stealth address
-    enc_1: PoseidonCipher, // encryption of the license stealth address and k_lic
-    nonce_1: BlsScalar,    // IV for the encryption
-    enc_2: PoseidonCipher, // encryption of the license stealth address and k_lic
-    nonce_2: BlsScalar,    // IV for the encryption
-    enc_3: PoseidonCipher, // encryption of the license stealth address and k_lic
-    nonce_3: BlsScalar,    // IV for the encryption
+    pub rsa: StealthAddress,   // request stealth address
+    pub enc_1: PoseidonCipher, // encryption of the license stealth address and k_lic
+    pub nonce_1: BlsScalar,    // IV for the encryption
+    pub enc_2: PoseidonCipher, // encryption of the license stealth address and k_lic
+    pub nonce_2: BlsScalar,    // IV for the encryption
+    pub enc_3: PoseidonCipher, // encryption of the license stealth address and k_lic
+    pub nonce_3: BlsScalar,    // IV for the encryption
 }
 
 impl Request {
