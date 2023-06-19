@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Rkyv derivation for all protocol structs
+
 ### Removed
 
 - Remove the local state module [#54]
@@ -40,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- ISSUES -->
 [#54]: https://github.com/dusk-network/citadel/issues/54
+[#41]: https://github.com/dusk-network/citadel/issues/41
 [#40]: https://github.com/dusk-network/citadel/issues/40
 [#34]: https://github.com/dusk-network/citadel/issues/34
 [#32]: https://github.com/dusk-network/citadel/issues/32
