@@ -15,6 +15,7 @@ use dusk_poseidon::cipher::PoseidonCipher;
 use dusk_poseidon::sponge;
 use dusk_schnorr::Signature;
 use rand_core::{CryptoRng, RngCore};
+
 #[cfg(feature = "rkyv-impl")]
 use rkyv::{Archive, Deserialize, Serialize};
 
@@ -71,6 +72,11 @@ impl Request {
     }
 }
 
+#[cfg_attr(
+    feature = "rkyv-impl",
+    derive(Archive, Serialize, Deserialize),
+    archive_attr(derive(bytecheck::CheckBytes))
+)]
 pub struct Session {
     pub session_hash: BlsScalar,
     pub session_id: BlsScalar,
@@ -123,6 +129,11 @@ impl Session {
     }
 }
 
+#[cfg_attr(
+    feature = "rkyv-impl",
+    derive(Archive, Serialize, Deserialize),
+    archive_attr(derive(bytecheck::CheckBytes))
+)]
 #[derive(Default, Debug, Clone, Copy)]
 pub struct SessionCookie {
     pub pk_sp: JubJubAffine, // public key of the SP
@@ -138,6 +149,11 @@ pub struct SessionCookie {
     pub s_2: JubJubScalar, // randomness for com_2
 }
 
+#[cfg_attr(
+    feature = "rkyv-impl",
+    derive(Archive, Serialize, Deserialize),
+    archive_attr(derive(bytecheck::CheckBytes))
+)]
 #[derive(Default, Clone)]
 pub struct License {
     pub lsa: StealthAddress,   // license stealth address
@@ -209,6 +225,11 @@ impl License {
     }
 }
 
+#[cfg_attr(
+    feature = "rkyv-impl",
+    derive(Archive, Serialize, Deserialize),
+    archive_attr(derive(bytecheck::CheckBytes))
+)]
 #[derive(Debug, Clone, Copy)]
 pub struct LicenseProverParameters<const DEPTH: usize, const ARITY: usize> {
     pub lpk: JubJubAffine,   // license public key
