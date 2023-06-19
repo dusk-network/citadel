@@ -26,6 +26,7 @@ use dusk_plonk::prelude::*;
     derive(Archive, Serialize, Deserialize),
     archive_attr(derive(bytecheck::CheckBytes))
 )]
+#[derive(Debug)]
 pub struct Request {
     rsa: StealthAddress,   // request stealth address
     enc_1: PoseidonCipher, // encryption of the license stealth address and k_lic
@@ -77,6 +78,7 @@ impl Request {
     derive(Archive, Serialize, Deserialize),
     archive_attr(derive(bytecheck::CheckBytes))
 )]
+#[derive(Debug)]
 pub struct Session {
     pub session_hash: BlsScalar,
     pub session_id: BlsScalar,
@@ -154,7 +156,7 @@ pub struct SessionCookie {
     derive(Archive, Serialize, Deserialize),
     archive_attr(derive(bytecheck::CheckBytes))
 )]
-#[derive(Default, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct License {
     pub lsa: StealthAddress,   // license stealth address
     pub enc_1: PoseidonCipher, // encryption of the license signature and attributes
