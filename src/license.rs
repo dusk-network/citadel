@@ -7,9 +7,7 @@
 use dusk_bytes::Serializable;
 use dusk_jubjub::JubJubAffine;
 use dusk_jubjub::{dhke, GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED};
-use dusk_merkle::poseidon::Item;
-use dusk_merkle::poseidon::Opening;
-use dusk_merkle::poseidon::Tree;
+use dusk_merkle::poseidon::{Item, Opening, Tree};
 use dusk_pki::{PublicKey, PublicSpendKey, SecretKey, SecretSpendKey, StealthAddress};
 use dusk_poseidon::cipher::PoseidonCipher;
 use dusk_poseidon::sponge;
@@ -233,7 +231,7 @@ impl License {
     archive_attr(derive(bytecheck::CheckBytes))
 )]
 #[derive(Debug, Clone, Copy)]
-pub struct LicenseProverParameters<const DEPTH: usize, const ARITY: usize> {
+pub struct CitadelProverParameters<const DEPTH: usize, const ARITY: usize> {
     pub lpk: JubJubAffine,   // license public key
     pub lpk_p: JubJubAffine, // license public key prime
     pub sig_lic: Signature,  // signature of the license
@@ -247,7 +245,7 @@ pub struct LicenseProverParameters<const DEPTH: usize, const ARITY: usize> {
     pub merkle_proof: Opening<(), DEPTH, ARITY>, // Merkle proof for the Proof of Validity
 }
 
-impl<const DEPTH: usize, const ARITY: usize> Default for LicenseProverParameters<DEPTH, ARITY> {
+impl<const DEPTH: usize, const ARITY: usize> Default for CitadelProverParameters<DEPTH, ARITY> {
     fn default() -> Self {
         let mut tree = Tree::new();
         let item = Item {
@@ -272,26 +270,30 @@ impl<const DEPTH: usize, const ARITY: usize> Default for LicenseProverParameters
     }
 }
 
-impl<const DEPTH: usize, const ARITY: usize> LicenseProverParameters<DEPTH, ARITY> {
+impl<const DEPTH: usize, const ARITY: usize> CitadelProverParameters<DEPTH, ARITY> {
     #[allow(clippy::too_many_arguments)]
     pub fn compute_parameters<R: RngCore + CryptoRng>(
         ssk: &SecretSpendKey,
         lic: &License,
         psk_lp: &PublicSpendKey,
         psk_sp: &PublicSpendKey,
-        k_lic: &JubJubAffine,
         c: &JubJubScalar,
         rng: &mut R,
         merkle_proof: Opening<(), DEPTH, ARITY>,
     ) -> (Self, SessionCookie) {
+        let lsk = ssk.sk_r(&lic.lsa);
+        let k_lic = JubJubAffine::from(
+            GENERATOR_EXTENDED * sponge::truncated::hash(&[(*lsk.as_ref()).into()]),
+        );
+
         let dec_1 = lic
             .enc_1
-            .decrypt(k_lic, &lic.nonce_1)
+            .decrypt(&k_lic, &lic.nonce_1)
             .expect("decryption should succeed");
 
         let dec_2 = lic
             .enc_2
-            .decrypt(k_lic, &lic.nonce_2)
+            .decrypt(&k_lic, &lic.nonce_2)
             .expect("decryption should succeed");
 
         let attr = JubJubScalar::from_bytes(&dec_1[1].to_bytes()).unwrap();
@@ -356,5 +358,100 @@ impl<const DEPTH: usize, const ARITY: usize> LicenseProverParameters<DEPTH, ARIT
                 s_2,
             },
         )
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ShelterProverParameters<const DEPTH: usize, const ARITY: usize> {
+    pub lsk: JubJubScalar, // license secret key
+
+    pub sig_lic: Signature,  // signature of the licensee
+    pub pk_lp: JubJubAffine, // public key of the LP
+    pub attr: JubJubScalar,  // attributes of the license
+
+    pub c: JubJubScalar, // challenge value
+    pub session_id: BlsScalar,
+
+    pub merkle_proof: Opening<(), DEPTH, ARITY>, // Merkle proof for the Proof of Validity
+}
+
+impl<const DEPTH: usize, const ARITY: usize> Default for ShelterProverParameters<DEPTH, ARITY> {
+    fn default() -> Self {
+        let mut tree = Tree::new();
+        let item = Item {
+            hash: BlsScalar::zero(),
+            data: (),
+        };
+        tree.insert(0, item);
+        let merkle_proof = tree.opening(0).expect("There is a leaf at position 0");
+        Self {
+            lsk: JubJubScalar::default(),
+
+            sig_lic: Signature::default(),
+            pk_lp: JubJubAffine::default(),
+            attr: JubJubScalar::default(),
+
+            c: JubJubScalar::default(),
+            session_id: BlsScalar::default(),
+
+            merkle_proof,
+        }
+    }
+}
+
+impl<const DEPTH: usize, const ARITY: usize> ShelterProverParameters<DEPTH, ARITY> {
+    #[allow(clippy::too_many_arguments)]
+    pub fn compute_parameters(
+        ssk: &SecretSpendKey,
+        lic: &License,
+        psk_lp: &PublicSpendKey,
+        c: &JubJubScalar,
+        merkle_proof: Opening<(), DEPTH, ARITY>,
+    ) -> Self {
+        let lsk = ssk.sk_r(&lic.lsa);
+        let k_lic = JubJubAffine::from(
+            GENERATOR_EXTENDED * sponge::truncated::hash(&[(*lsk.as_ref()).into()]),
+        );
+
+        let dec_1 = lic
+            .enc_1
+            .decrypt(&k_lic, &lic.nonce_1)
+            .expect("decryption should succeed");
+
+        let dec_2 = lic
+            .enc_2
+            .decrypt(&k_lic, &lic.nonce_2)
+            .expect("decryption should succeed");
+
+        let attr = JubJubScalar::from_bytes(&dec_1[1].to_bytes()).unwrap();
+        let sig_lic = Signature::from_bytes(
+            &[
+                dec_1[0].to_bytes(),
+                JubJubAffine::from_raw_unchecked(dec_2[0], dec_2[1]).to_bytes(),
+            ]
+            .concat()
+            .try_into()
+            .expect("slice with incorrect length"),
+        )
+        .unwrap();
+
+        let lsk_binding = ssk.sk_r(&lic.lsa);
+        let lsk = lsk_binding.as_ref();
+
+        let session_id = sponge::hash(&[BlsScalar::from(*lsk), BlsScalar::from(*c)]);
+        let pk_lp = JubJubAffine::from(*psk_lp.A());
+
+        Self {
+            lsk: *lsk,
+
+            sig_lic,
+            pk_lp,
+            attr,
+
+            c: *c,
+            session_id,
+
+            merkle_proof,
+        }
     }
 }
