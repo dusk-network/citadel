@@ -125,7 +125,7 @@ pub fn use_license_shelter<C: Composer, const DEPTH: usize, const ARITY: usize>(
 
     // VERIFY THE LICENSE SIGNATURE
     let (sig_lic_u, sig_lic_r) = spp.sig_lic.to_witness(composer);
-    let pk_lp = composer.append_public(spp.pk_lp);
+    let pk_lp = composer.append_public_point(spp.pk_lp);
     let attr = composer.append_public(spp.attr);
 
     let message = sponge::gadget(composer, &[*lpk.x(), *lpk.y(), attr]);
