@@ -100,7 +100,8 @@ pub fn use_license_citadel<C: Composer, const DEPTH: usize, const ARITY: usize>(
 // these values in that particular order:
 //
 // public_inputs[0]: session_id
-// public_inputs[1]: root
+// public_inputs[1]: attr
+// public_inputs[2]: root
 
 pub fn use_license_shelter<C: Composer, const DEPTH: usize, const ARITY: usize>(
     composer: &mut C,
@@ -122,7 +123,7 @@ pub fn use_license_shelter<C: Composer, const DEPTH: usize, const ARITY: usize>(
     // VERIFY THE LICENSE SIGNATURE
     let (sig_lic_u, sig_lic_r) = spp.sig_lic.to_witness(composer);
     let pk_lp = composer.append_point(spp.pk_lp);
-    let attr = composer.append_witness(spp.attr);
+    let attr = composer.append_public(spp.attr);
 
     let message = sponge::gadget(composer, &[*lpk.x(), *lpk.y(), attr]);
     gadgets::single_key_verify(composer, sig_lic_u, sig_lic_r, pk_lp, message)?;
