@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2023-06-28
+
 ### Changed
 
 - Updated dusk_plonk to 0.14
@@ -59,7 +61,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#21]: https://github.com/dusk-network/citadel/issues/21
 
 <!-- VERSIONS -->
-[Unreleased]: https://github.com/dusk-network/citadel/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/dusk-network/citadel/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/dusk-network/citadel/releases/tag/v0.4.0
 [0.3.0]: https://github.com/dusk-network/citadel/releases/tag/v0.3.0
 [0.2.0]: https://github.com/dusk-network/citadel/releases/tag/v0.2.0
 [0.1.0]: https://github.com/dusk-network/citadel/releases/tag/v0.1.0
