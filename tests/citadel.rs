@@ -5,10 +5,12 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use dusk_jubjub::GENERATOR_EXTENDED;
+
+use poseidon_merkle::{Item, Opening, Tree};
+
 use dusk_pki::{PublicSpendKey, SecretSpendKey};
 use dusk_plonk::prelude::*;
 use dusk_poseidon::sponge;
-use poseidon_merkle::{Item, Opening, Tree};
 
 static LABEL: &[u8; 12] = b"dusk-network";
 
