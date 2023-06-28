@@ -94,8 +94,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly
-          override: true
+          toolchain: stable
       - run: rustup component add clippy
       - name: Run `cargo clippy`
         uses: actions-rs/cargo@v1
