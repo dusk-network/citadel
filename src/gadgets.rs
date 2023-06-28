@@ -9,6 +9,8 @@ use dusk_plonk::prelude::*;
 use dusk_poseidon::sponge;
 use dusk_schnorr::gadgets;
 
+use poseidon_merkle::zk::opening_gadget;
+
 use crate::license::{CitadelProverParameters, SessionCookie, ShelterProverParameters};
 
 // out of this circuit, the generated public inputs vector collects
@@ -90,7 +92,7 @@ pub fn use_license_citadel<C: Composer, const DEPTH: usize, const ARITY: usize>(
 
     // VERIFY THE MERKLE PROOF
     let root_pi = composer.append_public(cpp.merkle_proof.root().hash);
-    let root = cpp.merkle_proof.gadget(composer, license_hash);
+    let root = opening_gadget(composer, &cpp.merkle_proof, license_hash);
     composer.assert_equal(root, root_pi);
 
     Ok(())
@@ -136,7 +138,7 @@ pub fn use_license_shelter<C: Composer, const DEPTH: usize, const ARITY: usize>(
 
     // VERIFY THE MERKLE PROOF
     let root_pi = composer.append_public(spp.merkle_proof.root().hash);
-    let root = spp.merkle_proof.gadget(composer, license_hash);
+    let root = opening_gadget(composer, &spp.merkle_proof, license_hash);
     composer.assert_equal(root, root_pi);
 
     Ok(())

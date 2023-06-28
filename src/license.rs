@@ -7,11 +7,11 @@
 use dusk_bytes::Serializable;
 use dusk_jubjub::JubJubAffine;
 use dusk_jubjub::{dhke, GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED};
-use dusk_merkle::poseidon::{Item, Opening, Tree};
 use dusk_pki::{PublicKey, PublicSpendKey, SecretKey, SecretSpendKey, StealthAddress};
 use dusk_poseidon::cipher::PoseidonCipher;
 use dusk_poseidon::sponge;
 use dusk_schnorr::Signature;
+use poseidon_merkle::{Item, Opening, Tree};
 use rand_core::{CryptoRng, RngCore};
 
 #[cfg(feature = "rkyv-impl")]
@@ -89,17 +89,17 @@ pub struct Session {
 impl Session {
     pub fn from(public_inputs: &[BlsScalar]) -> Self {
         // public inputs are in negated form, we negate them again to assert correctly
-        let session_id = -public_inputs[0];
-        let session_hash = -public_inputs[1];
+        let session_id = public_inputs[0];
+        let session_hash = public_inputs[1];
 
-        let com_0 = -public_inputs[2];
+        let com_0 = public_inputs[2];
         let com_1 = JubJubExtended::from(JubJubAffine::from_raw_unchecked(
-            -public_inputs[3],
-            -public_inputs[4],
+            public_inputs[3],
+            public_inputs[4],
         ));
         let com_2 = JubJubExtended::from(JubJubAffine::from_raw_unchecked(
-            -public_inputs[5],
-            -public_inputs[6],
+            public_inputs[5],
+            public_inputs[6],
         ));
 
         Self {
