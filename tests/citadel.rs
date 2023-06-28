@@ -5,10 +5,10 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use dusk_jubjub::GENERATOR_EXTENDED;
-use dusk_merkle::poseidon::{Item, Opening, Tree};
 use dusk_pki::{PublicSpendKey, SecretSpendKey};
 use dusk_plonk::prelude::*;
 use dusk_poseidon::sponge;
+use poseidon_merkle::{Item, Opening, Tree};
 
 static LABEL: &[u8; 12] = b"dusk-network";
 
@@ -37,11 +37,11 @@ pub struct Keys {
     ssk_lp: SecretSpendKey,
     psk_lp: PublicSpendKey,
 
-    citadel_prover: Prover<Citadel>,
-    citadel_verifier: Verifier<Citadel>,
+    citadel_prover: Prover,
+    citadel_verifier: Verifier,
 
-    shelter_prover: Prover<Shelter>,
-    shelter_verifier: Verifier<Shelter>,
+    shelter_prover: Prover,
+    shelter_verifier: Verifier,
 }
 
 lazy_static! {
