@@ -100,7 +100,11 @@ pub fn use_license_citadel<C: Composer, const DEPTH: usize, const ARITY: usize>(
 // these values in that particular order:
 //
 // public_inputs[0]: session_id
-// public_inputs[1]: root
+// public_inputs[1]: c
+// public_inputs[2]: pk_lp.x
+// public_inputs[3]: pk_lp.y
+// public_inputs[4]: attr
+// public_inputs[5]: root
 
 pub fn use_license_shelter<C: Composer, const DEPTH: usize, const ARITY: usize>(
     composer: &mut C,
@@ -113,7 +117,7 @@ pub fn use_license_shelter<C: Composer, const DEPTH: usize, const ARITY: usize>(
     let lpk = composer.component_mul_generator(lsk, GENERATOR).unwrap();
 
     // COMPUTE THE SESSION ID
-    let c = composer.append_witness(spp.c);
+    let c = composer.append_public(spp.c);
     let session_id_pi = composer.append_public(spp.session_id);
     let session_id = sponge::gadget(composer, &[lsk, c]);
 
@@ -121,8 +125,8 @@ pub fn use_license_shelter<C: Composer, const DEPTH: usize, const ARITY: usize>(
 
     // VERIFY THE LICENSE SIGNATURE
     let (sig_lic_u, sig_lic_r) = spp.sig_lic.to_witness(composer);
-    let pk_lp = composer.append_point(spp.pk_lp);
-    let attr = composer.append_witness(spp.attr);
+    let pk_lp = composer.append_public_point(spp.pk_lp);
+    let attr = composer.append_public(spp.attr);
 
     let message = sponge::gadget(composer, &[*lpk.x(), *lpk.y(), attr]);
     gadgets::single_key_verify(composer, sig_lic_u, sig_lic_r, pk_lp, message)?;
