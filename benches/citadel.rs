@@ -4,21 +4,17 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use dusk_jubjub::GENERATOR_EXTENDED;
-
-use poseidon_merkle::{Item, Tree};
-
 use dusk_pki::{PublicSpendKey, SecretSpendKey};
 use dusk_plonk::prelude::*;
-use dusk_poseidon::sponge;
 
 use zk_citadel::gadgets;
 use zk_citadel::license::{
-    CitadelProverParameters, License, Request, SessionCookie, ShelterProverParameters,
+    CitadelProverParameters, SessionCookie, ShelterProverParameters,
 };
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use rand_core::{CryptoRng, OsRng, RngCore};
+use rand_core::OsRng;
+use zk_citadel::utils::CitadelUtils;
 
 static mut CONSTRAINTS_CITADEL: usize = 0;
 static mut CONSTRAINTS_SHELTER: usize = 0;
@@ -33,8 +29,7 @@ const ARITY: usize = 4; // arity of the Merkle tree
 #[macro_use]
 extern crate lazy_static;
 
-// Example values
-const USER_ATTRIBUTES: u64 = 112233445566778899u64;
+// Example value
 const CHALLENGE: u64 = 20221126u64;
 
 pub struct Keys {
@@ -122,36 +117,14 @@ impl Circuit for Shelter {
     }
 }
 
-fn compute_random_license<R: RngCore + CryptoRng>(rng: &mut R) -> License {
-    // First, the user computes these values and requests a License
-    let lsa = KEYS.psk.gen_stealth_address(&JubJubScalar::random(rng));
-    let lsk = KEYS.ssk.sk_r(&lsa);
-    let k_lic =
-        JubJubAffine::from(GENERATOR_EXTENDED * sponge::truncated::hash(&[(*lsk.as_ref()).into()]));
-    let req = Request::new(&KEYS.psk_lp, &lsa, &k_lic, rng);
-
-    // Second, the LP computes these values and grants the License
-    let attr = JubJubScalar::from(USER_ATTRIBUTES);
-    let mut lic = License::new(&attr, &KEYS.ssk_lp, &req, rng);
-    lic.pos = 0;
-
-    lic
-}
-
 fn shelter_benchmark(crit: &mut Criterion) {
-    let lic = compute_random_license(&mut OsRng);
-
-    let mut tree = Tree::<(), DEPTH_SHELTER, ARITY>::new();
-    let lpk = JubJubAffine::from(lic.lsa.pk_r().as_ref());
-
-    let item = Item {
-        hash: sponge::hash(&[lpk.get_x(), lpk.get_y()]),
-        data: (),
-    };
-
-    tree.insert(lic.pos, item);
-
-    let merkle_proof = tree.opening(lic.pos).expect("Tree was read successfully");
+    let (lic, merkle_proof) = CitadelUtils::compute_random_license::<OsRng, DEPTH_SHELTER, ARITY>(
+        &mut OsRng,
+        KEYS.ssk,
+        KEYS.psk,
+        KEYS.ssk_lp,
+        KEYS.psk_lp
+    );
 
     let c = JubJubScalar::from(CHALLENGE);
     let spp = ShelterProverParameters::compute_parameters(
@@ -189,29 +162,12 @@ fn shelter_benchmark(crit: &mut Criterion) {
 }
 
 fn citadel_benchmark(crit: &mut Criterion) {
-    let lic = compute_random_license(&mut OsRng);
-
-    let mut tree = Tree::<(), DEPTH_CITADEL, ARITY>::new();
-    let lpk = JubJubAffine::from(lic.lsa.pk_r().as_ref());
-
-    let item = Item {
-        hash: sponge::hash(&[lpk.get_x(), lpk.get_y()]),
-        data: (),
-    };
-
-    tree.insert(lic.pos, item);
-
-    let merkle_proof = tree.opening(lic.pos).expect("Tree was read successfully");
-
-    let c = JubJubScalar::from(CHALLENGE);
-    let (cpp, sc) = CitadelProverParameters::compute_parameters(
-        &KEYS.ssk,
-        &lic,
-        &KEYS.psk_lp,
-        &KEYS.psk_lp,
-        &c,
+    let (cpp, sc) = CitadelUtils::compute_citadel_parameters::<OsRng, DEPTH_CITADEL, ARITY>(
         &mut OsRng,
-        merkle_proof,
+        KEYS.ssk,
+        KEYS.psk,
+        KEYS.ssk_lp,
+        KEYS.psk_lp,
     );
 
     unsafe {
