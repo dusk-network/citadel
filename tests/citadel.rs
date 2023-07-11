@@ -195,14 +195,13 @@ fn test_citadel_false_public_input() {
 #[test]
 #[should_panic]
 fn test_shelter_false_public_input() {
-    let (lic, merkle_proof) =
-        CitadelUtils::compute_random_license::<OsRng, DEPTH, ARITY>(
-            &mut OsRng,
-            KEYS.ssk,
-            KEYS.psk,
-            KEYS.ssk_lp,
-            KEYS.psk_lp,
-        );
+    let (lic, merkle_proof) = CitadelUtils::compute_random_license::<OsRng, DEPTH, ARITY>(
+        &mut OsRng,
+        KEYS.ssk,
+        KEYS.psk,
+        KEYS.ssk_lp,
+        KEYS.psk_lp,
+    );
 
     let c = JubJubScalar::from(CHALLENGE);
     let spp = ShelterProverParameters::compute_parameters(

@@ -8,9 +8,7 @@ use dusk_pki::{PublicSpendKey, SecretSpendKey};
 use dusk_plonk::prelude::*;
 
 use zk_citadel::gadgets;
-use zk_citadel::license::{
-    CitadelProverParameters, SessionCookie, ShelterProverParameters,
-};
+use zk_citadel::license::{CitadelProverParameters, SessionCookie, ShelterProverParameters};
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand_core::OsRng;
@@ -123,7 +121,7 @@ fn shelter_benchmark(crit: &mut Criterion) {
         KEYS.ssk,
         KEYS.psk,
         KEYS.ssk_lp,
-        KEYS.psk_lp
+        KEYS.psk_lp,
     );
 
     let c = JubJubScalar::from(CHALLENGE);
