@@ -4,13 +4,8 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use dusk_jubjub::GENERATOR_EXTENDED;
-
-use poseidon_merkle::{Item, Opening, Tree};
-
 use dusk_pki::{PublicSpendKey, SecretSpendKey};
 use dusk_plonk::prelude::*;
-use dusk_poseidon::sponge;
 
 static LABEL: &[u8; 12] = b"dusk-network";
 
@@ -20,16 +15,16 @@ const ARITY: usize = 4; // arity of the Merkle tree
 
 use zk_citadel::gadgets;
 use zk_citadel::license::{
-    CitadelProverParameters, License, Request, Session, SessionCookie, ShelterProverParameters,
+    CitadelProverParameters, Session, SessionCookie, ShelterProverParameters,
 };
 
-use rand_core::{CryptoRng, OsRng, RngCore};
+use rand_core::OsRng;
+use zk_citadel::utils::CitadelUtils;
 
 #[macro_use]
 extern crate lazy_static;
 
-// Example values
-const USER_ATTRIBUTES: u64 = 112233445566778899u64;
+// Example value
 const CHALLENGE: u64 = 20221126u64;
 
 pub struct Keys {
@@ -112,51 +107,14 @@ impl Circuit for Shelter {
     }
 }
 
-fn compute_random_license<R: RngCore + CryptoRng>(
-    rng: &mut R,
-) -> (License, Opening<(), DEPTH, ARITY>) {
-    // First, the user computes these values and requests a License
-    let lsa = KEYS.psk.gen_stealth_address(&JubJubScalar::random(rng));
-    let lsk = KEYS.ssk.sk_r(&lsa);
-    let k_lic =
-        JubJubAffine::from(GENERATOR_EXTENDED * sponge::truncated::hash(&[(*lsk.as_ref()).into()]));
-    let req = Request::new(&KEYS.psk_lp, &lsa, &k_lic, rng);
-
-    // Second, the LP computes these values and grants the License
-    let attr = JubJubScalar::from(USER_ATTRIBUTES);
-    let mut lic = License::new(&attr, &KEYS.ssk_lp, &req, rng);
-
-    let mut tree = Tree::<(), DEPTH, ARITY>::new();
-    let lpk = JubJubAffine::from(lic.lsa.pk_r().as_ref());
-
-    let item = Item {
-        hash: sponge::hash(&[lpk.get_x(), lpk.get_y()]),
-        data: (),
-    };
-
-    lic.pos = 0;
-    tree.insert(lic.pos, item);
-
-    let merkle_proof = tree.opening(lic.pos).expect("Tree was read successfully");
-
-    (lic, merkle_proof)
-}
-
 #[test]
 fn test_full_citadel() {
-    // We generate a random license and merkle proof for testing
-    let (lic, merkle_proof) = compute_random_license(&mut OsRng);
-
-    // The user computes these values to use a license
-    let c = JubJubScalar::from(CHALLENGE);
-    let (cpp, sc) = CitadelProverParameters::compute_parameters(
-        &KEYS.ssk,
-        &lic,
-        &KEYS.psk_lp,
-        &KEYS.psk_lp,
-        &c,
+    let (cpp, sc) = CitadelUtils::compute_citadel_parameters::<OsRng, DEPTH, ARITY>(
         &mut OsRng,
-        merkle_proof,
+        KEYS.ssk,
+        KEYS.psk,
+        KEYS.ssk_lp,
+        KEYS.psk_lp,
     );
 
     // Then, the user generates the proof
@@ -179,7 +137,13 @@ fn test_full_citadel() {
 #[test]
 fn test_full_shelter() {
     // We generate a random license and merkle proof for testing
-    let (lic, merkle_proof) = compute_random_license(&mut OsRng);
+    let (lic, merkle_proof) = CitadelUtils::compute_random_license::<OsRng, DEPTH, ARITY>(
+        &mut OsRng,
+        KEYS.ssk,
+        KEYS.psk,
+        KEYS.ssk_lp,
+        KEYS.psk_lp,
+    );
 
     // The user computes these values to use a license
     let c = JubJubScalar::from(CHALLENGE);
@@ -206,17 +170,12 @@ fn test_full_shelter() {
 #[test]
 #[should_panic]
 fn test_citadel_false_public_input() {
-    let (lic, merkle_proof) = compute_random_license(&mut OsRng);
-
-    let c = JubJubScalar::from(CHALLENGE);
-    let (cpp, sc) = CitadelProverParameters::compute_parameters(
-        &KEYS.ssk,
-        &lic,
-        &KEYS.psk_lp,
-        &KEYS.psk_lp,
-        &c,
+    let (cpp, sc) = CitadelUtils::compute_citadel_parameters::<OsRng, DEPTH, ARITY>(
         &mut OsRng,
-        merkle_proof,
+        KEYS.ssk,
+        KEYS.psk,
+        KEYS.ssk_lp,
+        KEYS.psk_lp,
     );
 
     let (proof, public_inputs) = KEYS
@@ -236,7 +195,13 @@ fn test_citadel_false_public_input() {
 #[test]
 #[should_panic]
 fn test_shelter_false_public_input() {
-    let (lic, merkle_proof) = compute_random_license(&mut OsRng);
+    let (lic, merkle_proof) = CitadelUtils::compute_random_license::<OsRng, DEPTH, ARITY>(
+        &mut OsRng,
+        KEYS.ssk,
+        KEYS.psk,
+        KEYS.ssk_lp,
+        KEYS.psk_lp,
+    );
 
     let c = JubJubScalar::from(CHALLENGE);
     let spp = ShelterProverParameters::compute_parameters(
@@ -264,17 +229,12 @@ fn test_shelter_false_public_input() {
 #[test]
 #[should_panic]
 fn test_citadel_false_session_cookie() {
-    let (lic, merkle_proof) = compute_random_license(&mut OsRng);
-
-    let c = JubJubScalar::from(CHALLENGE);
-    let (cpp, sc) = CitadelProverParameters::compute_parameters(
-        &KEYS.ssk,
-        &lic,
-        &KEYS.psk_lp,
-        &KEYS.psk_lp,
-        &c,
+    let (cpp, sc) = CitadelUtils::compute_citadel_parameters::<OsRng, DEPTH, ARITY>(
         &mut OsRng,
-        merkle_proof,
+        KEYS.ssk,
+        KEYS.psk,
+        KEYS.ssk_lp,
+        KEYS.psk_lp,
     );
 
     let (_proof, public_inputs) = KEYS

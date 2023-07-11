@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add Utils implementation
+
+### Changed
+
+- Updated poseidon_merkle from 0.2 to 0.2.1-rc.0
+
 ## [0.4.0] - 2023-06-28
 
 ### Changed
