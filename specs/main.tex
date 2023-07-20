@@ -1,0 +1,194 @@
+\documentclass[10pt]{article}
+
+%% PACKAGES
+\usepackage{geometry}
+ \geometry{ a4paper,
+ 			total={170mm,257mm},
+ 			left=20mm,
+ 			top=20mm}
+% temporary version with space for commenting
+%\geometry{ 	a4paper,
+%			total={140mm,257mm},
+%			left=20mm,
+%			top=20mm}
+
+\usepackage{authblk}
+\usepackage[ruled,vlined]{algorithm2e}
+
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[colorlinks=true,
+			urlcolor=black,
+			linkcolor=black,
+			citecolor=black]{hyperref}
+\usepackage{amsmath, amsthm, amssymb, mathtools}
+\usepackage{listings}
+\usepackage{graphicx, color, xcolor}
+\usepackage{tabularx}
+\usepackage{xspace} %list of punctuation marks 
+\usepackage{soul} %strike through text
+
+\usepackage[colorinlistoftodos, textwidth = 40mm]{todonotes}
+
+\usepackage{tikz}
+\usetikzlibrary{arrows, positioning, automata}	
+\tikzstyle{process} = [	rectangle,
+						minimum width=1cm, 
+						minimum height=0.8cm,
+						text centered, 
+						%fill=red!30
+						draw=black,]
+\tikzstyle{arrow} =[thick,->,>=stealth]
+
+\newtheorem{definition}{Definition}[section]
+
+\newcounter{protocol}
+\newenvironment{protocol}[1]
+  {\par\addvspace{\topsep}
+   \noindent
+   \tabularx{\linewidth}{@{} X @{}}
+    \hline
+    \refstepcounter{protocol}\textbf{Protocol \theprotocol} #1 \\
+    \hline}
+  { \\
+    \hline
+   \endtabularx
+   \par\addvspace{\topsep}}
+
+% Mathbb
+\newcommand{\G}{\ensuremath{\mathbb{G}}\xspace}
+\newcommand{\F}{\ensuremath{\mathbb{F}}}
+\newcommand{\N}{\ensuremath{\mathbb{N}}\xspace}
+\newcommand{\Z}{\ensuremath{\mathbb{Z}}\xspace}
+
+% Mathcal
+\newcommand{\receiver}{\ensuremath{\mathcal{R}}\xspace}
+\newcommand{\sender}{\ensuremath{\mathcal{S}}\xspace}
+\newcommand{\nullifiertree}{\ensuremath{\mathcal{X}}\xspace}
+\newcommand{\notetree}{\ensuremath{\mathcal{N}}\xspace}
+
+% Others
+%\newcommand{\NoteB}{\ensuremath{N_{B}}\xspace}
+%\newcommand{\NoteB}{\ensuremath{N_{A\to B}}\xspace}
+%\newcommand{\NoteC}{\ensuremath{N_{C}}\xspace}
+%\newcommand{\NoteC}{\ensuremath{N_{B\to C}}\xspace}
+\newcommand{\noi}{\noindent}
+
+% Comments
+\newcommand{\js}{\todo[size=\small, color=blue!40]}
+\newcommand{\jsi}{\todo[inline, size=\small, color=blue!40]}
+\newcommand{\xs}{\todo[size=\small, color=green!40]}
+\newcommand{\xsi}{\todo[inline, size=\small, color=green!40]}
+\newcommand{\mb}{\todo[size=\small, color=red!40]}
+\newcommand{\mbi}{\todo[inline, size=\small, color=red!40]}
+
+% mathsf
+\newcommand{\klic}{\mathsf{k_{lic}}}
+\newcommand{\kreq}{\mathsf{k_{req}}}
+\newcommand{\kdh}{\mathsf{k_{DH}}}
+\newcommand{\ksym}{\mathsf{k}}
+\newcommand{\tkdh}{\mathsf{\tilde{k}_{DH}}}
+\newcommand{\tklic}{\mathsf{\tilde{k}_{lic}}}
+\newcommand{\tkreq}{\mathsf{\tilde{k}_{req}}}
+\newcommand{\sk}{\mathsf{sk}}
+\newcommand{\pk}{\mathsf{pk}}
+\newcommand{\ck}{\mathsf{ck}}
+\renewcommand{\pk}{\mathsf{pk}}
+\newcommand{\vk}{\mathsf{vk}}
+\newcommand{\npk}{\mathsf{npk}}
+\newcommand{\user}{\mathsf{user}}
+\newcommand{\NFT}{\mathsf{NFT}}
+\newcommand{\LP}{\mathsf{LP}}
+\newcommand{\SP}{\mathsf{SP}}
+\newcommand{\npkn}[1]{\mathsf{npk}_{#1}}
+\newcommand{\nsk}{\mathsf{nsk}}
+\newcommand{\lsk}{\mathsf{lsk}}
+\newcommand{\lpk}{\mathsf{lpk}}
+\newcommand{\rpk}{\mathsf{rpk}}
+\newcommand{\spk}{\mathsf{spk}}
+\newcommand{\tx}{\mathsf{tx}}
+\newcommand{\txold}{\mathsf{tx^{old}}}
+\newcommand{\txm}{\mathsf{tx_{metadata}}}
+\newcommand{\txp}{\mathsf{tx_{payload}}}
+\newcommand{\txh}{\mathsf{tx_{hash}}}
+\newcommand{\txproof}{\mathsf{tx_{proof}}}
+\newcommand{\Note}{\mathsf{N}}
+\newcommand{\lic}{\mathsf{lic}}
+\newcommand{\req}{\mathsf{req}}
+\newcommand{\Session}{\mathsf{session}}
+\newcommand{\SessionCookie}{\mathsf{sc}}
+\newcommand{\nfthash}{\mathsf{hash_{NFT}}}
+\newcommand{\nftpayload}{\mathsf{payload_{NFT}}}
+\newcommand{\sig}{\mathsf{sig}}
+\newcommand{\lsig}{\mathsf{sig_{lic}}}
+\newcommand{\tsig}{\mathsf{sig_{tx}}}
+\newcommand{\attr}{\mathsf{attr}}
+\newcommand{\sign}{\mathsf{sign\_single\_key}}
+\newcommand{\signd}{\mathsf{sign\_double\_key}}
+\newcommand{\verify}{\mathsf{verify\_sig\_single\_key}}
+\newcommand{\verifyd}{\mathsf{verify\_sig\_double\_key}}
+\newcommand{\mintnft}{\mathsf{mint\_nft}}
+\newcommand{\NoteB}{\mathsf{N_{B}}}
+\newcommand{\NoteC}{\mathsf{N_{C}}}
+\newcommand{\nnew}[1]{\mathsf{N^{new}_{#1}}}
+\newcommand{\nold}[1]{\mathsf{N^{old}_{#1}}}
+\newcommand{\vnew}[1]{\mathsf{v_{#1}}}
+\newcommand{\vold}[1]{\mathsf{w_{#1}}}
+\newcommand{\change}{\mathsf{change}}
+\newcommand{\type}{\mathsf{type}}
+\newcommand{\com}{\mathsf{com}}
+\newcommand{\enc}{\mathsf{enc}}
+\newcommand{\Enc}{\mathsf{Enc}}
+\newcommand{\nonce}{\mathsf{nonce}}
+\newcommand{\pos}{\mathsf{pos}}
+\newcommand{\nullifier}{\mathsf{nullifier}}
+\newcommand{\isseen}{\mathsf{is\_seen}}
+\newcommand{\pnullifiers}{\mathsf{previous\_nullifiers}}
+\newcommand{\sessionid}{\mathsf{session\_id}}
+\newcommand{\hb}{H^\mathsf{BLAKE2b}}
+\newcommand{\hp}{H^\mathsf{Poseidon}}
+
+    
+\title{Citadel Protocol Specification}
+\date{\today}
+
+\author{Dusk Network}
+
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+\pagebreak 
+
+\section{General Overview}
+\label{sec:overview}
+\input{sections/overview.tex}
+
+\section{Definitions}
+\label{sec:definitions}
+\input{sections/definitions.tex}
+
+\section{Protocol Workflow}
+\label{sec:protocol}
+\input{sections/protocol.tex}
+
+\section{Protocol Implementation}
+\label{sec:implementation}
+\input{sections/implementation.tex}
+
+\end{document}
+
+
+
+
+
+
+
+
+
+
+
+
+
