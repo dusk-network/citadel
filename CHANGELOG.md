@@ -7,13 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2023-08-09
+
 ### Added
 
 - Add Utils implementation
-
-### Changed
-
-- Updated poseidon_merkle from 0.2 to 0.2.1-rc.0
 
 ## [0.4.0] - 2023-06-28
 
@@ -69,7 +67,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#21]: https://github.com/dusk-network/citadel/issues/21
 
 <!-- VERSIONS -->
-[Unreleased]: https://github.com/dusk-network/citadel/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/dusk-network/citadel/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/dusk-network/citadel/releases/tag/v0.4.1
 [0.4.0]: https://github.com/dusk-network/citadel/releases/tag/v0.4.0
 [0.3.0]: https://github.com/dusk-network/citadel/releases/tag/v0.3.0
 [0.2.0]: https://github.com/dusk-network/citadel/releases/tag/v0.2.0
