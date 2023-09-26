@@ -109,12 +109,20 @@ impl Circuit for Shelter {
 
 #[test]
 fn test_full_citadel() {
-    let (cpp, sc) = CitadelUtils::compute_citadel_parameters::<OsRng, DEPTH, ARITY>(
+    let (lic, merkle_proof) = CitadelUtils::compute_random_license::<OsRng, DEPTH, ARITY>(
         &mut OsRng,
         KEYS.ssk,
         KEYS.psk,
         KEYS.ssk_lp,
         KEYS.psk_lp,
+    );
+
+    let (cpp, sc) = CitadelUtils::compute_citadel_parameters::<OsRng, DEPTH, ARITY>(
+        &mut OsRng,
+        KEYS.ssk,
+        KEYS.psk_lp,
+        &lic,
+        merkle_proof,
     );
 
     // Then, the user generates the proof
@@ -170,12 +178,20 @@ fn test_full_shelter() {
 #[test]
 #[should_panic]
 fn test_citadel_false_public_input() {
-    let (cpp, sc) = CitadelUtils::compute_citadel_parameters::<OsRng, DEPTH, ARITY>(
+    let (lic, merkle_proof) = CitadelUtils::compute_random_license::<OsRng, DEPTH, ARITY>(
         &mut OsRng,
         KEYS.ssk,
         KEYS.psk,
         KEYS.ssk_lp,
         KEYS.psk_lp,
+    );
+
+    let (cpp, sc) = CitadelUtils::compute_citadel_parameters::<OsRng, DEPTH, ARITY>(
+        &mut OsRng,
+        KEYS.ssk,
+        KEYS.psk_lp,
+        &lic,
+        merkle_proof,
     );
 
     let (proof, public_inputs) = KEYS
@@ -229,12 +245,20 @@ fn test_shelter_false_public_input() {
 #[test]
 #[should_panic]
 fn test_citadel_false_session_cookie() {
-    let (cpp, sc) = CitadelUtils::compute_citadel_parameters::<OsRng, DEPTH, ARITY>(
+    let (lic, merkle_proof) = CitadelUtils::compute_random_license::<OsRng, DEPTH, ARITY>(
         &mut OsRng,
         KEYS.ssk,
         KEYS.psk,
         KEYS.ssk_lp,
         KEYS.psk_lp,
+    );
+
+    let (cpp, sc) = CitadelUtils::compute_citadel_parameters::<OsRng, DEPTH, ARITY>(
+        &mut OsRng,
+        KEYS.ssk,
+        KEYS.psk_lp,
+        &lic,
+        merkle_proof,
     );
 
     let (_proof, public_inputs) = KEYS

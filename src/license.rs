@@ -161,7 +161,6 @@ pub struct License {
     pub nonce_1: BlsScalar,    // IV for the encryption
     pub enc_2: PoseidonCipher, // encryption of the license signature and attributes
     pub nonce_2: BlsScalar,    // IV for the encryption
-    pub pos: u64,              // position of the license in the Merkle tree of licenses
 }
 
 impl License {
@@ -209,8 +208,6 @@ impl License {
         let enc_2 =
             PoseidonCipher::encrypt(&[sig_lic_r.get_x(), sig_lic_r.get_y()], &k_lic, &nonce_2);
 
-        let pos = 0u64;
-
         Self {
             lsa: StealthAddress::from_raw_unchecked(
                 JubJubExtended::from(r),
@@ -220,7 +217,6 @@ impl License {
             nonce_1,
             enc_2,
             nonce_2,
-            pos,
         }
     }
 }
