@@ -71,7 +71,7 @@ impl CitadelUtils {
         let c = JubJubScalar::from(CHALLENGE);
         let (cpp, sc) = CitadelProverParameters::compute_parameters(
             &ssk,
-            &lic,
+            lic,
             &psk_lp,
             &psk_lp,
             &c,
