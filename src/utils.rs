@@ -39,7 +39,7 @@ impl CitadelUtils {
 
         // Second, the LP computes these values and grants the License
         let attr = JubJubScalar::from(USER_ATTRIBUTES);
-        let mut lic = License::new(&attr, &ssk_lp, &req, rng);
+        let lic = License::new(&attr, &ssk_lp, &req, rng);
 
         let mut tree = Tree::<(), DEPTH, ARITY>::new();
         let lpk = JubJubAffine::from(lic.lsa.pk_r().as_ref());
@@ -49,10 +49,10 @@ impl CitadelUtils {
             data: (),
         };
 
-        lic.pos = 0;
-        tree.insert(lic.pos, item);
+        let pos = 0;
+        tree.insert(pos, item);
 
-        let merkle_proof = tree.opening(lic.pos).expect("Tree was read successfully");
+        let merkle_proof = tree.opening(pos).expect("Tree was read successfully");
 
         (lic, merkle_proof)
     }
@@ -64,13 +64,10 @@ impl CitadelUtils {
     >(
         rng: &mut R,
         ssk: SecretSpendKey,
-        psk: PublicSpendKey,
-        ssk_lp: SecretSpendKey,
         psk_lp: PublicSpendKey,
+        lic: &License,
+        merkle_proof: Opening<(), DEPTH, ARITY>,
     ) -> (CitadelProverParameters<DEPTH, ARITY>, SessionCookie) {
-        let (lic, merkle_proof) =
-            Self::compute_random_license::<R, DEPTH, ARITY>(rng, ssk, psk, ssk_lp, psk_lp);
-
         let c = JubJubScalar::from(CHALLENGE);
         let (cpp, sc) = CitadelProverParameters::compute_parameters(
             &ssk,

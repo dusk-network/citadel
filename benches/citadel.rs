@@ -160,12 +160,20 @@ fn shelter_benchmark(crit: &mut Criterion) {
 }
 
 fn citadel_benchmark(crit: &mut Criterion) {
-    let (cpp, sc) = CitadelUtils::compute_citadel_parameters::<OsRng, DEPTH_CITADEL, ARITY>(
-        &mut OsRng,
+    let (lic, merkle_proof) = Self::compute_random_license::<R, DEPTH, ARITY>(
+        OsRng,
         KEYS.ssk,
         KEYS.psk,
         KEYS.ssk_lp,
         KEYS.psk_lp,
+    );
+
+    let (cpp, sc) = CitadelUtils::compute_citadel_parameters::<OsRng, DEPTH_CITADEL, ARITY>(
+        &mut OsRng,
+        KEYS.ssk,
+        KEYS.psk_lp,
+        &lic,
+        merkle_proof,
     );
 
     unsafe {
