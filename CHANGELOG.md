@@ -19,11 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed pos field from the license struct
 - Refactored utils to accept external license and opening
 
+### Added
+
+- Add `ff` dependency
+
 ## [0.4.1] - 2023-08-09
 
 ### Added
 
-- Add `ff` dependency
 - Add Utils implementation
 
 ## [0.4.0] - 2023-06-28
