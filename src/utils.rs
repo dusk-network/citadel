@@ -45,7 +45,7 @@ impl CitadelUtils {
         let lpk = JubJubAffine::from(lic.lsa.pk_r().as_ref());
 
         let item = Item {
-            hash: sponge::hash(&[lpk.get_x(), lpk.get_y()]),
+            hash: sponge::hash(&[lpk.get_u(), lpk.get_v()]),
             data: (),
         };
 
