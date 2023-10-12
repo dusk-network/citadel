@@ -1,6 +1,6 @@
 [package]
 name = "zk-citadel"
-version = "0.4.2"
+version = "0.5.0"
 repository = "https://github.com/dusk-network/citadel"
 description = "Implementation of Citadel, a SSI system integrated in Dusk Network."
 categories = ["cryptography", "authentication", "mathematics", "science"]
