@@ -6,6 +6,7 @@
 
 use dusk_pki::{PublicSpendKey, SecretSpendKey};
 use dusk_plonk::prelude::*;
+use ff::Field;
 
 static LABEL: &[u8; 12] = b"dusk-network";
 

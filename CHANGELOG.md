@@ -9,8 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- update `dusk-bls12_381` dependency to "0.12"
+- update `dusk-jubjub` dependency to "0.13"
+- update `dusk-pki` dependency to "0.13"
+- update `dusk-schnorr` dependency to "0.14"
+- update `dusk-poseidon` dependency to "0.31"
+- update `poseidon-merkle` dependency to "0.3"
+- update `dusk-plonk` dependency to "0.14"
 - Removed pos field from the license struct
 - Refactored utils to accept external license and opening
+
+### Added
+
+- Add `ff` dependency
 
 ## [0.4.1] - 2023-08-09
 
