@@ -25,7 +25,7 @@ The workflow of the Citadel protocol is depicted in Figure \ref{fig:protocol}, a
 		\item Compute $R_{\lic} = rG$.
 	\end{enumerate}
 
-	Compute also an additional key $\klic = \hb(\lsk)G$, by computing first the license secret key $\lsk = \hb(\ksym) + b_{\user}$. Then, compute the request stealth address $(\rpk, R_{\req})$ using the LP's public key, as follows.
+	Compute also an additional key $\klic = \hp(\lsk)G$, by computing first the license secret key $\lsk = \hb(\ksym) + b_{\user}$. Then, compute the request stealth address $(\rpk, R_{\req})$ using the LP's public key, as follows.
 
 	\begin{enumerate}
 		\item Sample $r$ uniformly at random from $\F_t$.

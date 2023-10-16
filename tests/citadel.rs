@@ -4,31 +4,76 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use dusk_jubjub::GENERATOR_EXTENDED;
-use dusk_pki::SecretSpendKey;
+use dusk_pki::{PublicSpendKey, SecretSpendKey};
 use dusk_plonk::prelude::*;
+use ff::Field;
 
 static LABEL: &[u8; 12] = b"dusk-network";
 
-const CAPACITY: usize = 16; // capacity required for the setup
-const DEPTH: usize = 17; // depth of the n-ary Merkle tree
-pub const ARITY: usize = 4; // arity of the Merkle tree
+const CAPACITY: usize = 15; // capacity required for the setup
+const DEPTH: usize = 9; // depth of the n-ary Merkle tree
+const ARITY: usize = 4; // arity of the Merkle tree
 
-use zk_citadel::gadget;
-use zk_citadel::license::{License, LicenseProverParameters, Request, Session, SessionCookie};
-use zk_citadel::state::State;
+use zk_citadel::gadgets;
+use zk_citadel::license::{
+    CitadelProverParameters, Session, SessionCookie, ShelterProverParameters,
+};
 
-use rand_core::{CryptoRng, OsRng, RngCore};
+use rand_core::OsRng;
+use zk_citadel::utils::CitadelUtils;
+
+#[macro_use]
+extern crate lazy_static;
+
+// Example value
+const CHALLENGE: u64 = 20221126u64;
+
+pub struct Keys {
+    ssk: SecretSpendKey,
+    psk: PublicSpendKey,
+
+    ssk_lp: SecretSpendKey,
+    psk_lp: PublicSpendKey,
+
+    citadel_prover: Prover,
+    citadel_verifier: Verifier,
+
+    shelter_prover: Prover,
+    shelter_verifier: Verifier,
+}
+
+lazy_static! {
+    static ref KEYS: Keys = {
+        // These are the keys of the user
+        let ssk = SecretSpendKey::random(&mut OsRng);
+        let psk = ssk.public_spend_key();
+
+        // These are the keys of the LP
+        let ssk_lp = SecretSpendKey::random(&mut OsRng);
+        let psk_lp = ssk_lp.public_spend_key();
+
+        // Now we generate the ProverKey and VerifierKey for both Citadel and Shelter
+        let pp = PublicParameters::setup(1 << CAPACITY, &mut OsRng).unwrap();
+
+        let (citadel_prover, citadel_verifier) =
+            Compiler::compile::<Citadel>(&pp, LABEL).expect("failed to compile circuit");
+
+        let (shelter_prover, shelter_verifier) =
+            Compiler::compile::<Shelter>(&pp, LABEL).expect("failed to compile circuit");
+
+        Keys { ssk, psk, ssk_lp, psk_lp, citadel_prover, citadel_verifier, shelter_prover, shelter_verifier }
+    };
+}
 
 #[derive(Default, Debug)]
 pub struct Citadel {
-    lpp: LicenseProverParameters<DEPTH, ARITY>,
+    cpp: CitadelProverParameters<DEPTH, ARITY>,
     sc: SessionCookie,
 }
 
 impl Citadel {
-    pub fn new(lpp: &LicenseProverParameters<DEPTH, ARITY>, sc: &SessionCookie) -> Self {
-        Self { lpp: *lpp, sc: *sc }
+    pub fn new(cpp: &CitadelProverParameters<DEPTH, ARITY>, sc: &SessionCookie) -> Self {
+        Self { cpp: *cpp, sc: *sc }
     }
 }
 
@@ -37,103 +82,189 @@ impl Circuit for Citadel {
     where
         C: Composer,
     {
-        gadget::use_license(composer, &self.lpp, &self.sc)?;
+        gadgets::use_license_citadel(composer, &self.cpp, &self.sc)?;
         Ok(())
     }
 }
 
-fn compute_random_license<R: RngCore + CryptoRng>(
-    rng: &mut R,
-) -> (
-    License,
-    LicenseProverParameters<DEPTH, ARITY>,
-    SessionCookie,
-) {
-    // Example values
-    const USER_ATTRIBUTES: u64 = 112233445566778899u64;
-    const CHALLENGE: u64 = 20221126u64;
+#[derive(Default, Debug)]
+pub struct Shelter {
+    spp: ShelterProverParameters<DEPTH, ARITY>,
+}
 
-    // These are the keys of the user
-    let ssk = SecretSpendKey::random(rng);
-    let psk = ssk.public_spend_key();
+impl Shelter {
+    pub fn new(spp: &ShelterProverParameters<DEPTH, ARITY>) -> Self {
+        Self { spp: *spp }
+    }
+}
 
-    // These are the keys of the LP
-    let ssk_lp = SecretSpendKey::random(rng);
-    let psk_lp = ssk_lp.public_spend_key();
-
-    // First, the user computes these values and requests a License
-    let lsa = psk.gen_stealth_address(&JubJubScalar::random(rng));
-    let k_lic = JubJubAffine::from(GENERATOR_EXTENDED * JubJubScalar::random(rng)); // TODO: address issue #35 and modify this
-    let req = Request::new(&psk_lp, &lsa, &k_lic, rng);
-
-    // Second, the LP computes these values and grants the License
-    let attr = JubJubScalar::from(USER_ATTRIBUTES);
-    let mut lic = License::new(&attr, &ssk_lp, &req, rng);
-    let mut state = State::new(); // the compiler takes DEPTH from expected 'lpp' to return
-    state.append_license(&mut lic);
-
-    // Third, the user computes these values to generate the ZKP later on
-    let vk = ssk.view_key();
-    let lics = state.get_licenses(&vk);
-    let c = JubJubScalar::from(CHALLENGE);
-    let (lpp, sc) = LicenseProverParameters::compute_parameters(
-        &ssk, &lics[0], &psk_lp, &psk_lp, &k_lic, &c, rng, &state,
-    );
-
-    (lic, lpp, sc)
+impl Circuit for Shelter {
+    fn circuit<C>(&self, composer: &mut C) -> Result<(), Error>
+    where
+        C: Composer,
+    {
+        gadgets::use_license_shelter(composer, &self.spp)?;
+        Ok(())
+    }
 }
 
 #[test]
 fn test_full_citadel() {
-    let pp = PublicParameters::setup(1 << CAPACITY, &mut OsRng).unwrap();
-    let (prover, verifier) =
-        Compiler::compile::<Citadel>(&pp, LABEL).expect("failed to compile circuit");
+    let (lic, merkle_proof) = CitadelUtils::compute_random_license::<OsRng, DEPTH, ARITY>(
+        &mut OsRng,
+        KEYS.ssk,
+        KEYS.psk,
+        KEYS.ssk_lp,
+        KEYS.psk_lp,
+    );
 
-    let (_lic, lpp, sc) = compute_random_license(&mut OsRng);
-    let (proof, public_inputs) = prover
-        .prove(&mut OsRng, &Citadel::new(&lpp, &sc))
+    let (cpp, sc) = CitadelUtils::compute_citadel_parameters::<OsRng, DEPTH, ARITY>(
+        &mut OsRng,
+        KEYS.ssk,
+        KEYS.psk_lp,
+        &lic,
+        merkle_proof,
+    );
+
+    // Then, the user generates the proof
+    let (proof, public_inputs) = KEYS
+        .citadel_prover
+        .prove(&mut OsRng, &Citadel::new(&cpp, &sc))
         .expect("failed to prove");
 
-    verifier
+    // After receiving the proof, the network verifies it
+    KEYS.citadel_verifier
         .verify(&proof, &public_inputs)
         .expect("failed to verify proof");
 
+    // Finally, the SP can verify a session
     let pk_lp = sc.pk_lp;
     let session = Session::from(&public_inputs);
     session.verify(sc, pk_lp);
 }
 
 #[test]
-#[should_panic]
-fn test_use_license_circuit_false_public_input() {
-    let pp = PublicParameters::setup(1 << CAPACITY, &mut OsRng).unwrap();
-    let (prover, verifier) =
-        Compiler::compile::<Citadel>(&pp, LABEL).expect("failed to compile circuit");
+fn test_full_shelter() {
+    // We generate a random license and merkle proof for testing
+    let (lic, merkle_proof) = CitadelUtils::compute_random_license::<OsRng, DEPTH, ARITY>(
+        &mut OsRng,
+        KEYS.ssk,
+        KEYS.psk,
+        KEYS.ssk_lp,
+        KEYS.psk_lp,
+    );
 
-    let (_lic, lpp, sc) = compute_random_license(&mut OsRng);
-    let (proof, public_inputs) = prover
-        .prove(&mut OsRng, &Citadel::new(&lpp, &sc))
+    // The user computes these values to use a license
+    let c = JubJubScalar::from(CHALLENGE);
+    let spp = ShelterProverParameters::compute_parameters(
+        &KEYS.ssk,
+        &lic,
+        &KEYS.psk_lp,
+        &c,
+        merkle_proof,
+    );
+
+    // Then, the user generates the proof
+    let (proof, public_inputs) = KEYS
+        .shelter_prover
+        .prove(&mut OsRng, &Shelter::new(&spp))
+        .expect("failed to prove");
+
+    // After receiving the proof, the SP verifies it
+    KEYS.shelter_verifier
+        .verify(&proof, &public_inputs)
+        .expect("failed to verify proof");
+}
+
+#[test]
+#[should_panic]
+fn test_citadel_false_public_input() {
+    let (lic, merkle_proof) = CitadelUtils::compute_random_license::<OsRng, DEPTH, ARITY>(
+        &mut OsRng,
+        KEYS.ssk,
+        KEYS.psk,
+        KEYS.ssk_lp,
+        KEYS.psk_lp,
+    );
+
+    let (cpp, sc) = CitadelUtils::compute_citadel_parameters::<OsRng, DEPTH, ARITY>(
+        &mut OsRng,
+        KEYS.ssk,
+        KEYS.psk_lp,
+        &lic,
+        merkle_proof,
+    );
+
+    let (proof, public_inputs) = KEYS
+        .citadel_prover
+        .prove(&mut OsRng, &Citadel::new(&cpp, &sc))
         .expect("failed to prove");
 
     // set a false public input
     let mut false_public_inputs = public_inputs;
     false_public_inputs[0] = BlsScalar::random(&mut OsRng);
 
-    verifier
+    KEYS.citadel_verifier
         .verify(&proof, &false_public_inputs)
         .expect("failed to verify proof");
 }
 
 #[test]
 #[should_panic]
-fn test_verify_license_false_session_cookie() {
-    let pp = PublicParameters::setup(1 << CAPACITY, &mut OsRng).unwrap();
-    let (prover, _verifier) =
-        Compiler::compile::<Citadel>(&pp, LABEL).expect("failed to compile circuit");
+fn test_shelter_false_public_input() {
+    let (lic, merkle_proof) = CitadelUtils::compute_random_license::<OsRng, DEPTH, ARITY>(
+        &mut OsRng,
+        KEYS.ssk,
+        KEYS.psk,
+        KEYS.ssk_lp,
+        KEYS.psk_lp,
+    );
 
-    let (_lic, lpp, sc) = compute_random_license(&mut OsRng);
-    let (_proof, public_inputs) = prover
-        .prove(&mut OsRng, &Citadel::new(&lpp, &sc))
+    let c = JubJubScalar::from(CHALLENGE);
+    let spp = ShelterProverParameters::compute_parameters(
+        &KEYS.ssk,
+        &lic,
+        &KEYS.psk_lp,
+        &c,
+        merkle_proof,
+    );
+
+    let (proof, public_inputs) = KEYS
+        .shelter_prover
+        .prove(&mut OsRng, &Shelter::new(&spp))
+        .expect("failed to prove");
+
+    // set a false public input
+    let mut false_public_inputs = public_inputs;
+    false_public_inputs[0] = BlsScalar::random(&mut OsRng);
+
+    KEYS.shelter_verifier
+        .verify(&proof, &false_public_inputs)
+        .expect("failed to verify proof");
+}
+
+#[test]
+#[should_panic]
+fn test_citadel_false_session_cookie() {
+    let (lic, merkle_proof) = CitadelUtils::compute_random_license::<OsRng, DEPTH, ARITY>(
+        &mut OsRng,
+        KEYS.ssk,
+        KEYS.psk,
+        KEYS.ssk_lp,
+        KEYS.psk_lp,
+    );
+
+    let (cpp, sc) = CitadelUtils::compute_citadel_parameters::<OsRng, DEPTH, ARITY>(
+        &mut OsRng,
+        KEYS.ssk,
+        KEYS.psk_lp,
+        &lic,
+        merkle_proof,
+    );
+
+    let (_proof, public_inputs) = KEYS
+        .citadel_prover
+        .prove(&mut OsRng, &Citadel::new(&cpp, &sc))
         .expect("failed to prove");
 
     // set a false session cookie

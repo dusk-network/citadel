@@ -4,6 +4,6 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-pub mod gadget;
+pub mod gadgets;
 pub mod license;
-pub mod state;
+pub mod utils;

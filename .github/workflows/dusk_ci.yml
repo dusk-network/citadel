@@ -24,3 +24,4 @@ jobs:
     uses: dusk-network/.github/.github/workflows/run-tests.yml@main
     with:
       test_flags: --no-default-features
+      

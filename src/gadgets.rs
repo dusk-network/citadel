@@ -9,7 +9,9 @@ use dusk_plonk::prelude::*;
 use dusk_poseidon::sponge;
 use dusk_schnorr::gadgets;
 
-use crate::license::{LicenseProverParameters, SessionCookie};
+use poseidon_merkle::zk::opening_gadget;
+
+use crate::license::{CitadelProverParameters, SessionCookie, ShelterProverParameters};
 
 // out of this circuit, the generated public inputs vector collects
 // these values in that particular order:
@@ -23,14 +25,14 @@ use crate::license::{LicenseProverParameters, SessionCookie};
 // public_inputs[6]: com_2.y
 // public_inputs[7]: root
 
-pub fn use_license<C: Composer, const DEPTH: usize, const ARITY: usize>(
+pub fn use_license_citadel<C: Composer, const DEPTH: usize, const ARITY: usize>(
     composer: &mut C,
-    lpp: &LicenseProverParameters<DEPTH, ARITY>,
+    cpp: &CitadelProverParameters<DEPTH, ARITY>,
     sc: &SessionCookie,
 ) -> Result<(), Error> {
     // APPEND THE LICENSE PUBLIC KEYS OF THE USER
-    let lpk = composer.append_point(lpp.lpk);
-    let lpk_p = composer.append_point(lpp.lpk_p);
+    let lpk = composer.append_point(cpp.lpk);
+    let lpk_p = composer.append_point(cpp.lpk_p);
 
     // COMPUTE THE SESSION ID
     let c = composer.append_witness(sc.c);
@@ -40,7 +42,7 @@ pub fn use_license<C: Composer, const DEPTH: usize, const ARITY: usize>(
     composer.assert_equal(session_id, session_id_pi);
 
     // VERIFY THE LICENSE SIGNATURE
-    let (sig_lic_u, sig_lic_r) = lpp.sig_lic.to_witness(composer);
+    let (sig_lic_u, sig_lic_r) = cpp.sig_lic.to_witness(composer);
     let pk_lp = composer.append_point(sc.pk_lp);
     let attr = composer.append_witness(sc.attr);
 
@@ -49,8 +51,8 @@ pub fn use_license<C: Composer, const DEPTH: usize, const ARITY: usize>(
 
     // VERIFY THE SESSION HASH SIGNATURE
     let (sig_session_hash_u, sig_session_hash_r, sig_session_hash_r_p) =
-        lpp.sig_session_hash.to_witness(composer);
-    let session_hash = composer.append_public(lpp.session_hash);
+        cpp.sig_session_hash.to_witness(composer);
+    let session_hash = composer.append_public(cpp.session_hash);
 
     gadgets::double_key_verify(
         composer,
@@ -64,7 +66,7 @@ pub fn use_license<C: Composer, const DEPTH: usize, const ARITY: usize>(
 
     // COMMIT TO THE PK_LP USING A HASH FUNCTION
     let s_0 = composer.append_witness(sc.s_0);
-    let com_0_pi = composer.append_public(lpp.com_0);
+    let com_0_pi = composer.append_public(cpp.com_0);
     let com_0 = sponge::gadget(composer, &[*pk_lp.x(), *pk_lp.y(), s_0]);
 
     composer.assert_equal(com_0, com_0_pi);
@@ -75,7 +77,7 @@ pub fn use_license<C: Composer, const DEPTH: usize, const ARITY: usize>(
     let pc_1_2 = composer.component_mul_generator(s_1, GENERATOR_NUMS);
     let com_1 = composer.component_add_point(pc_1_1.unwrap(), pc_1_2.unwrap());
 
-    composer.assert_equal_public_point(com_1, lpp.com_1);
+    composer.assert_equal_public_point(com_1, cpp.com_1);
 
     // COMMIT TO THE CHALLENGE
     let s_2 = composer.append_witness(sc.s_2);
@@ -83,14 +85,60 @@ pub fn use_license<C: Composer, const DEPTH: usize, const ARITY: usize>(
     let pc_2_2 = composer.component_mul_generator(s_2, GENERATOR_NUMS);
     let com_2 = composer.component_add_point(pc_2_1.unwrap(), pc_2_2.unwrap());
 
-    composer.assert_equal_public_point(com_2, lpp.com_2);
+    composer.assert_equal_public_point(com_2, cpp.com_2);
 
     // COMPUTE THE HASH OF THE LICENSE
     let license_hash = sponge::gadget(composer, &[*lpk.x(), *lpk.y()]);
 
     // VERIFY THE MERKLE PROOF
-    let root_pi = composer.append_public(lpp.merkle_proof.root().hash);
-    let root = lpp.merkle_proof.gadget(composer, license_hash);
+    let root_pi = composer.append_public(cpp.merkle_proof.root().hash);
+    let root = opening_gadget(composer, &cpp.merkle_proof, license_hash);
+    composer.assert_equal(root, root_pi);
+
+    Ok(())
+}
+
+// out of this circuit, the generated public inputs vector collects
+// these values in that particular order:
+//
+// public_inputs[0]: session_id
+// public_inputs[1]: c
+// public_inputs[2]: pk_lp.x
+// public_inputs[3]: pk_lp.y
+// public_inputs[4]: attr
+// public_inputs[5]: root
+
+pub fn use_license_shelter<C: Composer, const DEPTH: usize, const ARITY: usize>(
+    composer: &mut C,
+    spp: &ShelterProverParameters<DEPTH, ARITY>,
+) -> Result<(), Error> {
+    // APPEND THE LICENSE SECRET KEY OF THE USER
+    let lsk = composer.append_witness(spp.lsk);
+
+    // COMPUTE LICENSE PUBLIC KEY
+    let lpk = composer.component_mul_generator(lsk, GENERATOR).unwrap();
+
+    // COMPUTE THE SESSION ID
+    let c = composer.append_public(spp.c);
+    let session_id_pi = composer.append_public(spp.session_id);
+    let session_id = sponge::gadget(composer, &[lsk, c]);
+
+    composer.assert_equal(session_id, session_id_pi);
+
+    // VERIFY THE LICENSE SIGNATURE
+    let (sig_lic_u, sig_lic_r) = spp.sig_lic.to_witness(composer);
+    let pk_lp = composer.append_public_point(spp.pk_lp);
+    let attr = composer.append_public(spp.attr);
+
+    let message = sponge::gadget(composer, &[*lpk.x(), *lpk.y(), attr]);
+    gadgets::single_key_verify(composer, sig_lic_u, sig_lic_r, pk_lp, message)?;
+
+    // COMPUTE THE HASH OF THE LICENSE
+    let license_hash = sponge::gadget(composer, &[*lpk.x(), *lpk.y()]);
+
+    // VERIFY THE MERKLE PROOF
+    let root_pi = composer.append_public(spp.merkle_proof.root().hash);
+    let root = opening_gadget(composer, &spp.merkle_proof, license_hash);
     composer.assert_equal(root, root_pi);
 
     Ok(())
