@@ -31,7 +31,7 @@
         \textbf{Element} & \textbf{Type} & \textbf{Info.} \\
         \hline
         $(\lpk, R_{\lic})$ & StealthAddress & It is a license stealth address of the user. \\
-        $\enc$ & PoseidonCipher[4] & It is the encryption of some user attributes and the signature of these attributes. \\
+        $\enc$ & PoseidonCipher[4] & It is the encryption of the data of some user attributes and the signature of this data. \\
         $\nonce$ & BlsScalar & Randomness needed to compute $\enc$. \\ 
         $\pos$ & BlsScalar & It is the position of the license in the Merkle tree of licenses. \\ 
         \hline
@@ -47,9 +47,9 @@
         \hline
         $\lpk$ & JubJubAffine & The license public key of the user.\\ 
         $\lpk'$ & JubJubAffine & A variation of the license public key of the user computed with a different generator.\\ 
-        $\lsig$ & Signature & The signature of the license attributes. \\ 
+        $\lsig$ & Signature & The signature of the license attributes data. \\ 
         $\com_0^{hash}$ & BlsScalar & A hash of the public key of the LP. \\ 
-        $\com_1$ & JubJubExtended & A Pedersen commitment of the attributes. \\ 
+        $\com_1$ & JubJubExtended & A Pedersen commitment of the attributes data. \\ 
         $\com_2$ & JubJubExtended & A Pedersen commitment of the $c$ value. \\ 
         $\mathsf{session\_hash}$ & BlsScalar & The hash of the public key of the SP together with some randomness. \\ 
         $\mathsf{sig\_session\_hash}$ & dusk\_schnorr::Proof & The signature of the session hash signed by the user. \\ 
@@ -69,7 +69,7 @@
         $\mathsf{session\_hash}$ & BlsScalar & The hash of the public key of the SP together with some randomness. \\ 
         $\sessionid$ & BlsScalar & The id of a session open using a given license. \\ 
         $\com_0^{hash}$ & BlsScalar & A hash of the public key of the LP. \\ 
-        $\com_1$ & JubJubExtended & A Pedersen commitment of the attributes. \\ 
+        $\com_1$ & JubJubExtended & A Pedersen commitment of the attributes data. \\ 
         $\com_2$ & JubJubExtended & A Pedersen commitment of the $c$ value. \\ 
         \hline
         \end{tabular}
@@ -86,7 +86,7 @@
         $r_\mathsf{session}$ & BlsScalar & Randomness for computing the session hash. \\
         $\sessionid$ & BlsScalar & The id of a session open using a given license. \\ 
         $\pk_{\LP}$ & JubJubAffine & The public key of the LP. \\ 
-        $\attr$ & JubJubScalar & The attributes of the user. \\ 
+        $\attrdata$ & JubJubScalar & Specific data concerning the attributes of the user. \\ 
         $c$ & JubJubScalar & The challenge value. \\ 
         $\mathsf{s_0}$ & JubJubScalar & Randomness used to compute $\com_0^{hash}$. \\
         $\mathsf{s_1}$ & BlsScalar & Randomness used to compute $\com_1$. \\
