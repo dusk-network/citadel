@@ -45,9 +45,9 @@ The workflow of the Citadel protocol is depicted in Figure \ref{fig:protocol}, a
 
 	\item (\textbf{LP}) $\mathsf{get\_license\_request}$ : continuously check the network for incoming license requests, by checking if $\rpk \stackrel{?}{=} \hb(\tkreq) G + B_{\LP}$, where $\tkreq = a_{\LP}R_{\req}$.
 
-	\item (\textbf{LP}) $\mathsf{issue\_license}$ : upon receiving a request from a user, define a set of attributes $\attr$ representing the license, and compute a digital signature as follows:
+	\item (\textbf{LP}) $\mathsf{issue\_license}$ : upon receiving a request from a user, define a set of attributes $\attr$ representing the license, collect them (e.g. by concatenation) resulting in $\attrdata$, and compute a digital signature as follows:
 
-		$$\lsig = \sign_{\sk_{\SP}}(\lpk, \attr).$$
+		$$\lsig = \sign_{\sk_{\SP}}(\lpk, \attrdata).$$
 
 	Then, send the following license to the network:
 
@@ -55,7 +55,7 @@ The workflow of the Citadel protocol is depicted in Figure \ref{fig:protocol}, a
 
 	where 
 
-		$$\enc = \Enc_{\klic} (\lsig || \attr; \nonce).$$
+		$$\enc = \Enc_{\klic} (\lsig || \attrdata; \nonce).$$
 
 	\item (\textbf{user}) $\mathsf{get\_license}$ : receive the license by scanning the incoming transactions, and checking if $\lpk \stackrel{?}{=} \hb(\tklic) G + B_{\user}$, where $\tklic = \hb(\lsk)G$.
 
@@ -74,16 +74,16 @@ The workflow of the Citadel protocol is depicted in Figure \ref{fig:protocol}, a
 
 	\item (\textbf{user}) $\mathsf{request\_service}$ : request the service to the SP, establishing communication using a secure channel, and providing the session cookie that follows.
 
-		$$\SessionCookie = \{\pk_{\mathsf{SP}}, r_\mathsf{session}, \sessionid, \pk_{\LP}, \attr, c, \mathsf{s_0}, \mathsf{s_1}, \mathsf{s_2}\}$$
+		$$\SessionCookie = \{\pk_{\mathsf{SP}}, r_\mathsf{session}, \sessionid, \pk_{\LP}, \attrdata, c, \mathsf{s_0}, \mathsf{s_1}, \mathsf{s_2}\}$$
 
 	\item (\textbf{SSP}) $\mathsf{get\_session}$ : receive a $\Session$ from the list of sessions, where $\Session.\sessionid = \SessionCookie.\sessionid$.
 
 	\item (\textbf{SSP}) $\mathsf{grant\_service}$ : grant or deny the service upon verification of the following steps:
 
 	\begin{itemize}
-		\item Check whether the values $(\attr, \pk_{\LP}, c)$ included in the $\SessionCookie$ are correct.
+		\item Check whether the values $(\attrdata, \pk_{\LP}, c)$ included in the $\SessionCookie$ are correct.
 		\item Check whether the opening $(\pk_{\SP}, r_\mathsf{session})$ included in the $\SessionCookie$ matches the $\mathsf{session\_hash}$ found in the $\Session$.
-		\item Check whether the openings $((\pk_{\LP}, \mathsf{s_0}), (\attr, \mathsf{s_1}), (c, \mathsf{s_2}))$ included in the $\SessionCookie$ match the commitments ($\com_0^{hash}, \com_1, \com_2$) found in the $\Session$.
+		\item Check whether the openings $((\pk_{\LP}, \mathsf{s_0}), (\attrdata, \mathsf{s_1}), (c, \mathsf{s_2}))$ included in the $\SessionCookie$ match the commitments ($\com_0^{hash}, \com_1, \com_2$) found in the $\Session$.
 	\end{itemize}
 
 \end{enumerate}

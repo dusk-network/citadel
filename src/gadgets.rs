@@ -44,9 +44,9 @@ pub fn use_license_citadel<C: Composer, const DEPTH: usize, const ARITY: usize>(
     // VERIFY THE LICENSE SIGNATURE
     let (sig_lic_u, sig_lic_r) = cpp.sig_lic.to_witness(composer);
     let pk_lp = composer.append_point(sc.pk_lp);
-    let attr = composer.append_witness(sc.attr);
+    let attr_data = composer.append_witness(sc.attr_data);
 
-    let message = sponge::gadget(composer, &[*lpk.x(), *lpk.y(), attr]);
+    let message = sponge::gadget(composer, &[*lpk.x(), *lpk.y(), attr_data]);
     gadgets::single_key_verify(composer, sig_lic_u, sig_lic_r, pk_lp, message)?;
 
     // VERIFY THE SESSION HASH SIGNATURE
@@ -71,9 +71,9 @@ pub fn use_license_citadel<C: Composer, const DEPTH: usize, const ARITY: usize>(
 
     composer.assert_equal(com_0, com_0_pi);
 
-    // COMMIT TO THE ATTRIBUTE
+    // COMMIT TO THE ATTRIBUTE DATA
     let s_1 = composer.append_witness(sc.s_1);
-    let pc_1_1 = composer.component_mul_generator(attr, GENERATOR);
+    let pc_1_1 = composer.component_mul_generator(attr_data, GENERATOR);
     let pc_1_2 = composer.component_mul_generator(s_1, GENERATOR_NUMS);
     let com_1 = composer.component_add_point(pc_1_1.unwrap(), pc_1_2.unwrap());
 
@@ -105,7 +105,7 @@ pub fn use_license_citadel<C: Composer, const DEPTH: usize, const ARITY: usize>(
 // public_inputs[1]: c
 // public_inputs[2]: pk_lp.x
 // public_inputs[3]: pk_lp.y
-// public_inputs[4]: attr
+// public_inputs[4]: attr_data
 // public_inputs[5]: root
 
 pub fn use_license_shelter<C: Composer, const DEPTH: usize, const ARITY: usize>(
@@ -128,9 +128,9 @@ pub fn use_license_shelter<C: Composer, const DEPTH: usize, const ARITY: usize>(
     // VERIFY THE LICENSE SIGNATURE
     let (sig_lic_u, sig_lic_r) = spp.sig_lic.to_witness(composer);
     let pk_lp = composer.append_public_point(spp.pk_lp);
-    let attr = composer.append_public(spp.attr);
+    let attr_data = composer.append_public(spp.attr_data);
 
-    let message = sponge::gadget(composer, &[*lpk.x(), *lpk.y(), attr]);
+    let message = sponge::gadget(composer, &[*lpk.x(), *lpk.y(), attr_data]);
     gadgets::single_key_verify(composer, sig_lic_u, sig_lic_r, pk_lp, message)?;
 
     // COMPUTE THE HASH OF THE LICENSE

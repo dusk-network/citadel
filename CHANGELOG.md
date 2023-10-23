@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - fixed benches
+- Change `attr` to `attr_data`[#80]
 
 ## [0.5.0] - 2023-10-12
 
@@ -80,6 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add workflows for the Github Actions
 
 <!-- ISSUES -->
+[#80]: https://github.com/dusk-network/citadel/issues/80
 [#54]: https://github.com/dusk-network/citadel/issues/54
 [#41]: https://github.com/dusk-network/citadel/issues/41
 [#40]: https://github.com/dusk-network/citadel/issues/40

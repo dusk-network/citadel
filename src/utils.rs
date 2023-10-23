@@ -12,7 +12,7 @@ use poseidon_merkle::{Item, Opening, Tree};
 use rand_core::{CryptoRng, RngCore};
 
 // Example values
-const USER_ATTRIBUTES: u64 = 112233445566778899u64;
+const ATTRIBUTE_DATA: u64 = 112233445566778899u64;
 const CHALLENGE: u64 = 20221126u64;
 
 pub struct CitadelUtils {}
@@ -38,8 +38,8 @@ impl CitadelUtils {
         let req = Request::new(&psk_lp, &lsa, &k_lic, rng);
 
         // Second, the LP computes these values and grants the License
-        let attr = JubJubScalar::from(USER_ATTRIBUTES);
-        let lic = License::new(&attr, &ssk_lp, &req, rng);
+        let attr_data = JubJubScalar::from(ATTRIBUTE_DATA);
+        let lic = License::new(&attr_data, &ssk_lp, &req, rng);
 
         let mut tree = Tree::<(), DEPTH, ARITY>::new();
         let lpk = JubJubAffine::from(lic.lsa.pk_r().as_ref());
