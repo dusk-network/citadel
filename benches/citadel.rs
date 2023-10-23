@@ -160,8 +160,8 @@ fn shelter_benchmark(crit: &mut Criterion) {
 }
 
 fn citadel_benchmark(crit: &mut Criterion) {
-    let (lic, merkle_proof) = Self::compute_random_license::<R, DEPTH, ARITY>(
-        OsRng,
+    let (lic, merkle_proof) = CitadelUtils::compute_random_license::<OsRng, DEPTH_CITADEL, ARITY>(
+        &mut OsRng,
         KEYS.ssk,
         KEYS.psk,
         KEYS.ssk_lp,

@@ -6,6 +6,7 @@
 
 use dusk_pki::{PublicSpendKey, SecretSpendKey};
 use dusk_plonk::prelude::*;
+use ff::Field;
 
 static LABEL: &[u8; 12] = b"dusk-network";
 
@@ -272,7 +273,7 @@ fn test_citadel_false_session_cookie() {
         r: sc.r,
         session_id: sc.session_id,
         pk_lp: sc.pk_lp,
-        attr: JubJubScalar::from(1234u64),
+        attr_data: JubJubScalar::from(1234u64),
         c: sc.c,
         s_0: sc.s_0,
         s_1: sc.s_1,

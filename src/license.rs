@@ -11,6 +11,7 @@ use dusk_pki::{PublicKey, PublicSpendKey, SecretKey, SecretSpendKey, StealthAddr
 use dusk_poseidon::cipher::PoseidonCipher;
 use dusk_poseidon::sponge;
 use dusk_schnorr::Signature;
+use ff::Field;
 use poseidon_merkle::{Item, Opening, Tree};
 use rand_core::{CryptoRng, RngCore};
 
@@ -40,11 +41,11 @@ impl Request {
         psk_lp: &PublicSpendKey,
         lsa: &StealthAddress,
         k_lic: &JubJubAffine,
-        rng: &mut R,
+        mut rng: &mut R,
     ) -> Self {
-        let nonce_1 = BlsScalar::random(rng);
-        let nonce_2 = BlsScalar::random(rng);
-        let nonce_3 = BlsScalar::random(rng);
+        let nonce_1 = BlsScalar::random(&mut rng);
+        let nonce_2 = BlsScalar::random(&mut rng);
+        let nonce_3 = BlsScalar::random(&mut rng);
 
         let lpk = JubJubAffine::from(*lsa.pk_r().as_ref());
         let r = JubJubAffine::from(*lsa.R());
@@ -53,11 +54,11 @@ impl Request {
         let rsa = psk_lp.gen_stealth_address(&r_dh);
         let k_dh = dhke(&r_dh, psk_lp.A());
 
-        let enc_1 = PoseidonCipher::encrypt(&[lpk.get_x(), lpk.get_y()], &k_dh, &nonce_1);
+        let enc_1 = PoseidonCipher::encrypt(&[lpk.get_u(), lpk.get_v()], &k_dh, &nonce_1);
 
-        let enc_2 = PoseidonCipher::encrypt(&[r.get_x(), r.get_y()], &k_dh, &nonce_2);
+        let enc_2 = PoseidonCipher::encrypt(&[r.get_u(), r.get_v()], &k_dh, &nonce_2);
 
-        let enc_3 = PoseidonCipher::encrypt(&[k_lic.get_x(), k_lic.get_y()], &k_dh, &nonce_3);
+        let enc_3 = PoseidonCipher::encrypt(&[k_lic.get_u(), k_lic.get_v()], &k_dh, &nonce_3);
 
         Self {
             rsa,
@@ -115,13 +116,13 @@ impl Session {
     pub fn verify(&self, sc: SessionCookie, pk_lp: JubJubAffine) {
         assert_eq!(pk_lp, sc.pk_lp);
 
-        let session_hash = sponge::hash(&[sc.pk_sp.get_x(), sc.pk_sp.get_y(), sc.r]);
+        let session_hash = sponge::hash(&[sc.pk_sp.get_u(), sc.pk_sp.get_v(), sc.r]);
         assert_eq!(session_hash, self.session_hash);
 
-        let com_0 = sponge::hash(&[pk_lp.get_x(), pk_lp.get_y(), sc.s_0]);
+        let com_0 = sponge::hash(&[pk_lp.get_u(), pk_lp.get_v(), sc.s_0]);
         assert_eq!(com_0, self.com_0);
 
-        let com_1 = (GENERATOR_EXTENDED * sc.attr) + (GENERATOR_NUMS_EXTENDED * sc.s_1);
+        let com_1 = (GENERATOR_EXTENDED * sc.attr_data) + (GENERATOR_NUMS_EXTENDED * sc.s_1);
         assert_eq!(com_1, self.com_1);
 
         let com_2 = (GENERATOR_EXTENDED * sc.c) + (GENERATOR_NUMS_EXTENDED * sc.s_2);
@@ -140,9 +141,9 @@ pub struct SessionCookie {
     pub r: BlsScalar,        // randomness for session_hash
     pub session_id: BlsScalar,
 
-    pub pk_lp: JubJubAffine, // public key of the LP
-    pub attr: JubJubScalar,  // attributes of the license
-    pub c: JubJubScalar,     // challenge value
+    pub pk_lp: JubJubAffine,     // public key of the LP
+    pub attr_data: JubJubScalar, // attribute data of the license
+    pub c: JubJubScalar,         // challenge value
 
     pub s_0: BlsScalar,    // randomness for com_0
     pub s_1: JubJubScalar, // randomness for com_1
@@ -157,18 +158,18 @@ pub struct SessionCookie {
 #[derive(Default, Debug, Clone)]
 pub struct License {
     pub lsa: StealthAddress,   // license stealth address
-    pub enc_1: PoseidonCipher, // encryption of the license signature and attributes
+    pub enc_1: PoseidonCipher, // encryption of the license signature and attribute data
     pub nonce_1: BlsScalar,    // IV for the encryption
-    pub enc_2: PoseidonCipher, // encryption of the license signature and attributes
+    pub enc_2: PoseidonCipher, // encryption of the license signature and attribute data
     pub nonce_2: BlsScalar,    // IV for the encryption
 }
 
 impl License {
     pub fn new<R: RngCore + CryptoRng>(
-        attr: &JubJubScalar,
+        attr_data: &JubJubScalar,
         ssk_lp: &SecretSpendKey,
         req: &Request,
-        rng: &mut R,
+        mut rng: &mut R,
     ) -> Self {
         let k_dh = dhke(ssk_lp.a(), req.rsa.R());
 
@@ -191,22 +192,22 @@ impl License {
         let r = JubJubAffine::from_raw_unchecked(dec_2[0], dec_2[1]);
         let k_lic = JubJubAffine::from_raw_unchecked(dec_3[0], dec_3[1]);
 
-        let message = sponge::hash(&[lpk.get_x(), lpk.get_y(), BlsScalar::from(*attr)]);
+        let message = sponge::hash(&[lpk.get_u(), lpk.get_v(), BlsScalar::from(*attr_data)]);
 
         let sig_lic = Signature::new(&SecretKey::from(ssk_lp.a()), rng, message);
         let sig_lic_r = JubJubAffine::from(sig_lic.R());
 
-        let nonce_1 = BlsScalar::random(rng);
-        let nonce_2 = BlsScalar::random(rng);
+        let nonce_1 = BlsScalar::random(&mut rng);
+        let nonce_2 = BlsScalar::random(&mut rng);
 
         let enc_1 = PoseidonCipher::encrypt(
-            &[BlsScalar::from(*sig_lic.u()), BlsScalar::from(*attr)],
+            &[BlsScalar::from(*sig_lic.u()), BlsScalar::from(*attr_data)],
             &k_lic,
             &nonce_1,
         );
 
         let enc_2 =
-            PoseidonCipher::encrypt(&[sig_lic_r.get_x(), sig_lic_r.get_y()], &k_lic, &nonce_2);
+            PoseidonCipher::encrypt(&[sig_lic_r.get_u(), sig_lic_r.get_v()], &k_lic, &nonce_2);
 
         Self {
             lsa: StealthAddress::from_raw_unchecked(
@@ -274,7 +275,7 @@ impl<const DEPTH: usize, const ARITY: usize> CitadelProverParameters<DEPTH, ARIT
         psk_lp: &PublicSpendKey,
         psk_sp: &PublicSpendKey,
         c: &JubJubScalar,
-        rng: &mut R,
+        mut rng: &mut R,
         merkle_proof: Opening<(), DEPTH, ARITY>,
     ) -> (Self, SessionCookie) {
         let lsk = ssk.sk_r(&lic.lsa);
@@ -292,7 +293,7 @@ impl<const DEPTH: usize, const ARITY: usize> CitadelProverParameters<DEPTH, ARIT
             .decrypt(&k_lic, &lic.nonce_2)
             .expect("decryption should succeed");
 
-        let attr = JubJubScalar::from_bytes(&dec_1[1].to_bytes()).unwrap();
+        let attr_data = JubJubScalar::from_bytes(&dec_1[1].to_bytes()).unwrap();
         let sig_lic = Signature::from_bytes(
             &[
                 dec_1[0].to_bytes(),
@@ -309,23 +310,23 @@ impl<const DEPTH: usize, const ARITY: usize> CitadelProverParameters<DEPTH, ARIT
         let lsk = ssk.sk_r(&lic.lsa);
         let lpk_p = JubJubAffine::from(GENERATOR_NUMS_EXTENDED * lsk.as_ref());
 
-        let s_0 = BlsScalar::random(rng);
+        let s_0 = BlsScalar::random(&mut rng);
         let s_1 = JubJubScalar::random(rng);
         let s_2 = JubJubScalar::random(rng);
 
         let pk_sp = JubJubAffine::from(*psk_sp.A());
-        let r = BlsScalar::random(rng);
+        let r = BlsScalar::random(&mut rng);
 
-        let session_hash = sponge::hash(&[pk_sp.get_x(), pk_sp.get_y(), r]);
+        let session_hash = sponge::hash(&[pk_sp.get_u(), pk_sp.get_v(), r]);
 
         let sig_session_hash = dusk_schnorr::Proof::new(&lsk, rng, session_hash);
 
-        let session_id = sponge::hash(&[lpk_p.get_x(), lpk_p.get_y(), BlsScalar::from(*c)]);
+        let session_id = sponge::hash(&[lpk_p.get_u(), lpk_p.get_v(), BlsScalar::from(*c)]);
 
         let pk_lp = JubJubAffine::from(*psk_lp.A());
 
-        let com_0 = sponge::hash(&[pk_lp.get_x(), pk_lp.get_y(), s_0]);
-        let com_1 = (GENERATOR_EXTENDED * attr) + (GENERATOR_NUMS_EXTENDED * s_1);
+        let com_0 = sponge::hash(&[pk_lp.get_u(), pk_lp.get_v(), s_0]);
+        let com_1 = (GENERATOR_EXTENDED * attr_data) + (GENERATOR_NUMS_EXTENDED * s_1);
         let com_2 = (GENERATOR_EXTENDED * c) + (GENERATOR_NUMS_EXTENDED * s_2);
 
         (
@@ -347,7 +348,7 @@ impl<const DEPTH: usize, const ARITY: usize> CitadelProverParameters<DEPTH, ARIT
                 r,
                 session_id,
                 pk_lp,
-                attr,
+                attr_data,
                 c: *c,
                 s_0,
                 s_1,
@@ -361,9 +362,9 @@ impl<const DEPTH: usize, const ARITY: usize> CitadelProverParameters<DEPTH, ARIT
 pub struct ShelterProverParameters<const DEPTH: usize, const ARITY: usize> {
     pub lsk: JubJubScalar, // license secret key
 
-    pub sig_lic: Signature,  // signature of the licensee
-    pub pk_lp: JubJubAffine, // public key of the LP
-    pub attr: JubJubScalar,  // attributes of the license
+    pub sig_lic: Signature,      // signature of the licensee
+    pub pk_lp: JubJubAffine,     // public key of the LP
+    pub attr_data: JubJubScalar, // attribute data of the license
 
     pub c: JubJubScalar, // challenge value
     pub session_id: BlsScalar,
@@ -385,7 +386,7 @@ impl<const DEPTH: usize, const ARITY: usize> Default for ShelterProverParameters
 
             sig_lic: Signature::default(),
             pk_lp: JubJubAffine::default(),
-            attr: JubJubScalar::default(),
+            attr_data: JubJubScalar::default(),
 
             c: JubJubScalar::default(),
             session_id: BlsScalar::default(),
@@ -419,7 +420,7 @@ impl<const DEPTH: usize, const ARITY: usize> ShelterProverParameters<DEPTH, ARIT
             .decrypt(&k_lic, &lic.nonce_2)
             .expect("decryption should succeed");
 
-        let attr = JubJubScalar::from_bytes(&dec_1[1].to_bytes()).unwrap();
+        let attr_data = JubJubScalar::from_bytes(&dec_1[1].to_bytes()).unwrap();
         let sig_lic = Signature::from_bytes(
             &[
                 dec_1[0].to_bytes(),
@@ -442,7 +443,7 @@ impl<const DEPTH: usize, const ARITY: usize> ShelterProverParameters<DEPTH, ARIT
 
             sig_lic,
             pk_lp,
-            attr,
+            attr_data,
 
             c: *c,
             session_id,

@@ -9,8 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- fixed benches
+- Change `attr` to `attr_data`[#80]
+
+## [0.5.0] - 2023-10-12
+
+### Changed
+
+- update `dusk-bls12_381` dependency to "0.12"
+- update `dusk-jubjub` dependency to "0.13"
+- update `dusk-pki` dependency to "0.13"
+- update `dusk-schnorr` dependency to "0.14"
+- update `dusk-poseidon` dependency to "0.31"
+- update `poseidon-merkle` dependency to "0.3"
+- update `dusk-plonk` dependency to "0.14"
 - Removed pos field from the license struct
 - Refactored utils to accept external license and opening
+
+### Added
+
+- Add `ff` dependency
 
 ## [0.4.1] - 2023-08-09
 
@@ -63,6 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add workflows for the Github Actions
 
 <!-- ISSUES -->
+[#80]: https://github.com/dusk-network/citadel/issues/80
 [#54]: https://github.com/dusk-network/citadel/issues/54
 [#41]: https://github.com/dusk-network/citadel/issues/41
 [#40]: https://github.com/dusk-network/citadel/issues/40
@@ -72,9 +91,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#21]: https://github.com/dusk-network/citadel/issues/21
 
 <!-- VERSIONS -->
-[Unreleased]: https://github.com/dusk-network/citadel/compare/v0.4.1...HEAD
-[0.4.1]: https://github.com/dusk-network/citadel/releases/tag/v0.4.1
-[0.4.0]: https://github.com/dusk-network/citadel/releases/tag/v0.4.0
-[0.3.0]: https://github.com/dusk-network/citadel/releases/tag/v0.3.0
-[0.2.0]: https://github.com/dusk-network/citadel/releases/tag/v0.2.0
+[Unreleased]: https://github.com/dusk-network/citadel/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/dusk-network/citadel/compare/v0.4.1...v0.5.0
+[0.4.1]: https://github.com/dusk-network/citadel/compare/v0.4.0...v0.4.1
+[0.4.0]: https://github.com/dusk-network/citadel/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/dusk-network/citadel/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/dusk-network/citadel/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/dusk-network/citadel/releases/tag/v0.1.0
