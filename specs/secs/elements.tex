@@ -1,0 +1,112 @@
+% !TeX root = ../build/main.tex
+
+Here we describe the elements involved in Citadel. How they are used in the protocol is described in Section~\ref{sec:protocol}.
+
+%\begin{spacing}{1.1}
+\begin{itemize}
+	\itemsep1em 
+	\item \emph{Request}: the structure of a request includes the encryption of a stealth address belonging to the user and where the license has to be sent to, and a symmetric key shared between the user and the LP.
+	
+	\vspace{0.1cm}
+	\begin{center}
+		\begin{tabular}{ | p{0.15\linewidth} | p{0.2\linewidth} | p{0.55\linewidth} | } 
+		\hline
+		{Element} & {Type} & {Description} \\
+		\hline
+		$(\rpk, R_{\req})$ & StealthAddress & Stealth address for the LP. \\
+		$\enc$ & PoseidonCipher[6] & Encryption of a user's stealth address where the license has to be sent to and a symmetric key. \\
+		$\nonce$ & BlsScalar & Randomness needed to compute $\enc$. \\ 
+		\hline
+		\end{tabular}
+	\end{center}
+	
+	\item \emph{License}: asset that represents the right of a user to use a given service. A license has the following structure:
+	
+	\vspace{0.1cm}
+    \begin{center}
+		\begin{tabular}{ | p{0.15\linewidth} | p{0.2\linewidth} | p{0.55\linewidth} | } 
+		\hline
+			{Element} & {Type} & {Description} \\
+		\hline
+		$(\lpk, R_{\lic})$ & StealthAddress & License stealth address of the user. \\
+		$\enc$ & PoseidonCipher[4] & Encryption of user attributes and signature of these attributes. \\
+		$\nonce$ & BlsScalar & Randomness needed to compute $\enc$. \\ 
+		$\pos$ & BlsScalar & Position of the license in the Merkle tree of licenses. \\ 
+		\hline
+		\end{tabular}
+	\end{center}
+
+	\item \emph{SessionCookie:} a session cookie is a secret value only known to the user and the SP. It contains a set of openings to a given set of commitments. The structure is as follows:
+	
+	\mbi{The session cookie is not a secret value, it is an struct. Does it refer to \texttt{session\_id}?}
+	
+	\mbi{Clarify what the element \texttt{attr} is - is it a hash, an array?}
+		
+	\vspace{0.1cm}
+	\begin{center}
+		\begin{tabular}{ | p{0.15\linewidth} | p{0.2\linewidth} | p{0.55\linewidth} | } 
+			\hline
+			{Element} & {Type} & {Description} \\
+			\hline
+			$\pk_{\mathsf{SP}}$ & JubJubAffine & Public key of the SP. \\
+			$r_\mathsf{session}$ & BlsScalar & Randomness for computing the session hash. \\
+			$\sessionid$ & BlsScalar & ID of a session opened using a license. \\ 
+			$\pk_{\LP}$ & JubJubAffine & Public key of the LP. \\ 
+			$\attr$ & JubJubScalar & Attributes of the user. \\ 
+			$c$ & JubJubScalar & Challenge value. \\ 
+			$\mathsf{s_0}$ & JubJubScalar & Randomness used to compute $\com_0^{hash}$. \\
+			$\mathsf{s_1}$ & BlsScalar & Randomness used to compute $\com_1$. \\
+			$\mathsf{s_2}$ & BlsScalar & Randomness used to compute $\com_2$. \\
+			\hline
+		\end{tabular}
+	\end{center}	
+
+	\item \emph{Session:} a session is a public struct known by all the validators. The structure is as follows:
+	
+	\mbi{What does \textit{validators} mean?}
+
+	\mbi{TODO - when we say \textit{together with some randomness}, I would include the name of the random variable.}
+	
+	\mbi{In com$_0^{hash}$, does the commitment also include some randomness?}
+	
+	\vspace{0.1cm}
+	\begin{center}
+		\begin{tabular}{ | p{0.15\linewidth} | p{0.2\linewidth} | p{0.55\linewidth} | } 
+			\hline
+			{Element} & {Type} & {Description} \\
+			\hline
+			$\mathsf{session\_hash}$ & BlsScalar & Hash of the SP's public key together with some randomness. \\ 
+			$\sessionid$ & BlsScalar & ID of a session opened using a given license. \\ 
+			$\com_0^{hash}$ & BlsScalar & Hash of the public key of the LP. \\ 
+			$\com_1$ & JubJubExtended & Pedersen commitment of the attributes. \\ 
+			$\com_2$ & JubJubExtended & Pedersen commitment of the $c$ value. \\ 
+			\hline
+		\end{tabular}
+	\end{center}
+	
+    \item \emph{LicenseProverParameters:} a prover needs some auxiliary parameters to compute the proof that proves the ownership of a license. Some of the items of this table are related to the session and session cookie elements. The structure is as follows:
+
+	\mbi{TODO - when we say \textit{together with some randomness}, I would include the name of the random variable.}
+		
+	\vspace{0.1cm}
+	\begin{center}
+		\begin{tabular}{ | p{0.15\linewidth} | p{0.2\linewidth} | p{0.55\linewidth} | } 
+			\hline
+			{Element} & {Type} & {Description} \\
+			\hline
+			$\lpk$ & JubJubAffine & License public key of the user.\\ 
+			$\lpk'$ & JubJubAffine & A variation of the license public key of the user computed with a different generator.\\ 
+			$\lsig$ & Signature & Signature of the license attributes. \\ 
+			$\com_0^{hash}$ & BlsScalar & Hash of the LP's public key. \\ 
+			$\com_1$ & JubJubExtended & Pedersen commitment of the attributes. \\ 
+			$\com_2$ & JubJubExtended & Pedersen commitment of the $c$ value. \\ 
+			$\mathsf{session\_hash}$ & BlsScalar & Hash of the public key of the SP together with some randomness. \\ 
+			$\mathsf{sig\_session\_hash}$ & dusk\_schnorr::Proof & Signature of the session hash signed by the user. \\ 
+			$\mathsf{merkle\_proof}$ & PoseidonBranch & Membership proof of the license in the Merkle tree of licenses. \\ 
+			
+			\hline
+		\end{tabular}
+	\end{center}
+		
+\end{itemize}
+%\end{spacing}

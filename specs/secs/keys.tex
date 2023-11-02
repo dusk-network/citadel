@@ -1,0 +1,11 @@
+% !TeX root = ../build/main.tex
+
+Let $G, G'\gets\mathbb{J}$ be two generators for the subgroup $\mathbb{J}$ of order $t$ of the Jubjub elliptic curve. 
+In Citadel, each party involved in the protocol holds a pair of static keys with the following structure:
+
+\begin{itemize}
+	\item \textit{Secret key:} $\sk = (a,b)$, where $a,b\gets \F_t$.
+	\item \textit{Public key:} $\pk = (A,B)$, where $A = a G$ and $B = b G$.
+\end{itemize}
+
+We use the subindices $\user, \SP, \LP$ to indicate the owner of the keys, e.g. $\pk_\user$.

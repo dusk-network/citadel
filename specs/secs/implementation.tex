@@ -1,0 +1,27 @@
+% !TeX root = ../build/main.tex
+
+We use a \textsf{sans serif} font to denote elements of the abstract protocol. Objects start with a lowercase letter, whereas methods start with an uppercase letter. Attributes from objects are represented as $\mathsf{object.attribute}$. 
+
+In cryptographic algorithms, it is common to write the input corresponding to a key as a subscript. For example, when we write $\com = \Com_{\ck}(\val{}, \blinder)$ we mean that $\com$ is the output of the $\Com$ algorithm when provided with inputs $\ck$, $\val{}$ and $\blinder$.
+
+When discussing input and output securities of a transfer, we reserve the indices $i=1,2$ for inputs and $i=3,4$ for outputs.
+
+Arrays are indexed starting at $1$. Given an $\sf{array}$, we denote the $i$-th component by $\sf{array}[i]$. The notation $\sf{array}[i, j]$ is shorthand for $(\sf{array}[i], \sf{array}[j])$, and can trivially be extended to three or more elements.
+
+We use $math$ $mode$ when specifying concrete instantiations. In particular, scalars are lowercase, e.g. $g$, and group elements are uppercase, e.g. $G$.
+
+
+\begin{itemize}
+    \item $\error$: a symbol representing that an algorithm terminated with an error.
+    \item $\land$: logic operator AND.
+    \item $a || b$: concatenation of two elements $a, b$. \dki{This should defined only for arrays/strings.}
+    \item $x \in S$ or $x \not\in S$: the element $x$ belongs / does not belong to the set $S$.
+    \item $x \sample S$: the element $x$ is sampled uniformly at random from the set $S$.
+    % \item $\floor{x}$: the largest integer $n$ such that $x \geq n$.
+    \item $\ceil{x}$: the smallest integer $n$ such that $x \leq n$.
+    \item $S^n$: set of $n$-tuples formed by elements of $S$.
+    \item $\B^n$: set of bitstrings of length $n$.
+    \item $\Bitstrings$: set of bitstrings of any length.
+    \item $\F_n$: finite field with $n$ elements.
+    \item $\Ftuple_n$: set of tuples of any length formed by $\F_n$-elements.
+\end{itemize}
