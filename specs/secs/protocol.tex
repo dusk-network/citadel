@@ -48,11 +48,14 @@ In this section, we describe the workflow of Citadel in detail.
 		\item Compute $\tkreq = a_{\LP}R_{\req}$.
 		\item Check if $\rpk \stackrel{?}{=} \hb(\tkreq) G + B_{\LP}$.
 	\end{enumerate}
+	
+	\mbi{Include that if this is the case, the LP should decrypt the encrypted information to retrieve $\lpk, R_{\lic}, \klic$.}
+	\mbi{Is this done in $\mathsf{get\_license\_request()}$ or in next step?}
 
 \item (\textbf{LP}) $\mathsf{issue\_license()}$
 	
 	\begin{enumerate}
-		\item Upon receiving a request from a user, define a set of attributes $\attr$ representing the license, and compute a digital signature as follows:
+		\item Upon receiving a request from a user, define a set of attributes $\attr$ associated to the license, and compute a digital signature as follows:
 				$$\lsig = \sign_{\sk_{\SP}}(\lpk, \attr).$$
 		\item Encrypt the signature and the attributes using the license key:
 			  	$$\enc = \Enc_{\klic} (\lsig || \attr; \nonce).$$
@@ -69,11 +72,13 @@ In this section, we describe the workflow of Citadel in detail.
 		\item Check if $\lpk \stackrel{?}{=} \hb(\tklic) G + B_{\user}$, 
 	\end{enumerate}	
 	
+	\mbi{Same as before, we should include the step in which the user decyrpts the information associated to the license.}
+	
 \item (\textbf{user}) $\mathsf{use\_license()}$
 
 	When using the license, open a session with a specific SP by executing a call to the license contract. The following steps are performed:
 	
-	\mbi{We should mention something about the license contract before this step. Maybe in Section 2 where elements are presented? Add a small section about Dusk's blockchain?}
+	\mbi{We should mention something about the \textit{license contract} before this step. Maybe in Section 2 where elements are presented? Add a small section about Dusk's blockchain?}
 	%or something like: the actions performed by the user are interactions with a wallet software, etc. (add part of Milosz' explanation there - or leave it to implementation details).
 	%discuss this with Xavi.
 	
@@ -93,6 +98,8 @@ In this section, we describe the workflow of Citadel in detail.
 Request the service to the SP, establishing communication using a secure channel, and providing the session cookie that follows.
 	
 	$$\SessionCookie = \{\pk_{\mathsf{SP}}, r_\mathsf{session}, \sessionid, \pk_{\LP}, \attr, c, \mathsf{s_0}, \mathsf{s_1}, \mathsf{s_2}\}$$
+
+\mbi{Notation-wise: the acronym $\SessionCookie$ can be confused with the common abbreviation for \texttt{smart contract (sc)}, maybe use a different acronym?}
 	
 \item (\textbf{SSP}) $\mathsf{get\_session()}$
 
