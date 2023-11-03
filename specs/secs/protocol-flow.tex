@@ -51,11 +51,13 @@ The LP checks continuously the network to detect any incoming license requests a
 
 \subsubsection{(\textbf{LP}) $\mathsf{issue\_license()}$}
 
+\mbi{Marta to Xavi: is it correct to call $\attrdata$ a data type as I did?}
+
 \begin{enumerate}
-	\item Upon receiving a request from a user, define a set of attributes $\attr$ associated to the license, and compute a digital signature as follows:
-	$$\lsig = \sign_{\sk_{\SP}}(\lpk, \attr).$$
+	\item Upon receiving a request from a user, define a set of attributes associated to the license, collect them (e.g. by concatenation) in a data type $\attrdata$, and compute a digital signature as follows:
+	$$\lsig = \sign_{\sk_{\SP}}(\lpk, \attrdata).$$
 	\item Encrypt the signature and the attributes using the license key:
-	$$\enc = \Enc_{\klic} (\lsig || \attr; \nonce).$$
+	$$\enc = \Enc_{\klic} (\lsig || \attrdata; \nonce).$$
 	\item Send the following license to the network:
 	$$\lic = ((\lpk, R_{\lic}), \enc, \nonce, \pos).$$
 \end{enumerate}
@@ -98,7 +100,7 @@ When willing to use a license, the user must open a session with an specific SP 
 
 To request a service to the SP, the user establishes communication with it using a secure channel, and provides the session cookie that follows:
 
-$$\SessionCookie = \{\pk_{\mathsf{SP}}, r_\mathsf{session}, \sessionid, \pk_{\LP}, \attr, c, \mathsf{s_0}, \mathsf{s_1}, \mathsf{s_2}\}$$
+$$\SessionCookie = \{\pk_{\mathsf{SP}}, r_\mathsf{session}, \sessionid, \pk_{\LP}, \attrdata, c, \mathsf{s_0}, \mathsf{s_1}, \mathsf{s_2}\}$$
 
 \mbi{Notation-wise: the acronym $\SessionCookie$ can be confused with the common abbreviation for \texttt{smart contract (sc)}, maybe use a different acronym?}
 
@@ -113,9 +115,9 @@ Receive a $\Session$ from the list of sessions, where $\Session.\sessionid = \Se
 Grant or deny the service upon verification of the following steps:
 
 \begin{enumerate}
-	\item Check whether the values $(\attr, \pk_{\LP}, c)$ included in the $\SessionCookie$ are correct.
+	\item Check whether the values $(\attrdata, \pk_{\LP}, c)$ included in the $\SessionCookie$ are correct.
 	\item Check whether the opening $(\pk_{\SP}, r_\mathsf{session})$ included in the $\SessionCookie$ matches the $\mathsf{session\_hash}$ found in the $\Session$.
-	\item Check whether the openings $((\pk_{\LP}, \mathsf{s_0}), (\attr, \mathsf{s_1}), (c, \mathsf{s_2}))$ included in the $\SessionCookie$ match the\\
+	\item Check whether the openings $((\pk_{\LP}, \mathsf{s_0}), (\attrdata, \mathsf{s_1}), (c, \mathsf{s_2}))$ included in the $\SessionCookie$ match the\\
 	commitments ($\com_0^{hash}, \com_1, \com_2$) found in the $\Session$.
 \end{enumerate}
 
