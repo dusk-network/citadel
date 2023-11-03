@@ -1,107 +1,21 @@
+% !TeX root = ../build/main.tex
 
+{\color{red}{[TODO]}}
 
-\jsi{The syntax of the algorithms in this section is slightly inconsistent with other parts of the document, and should be adapted accordingly.}
-\dki{All algorithms should explicitly specify the output and its type}
-\dki{It should be explained whether this section is only about the syntax of primitives or also about security properties.}
-\subsubsection{Signature schemes}
+\subsection{Elliptic curves}
 
-A \emph{signature scheme} is a cryptographic scheme that allows a sender to authenticate a message. Given a signed message, anyone can verify the authenticity and integrity of the message. A signature scheme is a triple of algorithms: the key-generation, signature  and verification algorithms. We describe them in the following.
+\mbi{Include details of Jubjub group, generators, etc.}
 
-\begin{itemize}
-	\item $\SS.\Setup$: take as input the security parameter $1^{\lambda}$ and output a pair of keys $(\sk, \pk)$, the secret and public keys, respectively.
-	\item ${\SS.\Sign}$: take as input a message $\msg$ from some underlying message space and a secret key $\sk$. Output a signature $\sigma$.%\gets \Sign_{\sk}(\msg)$.
-	\item ${\SS.\Verify}$: take as input a public key
-	$\pk$, a message $\msg$, and a signature $\sigma$. Output $\accept/\reject$.% \gets\Verify_{\pk}(\msg, \sigma)$. 
-\end{itemize}
+\subsection{Digital signatures}
 
-We describe our signature schemes in Section~\ref{sec:concrete:signature}.
+\subsection{Encryption}
 
-\subsubsection{Encryption schemes}
+\subsection{Commitments}
 
-\dki{The following defines a so called \emph{hybrid} encryption scheme. Maybe it should be named so.}
-An \emph{encryption scheme} is a cryptographic scheme that allows a sender to send a message $\msg$  encrypted using some randomness $r$ and the public key of the recipient. The recipient uses their secret key to decipher the encrypted message $\enc$ and obtain the original message $\msg$ (or plaintext). We explain in the following the four algorithms that define an encryption scheme with a shared key. It is a general definition where three types of keys are used, the secret and public keys for each user $(\sk, \pk)$ and a shared key $\k$.
-\begin{itemize}
-	\item $\EE.\Setup$: take as input the security parameter $1^{\lambda}$ and output a pair of keys $(\sk, \pk)$, the secret and public keys, respectively.
-	\item $\EE.{\Enc}$: take as input a message $\msg$, some randomness $r$ and a public key $\pk$. Output a $\enc$ and a symmetric key $\k$.
-	\item $\EE.{\Dec}$: take as input a $\enc$ and the secret key $\sk$. Output a message $\msg$.
-	\item $\EE.{\SDec}$: take as input a $\enc$ and a symmetric key $\k$. Output a message $\msg$.
-\end{itemize}
-We describe our encryption scheme in Section~\ref{sec:concrete:encryption}.
+\subsection{Proof systems}
 
-\subsubsection{Commitment schemes}
+\subsection{Hash functions}
 
-A \emph{commitment scheme} allows a party to commit to a secret value $v$, to be revealed at a later time. The commitment \emph{hides} the value inside, until the party who committed it decides to use the key and open it. At the same time, the commitment \emph{binds} the value, ensuring that it cannot be changed after committing. A commitment scheme is a triple of algorithms $(\Setup, \Com, \Verify)$ that works as follows.
-\begin{itemize}
-	\item $\CC.\Setup$: take as input the security parameter $1^{\lambda}$ and output the commitment key $\ck$.
-	\item $\CC.{\Com}$: take as input a commitment key $\ck$, a value $v$, and randomness $r$ from some underlying field. Output $c = \Com_{\ck}(v;r)$.
-	\dki{there should be also the Open() command}
-	\item $\CC.\Verify$: take an opening $v,r$ of a commitment $c$. Output $\accept/\reject \gets \Verify_{\ck}(v,r,c)$, where $\Verify$ check if $c = \Com_{\ck}(v;r)$.
-	\jsi{Do we need an explicit verification algorithm?}
-\end{itemize}
+\mbi{Hashing - it is going to be Poseidon everywhere.}
 
-We describe our commitment scheme in Section~\ref{sec:concrete:commitment}.
-
-\subsubsection{Proof systems}
-
-A \emph{proof system} is a cryptographic primitive that allows a prover to convince a verifier that some statement is true. To define the type of statements to be proven in a formal way we use the notions of languages and relations. That is, we say a tuple of elements $(u, w )$ belongs to some relation $R$ if $w$ is a witness for the statement $u$. The language for a relation $R$ is the set of statements $u$ such that there exists a witness $w$ for which $(u, w )\in R$. 
-
-\paragraph{zk-SNARKs}
-
-zk-SNARKs are proof systems for circuit satisfiability. Given a circuit $C$, the statement of the relation contains the description of the circuit which includes the gates, input, middle and output wires, and the public values of the wires. The witness contains the private values of the input, middle and output wires of the circuit. The relation holds if the circuit correctly evaluated fits with all the values of the statement and the witness. 
-
-Given an upper bound for the size of the circuits, we consider $\mathcal{R}$ the family of relations of circuits of size maximum this upper bound. A universal zk-SNARK for a relation $R\in \mathcal{R}$ is a tuple of four algorithms ($\Setup, \SetupD, \Prove$, $\Verify$) that works as follows.
-\begin{itemize}
-	\item $\PP.\SetupU$: take as input the security parameter $1^\lambda$ and the family of relations $\mathcal{R}$. Output a universal structured reference string $\srs_u$.
-	\item $\PP.\SetupD$: take as input the universal structured reference string $\srs_u$ and a relation $R\in \mathcal{R}$. Output a dependent structured reference string $\srs$ that contains the $\srs_u$.
-	\item $\PP.\Prove$: take as input the $\srs$, the statement $u$ and the witness $w$ for the relation $R$. Output a proof $\pi$.
-	\item $\PP.\Verify$: takes as input the $\srs$, the statement $u$ and the proof $\pi$. Output $\accept/ \reject$.
-\end{itemize}
-
-\zpi{add reference to the definition of universal snark (could be Carla-Arantxa's paper)}
-
-zk-SNARKs are knowledge sound and zero-knowledge, that we define in the following, by definition, we also require completeness.
-\begin{itemize}
-	\item Zero-Knowledge: nothing beyond the validity of the statement can be leaked from the proof.
-\end{itemize}
-
-See Goldreich for formal descriptions of this property.
-\zpi{add goldereich to the bibliography}
-
-\subsubsection{Hash functions}
-
-A \emph{hash function} is a function that takes arbitrary-length strings and compresses them into shorter strings.  It is deterministic, but produces unpredictable values. In cryptography, hash functions have the requirement to be collision-resistant. Informally, that it is hard to find a pair of different inputs that produce the same image (a collision). A hash function is a pair of algorithms that works as follows:
-\begin{itemize}
-	\item $\Setup$: take as input a security parameter $1^{\lambda}$. Output a key $k$.  
-	\item ${\Hash}$: take as input a key $k$, a length $n$ and any string $x \in \{0,1 \}^*$. Output a string $\Hash_k(x) \in \{0,1\}^{n}$.
-\end{itemize}
-\zpi{the exact properties of hash functions will be written later on}
-
-We describe our hash functions in Section~\ref{sec:concrete:hash}.
-
-\subsubsection{Merkle trees}
-
-\jsi{To be completed.}
-
-We define Merkle trees and the associated Merkle proofs, following the framework of vector commitment schemes~\cite{catalano2013vector,benarroch2021zero}. A Merkle tree $\tree$ is a data structure with the following associated algorithms.
-
-\begin{itemize}
-	\item $\MT.\Setup(1^\lambda, q)$: output the public parameters $\pp$ for a Merkle tree with $q$ leaves.
-	%This algorithm outputs some public parameters $\pp$ (which implicitly define the message space $\cal{M}$).
-	\item ${\MT.\Com}_{\pp}((\leaf_i)_{i=1}^q)$. 
-	%On input a sequence of $q$ messages $\vec{m} \in \cal{M}^q$ and the public parameters $\pp$, the committing algorithm outputs a commitment $\com$.
-	\item ${\MT.\Prove}_{\pp}((\leaf_i)_{i=1}^q, \pos)$. 
-	%This algorithm is run by the committer to output the value $m$ at position $i$ in $\vec{m}$, and the corresponding proof $\proof_i$.
-	\item ${\MT.\Verify}_{\pp}(\leaf, \pos, \root, \proof)$. 
-	%The verification algorithm accepts only if $\proof$ is a valid proof that $m_i$ is at the $i$th position of the vector commited in $\com$.
-	\item ${\MT.\UpdateCom}_{\pp}({\leaf, \pos, \root})$. 
-	\jsi{It seems to me that this algorithm needs more information, possibly a corresponding Merkle proof.}
-	%This algorithm is run by the committer who produced $\com$ and wants to update it by changing the $i$-th message to $m'$. The algorithm outputs a new commitment $\com'$.
-	\item ${\MT.\UpdateProof}_{\pp}({\leaf, \pos, \proof})$. 
-	%This algorithm produces an updated proof $\proof'$ that $m'$ (instead of $m$) is in the $i$-th position of the vector.
-\end{itemize}
-
-Given a Merkle tree $\tree$, we define:
-\begin{itemize}
-	\item $\tree.\leaves$: the set of leaves of the Merkle tree.
-	\item $\tree.\root$: the root of the Merkle tree, i.e. the result of $\MT.\Com_{\pp}(\tree.\leaves)$.
-\end{itemize}
+\subsection{Merkle trees}
