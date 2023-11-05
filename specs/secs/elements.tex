@@ -16,7 +16,7 @@ Here we describe the elements involved in Citadel. How they are used in the prot
 		{Element} & {Type} & {Description} \\
 		\hline
 		$(\rpk, R_{\req})$ & StealthAddress & Stealth address for the LP. \\
-		$\enc$ & PoseidonCipher[6] & Encryption of a user's stealth address where the license has to be sent to and a symmetric key. \\
+		$\enc$ & PoseidonCipher[6] & Encryption of a symmetric keys and of user's stealth address where the license has to be sent to. \\
 		$\nonce$ & BlsScalar & Randomness needed to compute $\enc$. \\ 
 		\hline
 		\end{tabular}
@@ -66,10 +66,6 @@ Here we describe the elements involved in Citadel. How they are used in the prot
 	\item \emph{Session:} a session is a public struct known by all the validators. The structure is as follows:
 	
 	\mbi{What does \textit{validators} mean?}
-
-	\mbi{TODO - when we say \textit{together with some randomness}, I would include the name of the random variable.}
-	
-	\mbi{In com$_0^{hash}$, does the commitment also include some randomness?}
 	
 	\vspace{0.1cm}
 	\begin{center}
@@ -77,19 +73,17 @@ Here we describe the elements involved in Citadel. How they are used in the prot
 			\hline
 			{Element} & {Type} & {Description} \\
 			\hline
-			$\mathsf{session\_hash}$ & BlsScalar & Hash of the SP's public key together with some randomness. \\ 
+			$\mathsf{session\_hash}$ & BlsScalar & Hash of the SP's public key together with $r_\mathsf{session}$. \\ 
 			$\sessionid$ & BlsScalar & ID of a session opened using a given license. \\ 
-			$\com_0^{hash}$ & BlsScalar & Hash of the public key of the LP. \\ 
-			$\com_1$ & JubJubExtended & Pedersen commitment of the attributes data. \\ 
-			$\com_2$ & JubJubExtended & Pedersen commitment of the $c$ value. \\ 
+			$\com_0^{hash}$ & BlsScalar & Hash of the public key of the LP with $\mathsf{s_0}$. \\ 
+			$\com_1$ & JubJubExtended & Pedersen commitment of the attributes data using $\mathsf{s_1}$. \\ 
+			$\com_2$ & JubJubExtended & Pedersen commitment of the $c$ value using $\mathsf{s_2}$. \\ 
 			\hline
 		\end{tabular}
 	\end{center}
 	
     \item \emph{LicenseProverParameters:} a prover needs some auxiliary parameters to compute the proof that proves the ownership of a license. Some of the items of this table are related to the session and session cookie elements. The structure is as follows:
 
-	\mbi{TODO - when we say \textit{together with some randomness}, I would include the name of the random variable.}
-		
 	\vspace{0.1cm}
 	\begin{center}
 		\begin{tabular}{ | p{0.15\linewidth} | p{0.2\linewidth} | p{0.55\linewidth} | } 
@@ -99,10 +93,10 @@ Here we describe the elements involved in Citadel. How they are used in the prot
 			$\lpk$ & JubJubAffine & License public key of the user.\\ 
 			$\lpk'$ & JubJubAffine & A variation of the license public key of the user computed with a different generator.\\ 
 			$\lsig$ & Signature & Signature of the license attributes data. \\ 
-			$\com_0^{hash}$ & BlsScalar & Hash of the LP's public key. \\ 
-			$\com_1$ & JubJubExtended & Pedersen commitment of the attributes data. \\ 
-			$\com_2$ & JubJubExtended & Pedersen commitment of the $c$ value. \\ 
-			$\mathsf{session\_hash}$ & BlsScalar & Hash of the public key of the SP together with some randomness. \\ 
+			$\com_0^{hash}$ & BlsScalar & Hash of the public key of the LP with $\mathsf{s_0}$. \\ 
+			$\com_1$ & JubJubExtended & Pedersen commitment of the attributes data using $\mathsf{s_1}$. \\ 
+			$\com_2$ & JubJubExtended & Pedersen commitment of the $c$ value using $\mathsf{s_2}$. \\ 
+			$\mathsf{session\_hash}$ & BlsScalar & Hash of the SP's public key together with $r_\mathsf{session}$. \\ 
 			$\mathsf{sig\_session\_hash}$ & dusk\_schnorr::Proof & Signature of the session hash signed by the user. \\ 
 			$\mathsf{merkle\_proof}$ & PoseidonBranch & Membership proof of the license in the Merkle tree of licenses. \\ 
 			

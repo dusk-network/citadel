@@ -21,7 +21,6 @@ In this section, we describe the workflow of Citadel in detail.
 	
 	\item Compute the request stealth address $(\rpk, R_{\req})$ using the LP's public key, as follows.
 	
-	\mbi{Consider using different letter instead of $r$...}
 	\begin{enumerate}
 		\item Sample $r$ uniformly at random from $\F_t$.
 		\item Compute a symmetric Diffie--Hellman key $\kreq = rA_{\LP}$.
@@ -44,17 +43,13 @@ The LP checks continuously the network to detect any incoming license requests a
 \begin{enumerate}
 	\item Compute $\tkreq = a_{\LP}R_{\req}$.
 	\item Check if $\rpk \stackrel{?}{=} \hb(\tkreq) G + B_{\LP}$.
+	\item Decrypt $\enc$ using $\nonce$ and $\tkreq$: $\Dec_{\tkreq} ((\lpk, R_{\lic})||\klic; \nonce).$
 \end{enumerate}
-
-\mbi{Include that if this is the case, the LP should decrypt the encrypted information to retrieve $\lpk, R_{\lic}, \klic$.}
-\mbi{Is this done in $\mathsf{get\_license\_request()}$ or in next step?}
 
 \subsubsection{(\textbf{LP}) $\mathsf{issue\_license()}$}
 
-\mbi{Marta to Xavi: is it correct to call $\attrdata$ a data type as I did?}
-
 \begin{enumerate}
-	\item Upon receiving a request from a user, define a set of attributes associated to the license, collect them (e.g. by concatenation) in a data type $\attrdata$, and compute a digital signature as follows:
+	\item Upon receiving a request from a user, define a set of attributes associated to the license, collect them (e.g. by concatenation) in a variable $\attrdata$, and compute a digital signature as follows:
 	$$\lsig = \sign_{\sk_{\SP}}(\lpk, \attrdata).$$
 	\item Encrypt the signature and the attributes using the license key:
 	$$\enc = \Enc_{\klic} (\lsig || \attrdata; \nonce).$$
@@ -68,10 +63,9 @@ In order to receive the license, the user must scan all incoming transactions th
 
 \begin{enumerate}
 	\item Compute $\tklic = \hb(\lsk)G$.
-	\item Check if $\lpk \stackrel{?}{=} \hb(\tklic) G + B_{\user}$, 
+	\item Check if $\lpk \stackrel{?}{=} \hb(\tklic) G + B_{\user}$.
+	\item Decrypt $\enc$ using $\nonce$ and $\tklic$: $\Dec_{\tklic}  (\lsig || \attrdata; \nonce).$
 \end{enumerate}	
-
-\mbi{Same as before, we should include the step in which the user decyrpts the information associated to the license.}
 
 \subsubsection{(\textbf{user}) $\mathsf{use\_license()}$}
 
