@@ -114,19 +114,34 @@ impl Session {
     }
 
     pub fn verify(&self, sc: SessionCookie, pk_lp: JubJubAffine) {
-        assert_eq!(pk_lp, sc.pk_lp);
+        assert!(self.verifies_ok(sc, pk_lp));
+    }
+
+    pub fn verifies_ok(&self, sc: SessionCookie, pk_lp: JubJubAffine) -> bool {
+        if pk_lp != sc.pk_lp {
+            return false;
+        }
 
         let session_hash = sponge::hash(&[sc.pk_sp.get_u(), sc.pk_sp.get_v(), sc.r]);
-        assert_eq!(session_hash, self.session_hash);
+        if session_hash != self.session_hash {
+            return false;
+        }
 
         let com_0 = sponge::hash(&[pk_lp.get_u(), pk_lp.get_v(), sc.s_0]);
-        assert_eq!(com_0, self.com_0);
+        if com_0 != self.com_0 {
+            return false;
+        }
 
         let com_1 = (GENERATOR_EXTENDED * sc.attr_data) + (GENERATOR_NUMS_EXTENDED * sc.s_1);
-        assert_eq!(com_1, self.com_1);
+        if com_1 != self.com_1 {
+            return false;
+        }
 
         let com_2 = (GENERATOR_EXTENDED * sc.c) + (GENERATOR_NUMS_EXTENDED * sc.s_2);
-        assert_eq!(com_2, self.com_2);
+        if com_2 != self.com_2 {
+            return false;
+        }
+        true
     }
 }
 

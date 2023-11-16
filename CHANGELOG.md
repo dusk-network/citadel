@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add not panicking function for verifying session [#87]
+
 ## [0.5.1] - 2023-11-01
 
 ### Changed
@@ -83,6 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add workflows for the Github Actions
 
 <!-- ISSUES -->
+[#87]: https://github.com/dusk-network/citadel/issues/87
 [#80]: https://github.com/dusk-network/citadel/issues/80
 [#54]: https://github.com/dusk-network/citadel/issues/54
 [#41]: https://github.com/dusk-network/citadel/issues/41
