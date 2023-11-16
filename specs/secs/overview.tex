@@ -31,19 +31,29 @@ Below there is the list of the elements involved in the protocol. The details of
 \begin{itemize}
 	\item A \emph{request} is a set of information that the user sends to the network in order to inform the LP that they are requesting a license. It includes an stealth address where the license will be sent to.
 	\item A \emph{license} is an asset that represents the right of a user to use a certain service. In particular, a license contains a set of attributes that are associated to the requirements needed to make use of that service.
-	\item The \emph{LicenseProverParameters} are the set of parameters needed by the user to compute a proof that proves their license ownership.
+%	\item The \emph{LicenseProverParameters} are the set of parameters needed by the user to compute a proof that proves their license ownership.
 	\item A \emph{session} is a set of public values sent by the user to the network that are associated with the initiation of the use of a service.
 	\item A \emph{session cookie} is a set of values that allows the SP to verify that a session was opened correctly.
 \end{itemize}
 
+
 \subsection{Protocol flow}
 
-{\color{red}[Missing explanation]}
+Citadel is a system that allows users to acquire a license to use a service and at the time of use, the SP can verify that they have a license but without identifying who is using it. The Citadel protocol has blockchain as its centerpiece, taking advantage of its high degree of integrity and allowing the interaction between the user and the SP not to be direct but via transactions on the network. The flow of the protocol is depicted in Figure~\ref{fig:protocol} and goes as follows.
 
 \begin{figure}[h]
 	\centering
-	\includegraphics[width=.4\textwidth]{\figs/protocol.png}
+	\includegraphics[width=.5\textwidth]{\figs/protocol.png}
 	\caption{Overview of the protocol messages exchanged between the user, Dusk's network, and the LP/SP.}
 	\label{fig:protocol}
 \end{figure}
+
+First, the user asks the LP for a license that will grant them access to a service. Typically, in order to grant this license to a user, the LP will have performed some prior checks on the user (probably off-chain). When the LP sends the license to the network, it gets included in a list of granted licenses. When the user wants to use the SP's service, he has to calculate his unique session identifier and also show that his license is included in the most recent version of the list of granted licenses. To do so, he has to generate a zero-knowledge proof that proves that the session identifier was computed correctly, and also that his license is part of the list of granted licenses that correspond to the latest state of the list. In particular, the user needs to show the SP three things: his session identifier, the latest state of the list, and the zero-knowledge proof. Finally, in order to grant the service, the SP does the following three checks:
+
+\begin{enumerate}
+	\item The session identifier has not been used before.
+	\item It checks the state of the list is indeed the latest one.
+	\item It verifies the zero-knowledge proof provided by the user.	
+\end{enumerate}
+If all checks are correct, the user is allowed to use the service. Otherwise, access to the service is denied.
 

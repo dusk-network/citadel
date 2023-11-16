@@ -9,7 +9,6 @@
 \usepackage[final]{graphicx}
 \usepackage{setspace}
 \usepackage{float}
-\usepackage[colorinlistoftodos, textwidth = 30mm, obeyDraft]{todonotes}
 \usepackage{multirow, multicol}
 \usepackage{enumitem}
 \usepackage{ifdraft}
@@ -23,6 +22,8 @@
 \usepackage{parskip} % no indentation and paragraph spacing
 \usepackage[pdfpagelabels=true,backref=page,bookmarks=true]{hyperref} % KEEP AT THE END OF THE IMPORTS
 
+\ifdraft{\usepackage[colorinlistoftodos, textwidth = 30mm]{todonotes}}{\usepackage[disable, colorinlistoftodos, textwidth = 30mm]{todonotes}}
+
 % Colors
 \definecolor{cred}{rgb}{1, 0.5, 0.5}
 \definecolor{cgreen}{rgb}{0.5, 1, 0.5}
@@ -34,7 +35,7 @@
     colorlinks=true,
     linkcolor=cblue,
     urlcolor=cred,
-    citecolor=cgreen,
+    citecolor=teal,
 }
 
 % Draft mode changes:  

@@ -50,7 +50,7 @@ The LP checks continuously the network to detect any incoming license requests a
 
 \begin{enumerate}
 	\item Upon receiving a request from a user, define a set of attributes associated to the license, collect them (e.g. by concatenation) in a variable $\attrdata$, and compute a digital signature as follows:
-	$$\lsig = \sign_{\sk_{\SP}}(\lpk, \attrdata).$$
+	$$\lsig = \sign_{\sk_{\LP}}(\lpk, \attrdata).$$
 	\item Encrypt the signature and the attributes using the license key:
 	$$\enc = \Enc_{\klic} (\lsig || \attrdata; \nonce).$$
 	\item Send the following license to the network:
@@ -62,8 +62,8 @@ The LP checks continuously the network to detect any incoming license requests a
 In order to receive the license, the user must scan all incoming transactions the following way:
 
 \begin{enumerate}
-	\item Compute $\tklic = \hb(\lsk)G$.
-	\item Check if $\lpk \stackrel{?}{=} \hb(\tklic) G + B_{\user}$.
+	\item Compute $\tklic = \hp(\lsk)G$.
+	\item Check if $\lpk \stackrel{?}{=} \hp(\tklic) G + B_{\user}$.
 	\item Decrypt $\enc$ using $\nonce$ and $\tklic$: $\Dec_{\tklic}  (\lsig || \attrdata; \nonce).$
 \end{enumerate}	
 

@@ -10,13 +10,14 @@ where $r_\mathsf{attr}$ has to be a random value known by the user and the LP. F
 
 The SP will accept the service if the user provides a valid session cookie and a valid proof out of the following sample circuit, where the value $\com_1$ included in the public inputs must be equal to the value $\Session.\com_1$:
 
-\begin{figure}[h]
+\begin{figure}[H]
 	\centering
 	\setlength{\fboxsep}{5pt}%
 	\setlength{\fboxrule}{0.3pt}%
-	\fbox{\includegraphics[width=170pt,draft=false]{\figs/circuit-offchain.png}}
+	\fbox{\includegraphics[width=140pt,draft=false]{\figs/circuit-offchain.png}}
 	\caption{Arithmetic circuit for proving attributes off-chain.}
 	\label{fig:circuit-offchain}
 \end{figure}
 
-The above circuit can include as many conditions as desired for the attributes.
+\vspace{-0.3cm}
+The above circuit from Figure~\ref{fig:circuit-offchain} can include as many conditions as desired for the attributes.

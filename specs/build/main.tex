@@ -1,10 +1,11 @@
-\documentclass[draft]{article}
+%\documentclass[draft]{article}
+\documentclass{article}
 
 \input{preamble-packages}
 \input{preamble-macros}
 
 \title{Citadel protocol specification}
-\author{Dusk Network}
+\author{Dusk}
 \date{\today}
 
 \begin{document}
@@ -20,6 +21,7 @@
 \label{sec:general-overview}
 \input{\secs/overview}
 
+\vspace{0.5cm}
 \section{Cryptographic primitives}
 \label{sec:crypto-primitives}
 \input{\secs/crypto-primitives}
@@ -41,6 +43,6 @@
 %\input{\secs/protocol-concrete}
 
 \bibliographystyle{splncs04.bst}
-\bibliography{biblio.bib}
+\bibliography{biblio.bib,\bib/bibtex.bib}
 
 \end{document}
