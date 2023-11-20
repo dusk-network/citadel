@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add not panicking function for verifying session [#87]
+- Add SP public key verification check to SC verification.
 
 ## [0.5.1] - 2023-11-01
 
