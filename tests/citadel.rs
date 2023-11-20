@@ -139,8 +139,9 @@ fn test_full_citadel() {
 
     // Finally, the SP can verify a session
     let pk_lp = sc.pk_lp;
+    let pk_sp = sc.pk_sp;
     let session = Session::from(&public_inputs);
-    session.verify(sc, pk_lp);
+    session.verify(sc, pk_lp, pk_sp);
 }
 
 #[test]
@@ -281,6 +282,7 @@ fn test_citadel_false_session_cookie() {
     };
 
     let pk_lp = sc.pk_lp;
+    let pk_sp = sc.pk_sp;
     let session = Session::from(&public_inputs);
-    session.verify(sc_false, pk_lp);
+    session.verify(sc_false, pk_lp, pk_sp);
 }

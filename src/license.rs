@@ -113,12 +113,16 @@ impl Session {
         }
     }
 
-    pub fn verify(&self, sc: SessionCookie, pk_lp: JubJubAffine) {
-        assert!(self.verifies_ok(sc, pk_lp));
+    pub fn verify(&self, sc: SessionCookie, pk_lp: JubJubAffine, pk_sp: JubJubAffine) {
+        assert!(self.verifies_ok(sc, pk_lp, pk_sp));
     }
 
-    pub fn verifies_ok(&self, sc: SessionCookie, pk_lp: JubJubAffine) -> bool {
+    pub fn verifies_ok(&self, sc: SessionCookie, pk_lp: JubJubAffine, pk_sp: JubJubAffine) -> bool {
         if pk_lp != sc.pk_lp {
+            return false;
+        }
+
+        if pk_sp != sc.pk_sp {
             return false;
         }
 
