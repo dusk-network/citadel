@@ -100,11 +100,18 @@ The encryption scheme~\cite{duskDmitry} is a variation of the one-time pad encry
 Concretely, the encryption works as follows. Given a message in $\mathbb{F}_q^{\ell}$, each $\mathbb{F}_q$-component is added to  the corresponding component of the key. The key is obtained using Poseidon by extending the symmetric-encryption key, which is an elliptic curve point, 
 to obtain a key with the same size of the message. The initialization vector contains the two coordinates of the key and a nonce, it is passed to the Poseidon iteration which extends the key and outputs the ciphertext. The sender sends the encryption along with the nonce and the information needed to compute the key, so the receiver can use Poseidon with the same key and nonce to decrypt the message.
 
-\subsection{Commitments}
+\subsection{Commitments}\label{sec:commitments}
 
-As commitment scheme, Citadel uses the Pedersen commitment.
+As commitment scheme, Citadel uses the Pedersen commitment~\cite{pedersen1991non}, which we now describe. 
 
-\mbi{TODO: describe the Pedersen commitment scheme.}
+\begin{itemize}
+	\item \emph{Setup.} Sample and output the commitment key $\ck= (G,G')\gets\mathbb{J}^2$.
+	\item \emph{Commit.} On input a value $v$, sample randomness $r\gets\F_t$ and output
+	\[c = \mathsf{Com}_\ck(v;r)=vG+rG'.\]
+	\item \emph{Open.} Reveal $v,r$. With these, anyone can recompute the commitment and check if it matches $c$.
+\end{itemize}
+
+This scheme is perfectly hiding, and computationally binding under the discrete logarithm assumption.
 
 \subsection{Proof systems}\label{sec:proof_system}
 
@@ -124,6 +131,8 @@ PlonK is sound in the algebraic group model~\cite{fuchsbauer2018algebraic}, and 
 \subsection{Merkle trees}\label{sec:merkle_trees}
 
 A \emph{Merkle tree}~\cite{merkle1987digital} is a tree that contains at every vertex the hash of its children vertices. More precisely, we consider a perfect $k$-ary tree of height $h$. The single vertex at level $0$ is called the \emph{root} of the tree, and the $k^{h}$ vertices at level $h$ are called the \emph{leaves}. Given a vertex in level $i$, the $k$ vertices in level $i+1$ that are adjacent to it are called its \emph{children}. Two vertices are each other's \emph{sibling} if they are children of the same vertex.
+
+%\pagebreak
 
 To each vertex in the tree, we will recursively associate a value, starting from the leaves.\footnote{We will often abuse notation and write the vertex to refer to the value associated with the vertex.} Let $H$ be a hash function. 
 \begin{itemize}
