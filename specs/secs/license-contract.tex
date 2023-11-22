@@ -1,0 +1,24 @@
+% !TeX root = ../build/main.tex
+
+\begin{flushleft}
+	License contract maintains state consisting of the following data:
+\end{flushleft}
+
+\begin{itemize}%[label=$\bullet$]
+	\item List of sessions.
+	\item Map of licenses and their positions in the Merkle tree.
+	\item Merkle tree of license hashes.
+\end{itemize}
+
+
+\begin{flushleft}
+	Contract provides the following methods:
+\end{flushleft}
+
+\begin{itemize}%[label=$\bullet$]
+	\item \textit{issue-license}: adds a license to a Merkle tree of licenses.
+	\item \textit{get-licenses}: provides a list of new licenses added in a given block-height range.
+	\item \textit{use-license}: attempts to verify the proof and, if verified, adds a new session to a list of sessions and nullifies the license in the Merkle tree.
+	\item \textit{get-session}: finds a session in a list of sessions and returns it to the caller.
+\end{itemize}
+
