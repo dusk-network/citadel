@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Addded
+
+- Add `phoenix-core` dependency at "0.23"
+
+### Changed
+
+- Update `dusk-bls12_381` dependency to "0.13"
+- Update `dusk-jubjub` dependency to "0.14"
+- Update `dusk-schnorr` dependency to "0.17"
+- Update `dusk-poseidon` dependency to "0.32"
+- Update `poseidon-merkle` dependency to "0.4"
+- Update `dusk-plonk` dependency to "0.18"
+
+### Removed
+
+- Remove `dusk-pki` dependency
+
 ## [0.6.0] - 2023-11-22
 
 ### Added

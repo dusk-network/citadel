@@ -5,13 +5,12 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use dusk_bytes::Serializable;
-use dusk_jubjub::JubJubAffine;
 use dusk_jubjub::{dhke, GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED};
-use dusk_pki::{PublicKey, PublicSpendKey, SecretKey, SecretSpendKey, StealthAddress};
 use dusk_poseidon::cipher::PoseidonCipher;
 use dusk_poseidon::sponge;
-use dusk_schnorr::Signature;
+use dusk_schnorr::{PublicKey, SecretKey, Signature, SignatureDouble};
 use ff::Field;
+use phoenix_core::{PublicKey as PublicSpendKey, SecretKey as SecretSpendKey, StealthAddress};
 use poseidon_merkle::{Item, Opening, Tree};
 use rand_core::{CryptoRng, RngCore};
 
@@ -213,7 +212,7 @@ impl License {
 
         let message = sponge::hash(&[lpk.get_u(), lpk.get_v(), BlsScalar::from(*attr_data)]);
 
-        let sig_lic = Signature::new(&SecretKey::from(ssk_lp.a()), rng, message);
+        let sig_lic = SecretKey::from(ssk_lp.a()).sign(rng, message);
         let sig_lic_r = JubJubAffine::from(sig_lic.R());
 
         let nonce_1 = BlsScalar::random(&mut rng);
@@ -257,7 +256,7 @@ pub struct CitadelProverParameters<const DEPTH: usize, const ARITY: usize> {
     pub com_2: JubJubExtended, // Pedersen Commitment 2
 
     pub session_hash: BlsScalar,                 // hash of the session
-    pub sig_session_hash: dusk_schnorr::Proof,   // signature of the session_hash
+    pub sig_session_hash: SignatureDouble,       // signature of the session_hash
     pub merkle_proof: Opening<(), DEPTH, ARITY>, // Merkle proof for the Proof of Validity
 }
 
@@ -280,7 +279,7 @@ impl<const DEPTH: usize, const ARITY: usize> Default for CitadelProverParameters
             com_2: JubJubExtended::default(),
 
             session_hash: BlsScalar::default(),
-            sig_session_hash: dusk_schnorr::Proof::default(),
+            sig_session_hash: SignatureDouble::default(),
             merkle_proof,
         }
     }
@@ -330,15 +329,15 @@ impl<const DEPTH: usize, const ARITY: usize> CitadelProverParameters<DEPTH, ARIT
         let lpk_p = JubJubAffine::from(GENERATOR_NUMS_EXTENDED * lsk.as_ref());
 
         let s_0 = BlsScalar::random(&mut rng);
-        let s_1 = JubJubScalar::random(rng);
-        let s_2 = JubJubScalar::random(rng);
+        let s_1 = JubJubScalar::random(&mut rng);
+        let s_2 = JubJubScalar::random(&mut rng);
 
         let pk_sp = JubJubAffine::from(*psk_sp.A());
         let r = BlsScalar::random(&mut rng);
 
         let session_hash = sponge::hash(&[pk_sp.get_u(), pk_sp.get_v(), r]);
 
-        let sig_session_hash = dusk_schnorr::Proof::new(&lsk, rng, session_hash);
+        let sig_session_hash = lsk.sign_double(rng, session_hash);
 
         let session_id = sponge::hash(&[lpk_p.get_u(), lpk_p.get_v(), BlsScalar::from(*c)]);
 
