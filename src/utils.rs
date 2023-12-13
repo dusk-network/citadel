@@ -6,8 +6,9 @@
 
 use crate::license::{CitadelProverParameters, License, Request, SessionCookie};
 use dusk_jubjub::{JubJubAffine, JubJubScalar, GENERATOR_EXTENDED};
-use dusk_pki::{PublicSpendKey, SecretSpendKey};
 use dusk_poseidon::sponge;
+use ff::Field;
+use phoenix_core::{PublicKey as PublicSpendKey, SecretKey as SecretSpendKey};
 use poseidon_merkle::{Item, Opening, Tree};
 use rand_core::{CryptoRng, RngCore};
 
@@ -30,7 +31,7 @@ impl CitadelUtils {
         psk_lp: PublicSpendKey,
     ) -> (License, Opening<(), DEPTH, ARITY>) {
         // First, the user computes these values and requests a License
-        let lsa = psk.gen_stealth_address(&JubJubScalar::random(rng));
+        let lsa = psk.gen_stealth_address(&JubJubScalar::random(&mut *rng));
         let lsk = ssk.sk_r(&lsa);
         let k_lic = JubJubAffine::from(
             GENERATOR_EXTENDED * sponge::truncated::hash(&[(*lsk.as_ref()).into()]),

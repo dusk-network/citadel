@@ -4,9 +4,9 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use dusk_pki::{PublicSpendKey, SecretSpendKey};
 use dusk_plonk::prelude::*;
 use ff::Field;
+use phoenix_core::{PublicKey as PublicSpendKey, SecretKey as SecretSpendKey};
 
 static LABEL: &[u8; 12] = b"dusk-network";
 
@@ -46,11 +46,11 @@ lazy_static! {
     static ref KEYS: Keys = {
         // These are the keys of the user
         let ssk = SecretSpendKey::random(&mut OsRng);
-        let psk = ssk.public_spend_key();
+        let psk = PublicSpendKey::from(ssk);
 
         // These are the keys of the LP
         let ssk_lp = SecretSpendKey::random(&mut OsRng);
-        let psk_lp = ssk_lp.public_spend_key();
+        let psk_lp = PublicSpendKey::from(ssk_lp);
 
         // Now we generate the ProverKey and VerifierKey for both Citadel and Shelter
         let pp = PublicParameters::setup(1 << CAPACITY, &mut OsRng).unwrap();

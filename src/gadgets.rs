@@ -42,19 +42,19 @@ pub fn use_license_citadel<C: Composer, const DEPTH: usize, const ARITY: usize>(
     composer.assert_equal(session_id, session_id_pi);
 
     // VERIFY THE LICENSE SIGNATURE
-    let (sig_lic_u, sig_lic_r) = cpp.sig_lic.to_witness(composer);
+    let (sig_lic_u, sig_lic_r) = cpp.sig_lic.append(composer);
     let pk_lp = composer.append_point(sc.pk_lp);
     let attr_data = composer.append_witness(sc.attr_data);
 
     let message = sponge::gadget(composer, &[*lpk.x(), *lpk.y(), attr_data]);
-    gadgets::single_key_verify(composer, sig_lic_u, sig_lic_r, pk_lp, message)?;
+    gadgets::verify_signature(composer, sig_lic_u, sig_lic_r, pk_lp, message)?;
 
     // VERIFY THE SESSION HASH SIGNATURE
     let (sig_session_hash_u, sig_session_hash_r, sig_session_hash_r_p) =
-        cpp.sig_session_hash.to_witness(composer);
+        cpp.sig_session_hash.append(composer);
     let session_hash = composer.append_public(cpp.session_hash);
 
-    gadgets::double_key_verify(
+    gadgets::verify_signature_double(
         composer,
         sig_session_hash_u,
         sig_session_hash_r,
@@ -126,12 +126,12 @@ pub fn use_license_shelter<C: Composer, const DEPTH: usize, const ARITY: usize>(
     composer.assert_equal(session_id, session_id_pi);
 
     // VERIFY THE LICENSE SIGNATURE
-    let (sig_lic_u, sig_lic_r) = spp.sig_lic.to_witness(composer);
+    let (sig_lic_u, sig_lic_r) = spp.sig_lic.append(composer);
     let pk_lp = composer.append_public_point(spp.pk_lp);
     let attr_data = composer.append_public(spp.attr_data);
 
     let message = sponge::gadget(composer, &[*lpk.x(), *lpk.y(), attr_data]);
-    gadgets::single_key_verify(composer, sig_lic_u, sig_lic_r, pk_lp, message)?;
+    gadgets::verify_signature(composer, sig_lic_u, sig_lic_r, pk_lp, message)?;
 
     // COMPUTE THE HASH OF THE LICENSE
     let license_hash = sponge::gadget(composer, &[*lpk.x(), *lpk.y()]);
