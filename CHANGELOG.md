@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Update `dusk-schnorr` dependency to "0.18"
+- Update `dusk-poseidon` dependency to "0.33"
+- Update `poseidon-merkle` dependency to "0.5"
+- Update `dusk-plonk` dependency to "0.19"
+- Update `phoenix-core` dependency to "0.24"
+
 ## [0.7.0] - 2023-12-13
 
 ### Addded

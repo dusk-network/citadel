@@ -25,8 +25,8 @@ use crate::license::{CitadelProverParameters, SessionCookie, ShelterProverParame
 // public_inputs[6]: com_2.y
 // public_inputs[7]: root
 
-pub fn use_license_citadel<C: Composer, const DEPTH: usize, const ARITY: usize>(
-    composer: &mut C,
+pub fn use_license_citadel<const DEPTH: usize, const ARITY: usize>(
+    composer: &mut Composer,
     cpp: &CitadelProverParameters<DEPTH, ARITY>,
     sc: &SessionCookie,
 ) -> Result<(), Error> {
@@ -108,8 +108,8 @@ pub fn use_license_citadel<C: Composer, const DEPTH: usize, const ARITY: usize>(
 // public_inputs[4]: attr_data
 // public_inputs[5]: root
 
-pub fn use_license_shelter<C: Composer, const DEPTH: usize, const ARITY: usize>(
-    composer: &mut C,
+pub fn use_license_shelter<const DEPTH: usize, const ARITY: usize>(
+    composer: &mut Composer,
     spp: &ShelterProverParameters<DEPTH, ARITY>,
 ) -> Result<(), Error> {
     // APPEND THE LICENSE SECRET KEY OF THE USER

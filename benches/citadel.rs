@@ -4,8 +4,8 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use dusk_pki::{PublicSpendKey, SecretSpendKey};
 use dusk_plonk::prelude::*;
+use phoenix_core::{PublicKey as PublicSpendKey, SecretKey as SecretSpendKey};
 
 use zk_citadel::gadgets;
 use zk_citadel::license::{CitadelProverParameters, SessionCookie, ShelterProverParameters};
@@ -48,11 +48,11 @@ lazy_static! {
     static ref KEYS: Keys = {
         // These are the keys of the user
         let ssk = SecretSpendKey::random(&mut OsRng);
-        let psk = ssk.public_spend_key();
+        let psk = PublicSpendKey::from(ssk);
 
         // These are the keys of the LP
         let ssk_lp = SecretSpendKey::random(&mut OsRng);
-        let psk_lp = ssk_lp.public_spend_key();
+        let psk_lp = PublicSpendKey::from(ssk_lp);
 
         let pp = PublicParameters::setup(1 << CAPACITY, &mut OsRng).unwrap();
 
@@ -79,10 +79,7 @@ impl Citadel {
 }
 
 impl Circuit for Citadel {
-    fn circuit<C>(&self, composer: &mut C) -> Result<(), Error>
-    where
-        C: Composer,
-    {
+    fn circuit(&self, composer: &mut Composer) -> Result<(), Error> {
         gadgets::use_license_citadel(composer, &self.cpp, &self.sc)?;
         unsafe {
             CONSTRAINTS_CITADEL = composer.constraints();
@@ -103,10 +100,7 @@ impl Shelter {
 }
 
 impl Circuit for Shelter {
-    fn circuit<C>(&self, composer: &mut C) -> Result<(), Error>
-    where
-        C: Composer,
-    {
+    fn circuit(&self, composer: &mut Composer) -> Result<(), Error> {
         gadgets::use_license_shelter(composer, &self.spp)?;
         unsafe {
             CONSTRAINTS_SHELTER = composer.constraints();

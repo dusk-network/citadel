@@ -78,10 +78,7 @@ impl Citadel {
 }
 
 impl Circuit for Citadel {
-    fn circuit<C>(&self, composer: &mut C) -> Result<(), Error>
-    where
-        C: Composer,
-    {
+    fn circuit(&self, composer: &mut Composer) -> Result<(), Error> {
         gadgets::use_license_citadel(composer, &self.cpp, &self.sc)?;
         Ok(())
     }
@@ -99,10 +96,7 @@ impl Shelter {
 }
 
 impl Circuit for Shelter {
-    fn circuit<C>(&self, composer: &mut C) -> Result<(), Error>
-    where
-        C: Composer,
-    {
+    fn circuit(&self, composer: &mut Composer) -> Result<(), Error> {
         gadgets::use_license_shelter(composer, &self.spp)?;
         Ok(())
     }
