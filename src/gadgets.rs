@@ -7,7 +7,7 @@
 use dusk_jubjub::{GENERATOR, GENERATOR_NUMS};
 use dusk_plonk::prelude::*;
 use dusk_poseidon::sponge;
-use dusk_schnorr::gadgets;
+use jubjub_schnorr::gadgets;
 
 use poseidon_merkle::zk::opening_gadget;
 
