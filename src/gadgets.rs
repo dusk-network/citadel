@@ -11,7 +11,7 @@ use jubjub_schnorr::gadgets;
 
 use poseidon_merkle::zk::opening_gadget;
 
-use crate::license::{CitadelProverParameters, SessionCookie, ShelterProverParameters};
+use crate::license::{CitadelProverParameters, SessionCookie};
 
 // out of this circuit, the generated public inputs vector collects
 // these values in that particular order:
@@ -93,52 +93,6 @@ pub fn use_license_citadel<const DEPTH: usize, const ARITY: usize>(
     // VERIFY THE MERKLE PROOF
     let root_pi = composer.append_public(cpp.merkle_proof.root().hash);
     let root = opening_gadget(composer, &cpp.merkle_proof, license_hash);
-    composer.assert_equal(root, root_pi);
-
-    Ok(())
-}
-
-// out of this circuit, the generated public inputs vector collects
-// these values in that particular order:
-//
-// public_inputs[0]: session_id
-// public_inputs[1]: c
-// public_inputs[2]: pk_lp.x
-// public_inputs[3]: pk_lp.y
-// public_inputs[4]: attr_data
-// public_inputs[5]: root
-
-pub fn use_license_shelter<const DEPTH: usize, const ARITY: usize>(
-    composer: &mut Composer,
-    spp: &ShelterProverParameters<DEPTH, ARITY>,
-) -> Result<(), Error> {
-    // APPEND THE LICENSE SECRET KEY OF THE USER
-    let lsk = composer.append_witness(spp.lsk);
-
-    // COMPUTE LICENSE PUBLIC KEY
-    let lpk = composer.component_mul_generator(lsk, GENERATOR).unwrap();
-
-    // COMPUTE THE SESSION ID
-    let c = composer.append_public(spp.c);
-    let session_id_pi = composer.append_public(spp.session_id);
-    let session_id = sponge::gadget(composer, &[lsk, c]);
-
-    composer.assert_equal(session_id, session_id_pi);
-
-    // VERIFY THE LICENSE SIGNATURE
-    let (sig_lic_u, sig_lic_r) = spp.sig_lic.append(composer);
-    let pk_lp = composer.append_public_point(spp.pk_lp);
-    let attr_data = composer.append_public(spp.attr_data);
-
-    let message = sponge::gadget(composer, &[*lpk.x(), *lpk.y(), attr_data]);
-    gadgets::verify_signature(composer, sig_lic_u, sig_lic_r, pk_lp, message)?;
-
-    // COMPUTE THE HASH OF THE LICENSE
-    let license_hash = sponge::gadget(composer, &[*lpk.x(), *lpk.y()]);
-
-    // VERIFY THE MERKLE PROOF
-    let root_pi = composer.append_public(spp.merkle_proof.root().hash);
-    let root = opening_gadget(composer, &spp.merkle_proof, license_hash);
     composer.assert_equal(root, root_pi);
 
     Ok(())
