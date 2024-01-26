@@ -15,18 +15,13 @@ const DEPTH: usize = 9; // depth of the n-ary Merkle tree
 const ARITY: usize = 4; // arity of the Merkle tree
 
 use zk_citadel::gadgets;
-use zk_citadel::license::{
-    CitadelProverParameters, Session, SessionCookie, ShelterProverParameters,
-};
+use zk_citadel::license::{CitadelProverParameters, Session, SessionCookie};
 
 use rand_core::OsRng;
 use zk_citadel::utils::CitadelUtils;
 
 #[macro_use]
 extern crate lazy_static;
-
-// Example value
-const CHALLENGE: u64 = 20221126u64;
 
 pub struct Keys {
     ssk: SecretSpendKey,
@@ -37,9 +32,6 @@ pub struct Keys {
 
     citadel_prover: Prover,
     citadel_verifier: Verifier,
-
-    shelter_prover: Prover,
-    shelter_verifier: Verifier,
 }
 
 lazy_static! {
@@ -52,16 +44,13 @@ lazy_static! {
         let ssk_lp = SecretSpendKey::random(&mut OsRng);
         let psk_lp = PublicSpendKey::from(ssk_lp);
 
-        // Now we generate the ProverKey and VerifierKey for both Citadel and Shelter
+        // Now we generate the ProverKey and VerifierKey for Citadel
         let pp = PublicParameters::setup(1 << CAPACITY, &mut OsRng).unwrap();
 
         let (citadel_prover, citadel_verifier) =
             Compiler::compile::<Citadel>(&pp, LABEL).expect("failed to compile circuit");
 
-        let (shelter_prover, shelter_verifier) =
-            Compiler::compile::<Shelter>(&pp, LABEL).expect("failed to compile circuit");
-
-        Keys { ssk, psk, ssk_lp, psk_lp, citadel_prover, citadel_verifier, shelter_prover, shelter_verifier }
+        Keys { ssk, psk, ssk_lp, psk_lp, citadel_prover, citadel_verifier }
     };
 }
 
@@ -80,24 +69,6 @@ impl Citadel {
 impl Circuit for Citadel {
     fn circuit(&self, composer: &mut Composer) -> Result<(), Error> {
         gadgets::use_license_citadel(composer, &self.cpp, &self.sc)?;
-        Ok(())
-    }
-}
-
-#[derive(Default, Debug)]
-pub struct Shelter {
-    spp: ShelterProverParameters<DEPTH, ARITY>,
-}
-
-impl Shelter {
-    pub fn new(spp: &ShelterProverParameters<DEPTH, ARITY>) -> Self {
-        Self { spp: *spp }
-    }
-}
-
-impl Circuit for Shelter {
-    fn circuit(&self, composer: &mut Composer) -> Result<(), Error> {
-        gadgets::use_license_shelter(composer, &self.spp)?;
         Ok(())
     }
 }
@@ -139,39 +110,6 @@ fn test_full_citadel() {
 }
 
 #[test]
-fn test_full_shelter() {
-    // We generate a random license and merkle proof for testing
-    let (lic, merkle_proof) = CitadelUtils::compute_random_license::<OsRng, DEPTH, ARITY>(
-        &mut OsRng,
-        KEYS.ssk,
-        KEYS.psk,
-        KEYS.ssk_lp,
-        KEYS.psk_lp,
-    );
-
-    // The user computes these values to use a license
-    let c = JubJubScalar::from(CHALLENGE);
-    let spp = ShelterProverParameters::compute_parameters(
-        &KEYS.ssk,
-        &lic,
-        &KEYS.psk_lp,
-        &c,
-        merkle_proof,
-    );
-
-    // Then, the user generates the proof
-    let (proof, public_inputs) = KEYS
-        .shelter_prover
-        .prove(&mut OsRng, &Shelter::new(&spp))
-        .expect("failed to prove");
-
-    // After receiving the proof, the SP verifies it
-    KEYS.shelter_verifier
-        .verify(&proof, &public_inputs)
-        .expect("failed to verify proof");
-}
-
-#[test]
 #[should_panic]
 fn test_citadel_false_public_input() {
     let (lic, merkle_proof) = CitadelUtils::compute_random_license::<OsRng, DEPTH, ARITY>(
@@ -200,40 +138,6 @@ fn test_citadel_false_public_input() {
     false_public_inputs[0] = BlsScalar::random(&mut OsRng);
 
     KEYS.citadel_verifier
-        .verify(&proof, &false_public_inputs)
-        .expect("failed to verify proof");
-}
-
-#[test]
-#[should_panic]
-fn test_shelter_false_public_input() {
-    let (lic, merkle_proof) = CitadelUtils::compute_random_license::<OsRng, DEPTH, ARITY>(
-        &mut OsRng,
-        KEYS.ssk,
-        KEYS.psk,
-        KEYS.ssk_lp,
-        KEYS.psk_lp,
-    );
-
-    let c = JubJubScalar::from(CHALLENGE);
-    let spp = ShelterProverParameters::compute_parameters(
-        &KEYS.ssk,
-        &lic,
-        &KEYS.psk_lp,
-        &c,
-        merkle_proof,
-    );
-
-    let (proof, public_inputs) = KEYS
-        .shelter_prover
-        .prove(&mut OsRng, &Shelter::new(&spp))
-        .expect("failed to prove");
-
-    // set a false public input
-    let mut false_public_inputs = public_inputs;
-    false_public_inputs[0] = BlsScalar::random(&mut OsRng);
-
-    KEYS.shelter_verifier
         .verify(&proof, &false_public_inputs)
         .expect("failed to verify proof");
 }

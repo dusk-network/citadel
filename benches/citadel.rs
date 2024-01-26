@@ -8,27 +8,22 @@ use dusk_plonk::prelude::*;
 use phoenix_core::{PublicKey as PublicSpendKey, SecretKey as SecretSpendKey};
 
 use zk_citadel::gadgets;
-use zk_citadel::license::{CitadelProverParameters, SessionCookie, ShelterProverParameters};
+use zk_citadel::license::{CitadelProverParameters, SessionCookie};
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand_core::OsRng;
 use zk_citadel::utils::CitadelUtils;
 
 static mut CONSTRAINTS_CITADEL: usize = 0;
-static mut CONSTRAINTS_SHELTER: usize = 0;
 
 static LABEL: &[u8; 12] = b"dusk-network";
 
 const CAPACITY: usize = 15; // capacity required for the setup
 const DEPTH_CITADEL: usize = 17; // depth of the n-ary Merkle tree
-const DEPTH_SHELTER: usize = 9; // depth of the n-ary Merkle tree
 const ARITY: usize = 4; // arity of the Merkle tree
 
 #[macro_use]
 extern crate lazy_static;
-
-// Example value
-const CHALLENGE: u64 = 20221126u64;
 
 pub struct Keys {
     ssk: SecretSpendKey,
@@ -39,9 +34,6 @@ pub struct Keys {
 
     citadel_prover: Prover,
     citadel_verifier: Verifier,
-
-    shelter_prover: Prover,
-    shelter_verifier: Verifier,
 }
 
 lazy_static! {
@@ -59,10 +51,7 @@ lazy_static! {
         let (citadel_prover, citadel_verifier) =
             Compiler::compile::<Citadel>(&pp, LABEL).expect("failed to compile circuit");
 
-        let (shelter_prover, shelter_verifier) =
-            Compiler::compile::<Shelter>(&pp, LABEL).expect("failed to compile circuit");
-
-        Keys { ssk, psk, ssk_lp, psk_lp, citadel_prover, citadel_verifier, shelter_prover, shelter_verifier }
+        Keys { ssk, psk, ssk_lp, psk_lp, citadel_prover, citadel_verifier  }
     };
 }
 
@@ -85,71 +74,6 @@ impl Circuit for Citadel {
             CONSTRAINTS_CITADEL = composer.constraints();
         }
         Ok(())
-    }
-}
-
-#[derive(Default, Debug)]
-pub struct Shelter {
-    spp: ShelterProverParameters<DEPTH_SHELTER, ARITY>,
-}
-
-impl Shelter {
-    pub fn new(spp: &ShelterProverParameters<DEPTH_SHELTER, ARITY>) -> Self {
-        Self { spp: *spp }
-    }
-}
-
-impl Circuit for Shelter {
-    fn circuit(&self, composer: &mut Composer) -> Result<(), Error> {
-        gadgets::use_license_shelter(composer, &self.spp)?;
-        unsafe {
-            CONSTRAINTS_SHELTER = composer.constraints();
-        }
-        Ok(())
-    }
-}
-
-fn shelter_benchmark(crit: &mut Criterion) {
-    let (lic, merkle_proof) = CitadelUtils::compute_random_license::<OsRng, DEPTH_SHELTER, ARITY>(
-        &mut OsRng,
-        KEYS.ssk,
-        KEYS.psk,
-        KEYS.ssk_lp,
-        KEYS.psk_lp,
-    );
-
-    let c = JubJubScalar::from(CHALLENGE);
-    let spp = ShelterProverParameters::compute_parameters(
-        &KEYS.ssk,
-        &lic,
-        &KEYS.psk_lp,
-        &c,
-        merkle_proof,
-    );
-
-    unsafe {
-        let log = &format!("Shelter Prover ({} constraints)", CONSTRAINTS_SHELTER);
-        crit.bench_function(log, |b| {
-            b.iter(|| {
-                KEYS.shelter_prover
-                    .prove(&mut OsRng, &Shelter::new(&spp))
-                    .expect("failed to prove")
-            })
-        });
-
-        // Benchmark the verifier
-        let (proof, public_inputs) = KEYS
-            .shelter_prover
-            .prove(&mut OsRng, &Shelter::new(&spp))
-            .expect("failed to prove");
-        let log = &format!("Shelter Verifier ({} constraints)", CONSTRAINTS_SHELTER);
-        crit.bench_function(log, |b| {
-            b.iter(|| {
-                KEYS.shelter_verifier
-                    .verify(&proof, &public_inputs)
-                    .expect("failed to verify proof")
-            })
-        });
     }
 }
 
@@ -199,6 +123,6 @@ fn citadel_benchmark(crit: &mut Criterion) {
 criterion_group! {
     name = citadel;
     config = Criterion::default().sample_size(10);
-    targets = shelter_benchmark, citadel_benchmark
+    targets = citadel_benchmark
 }
 criterion_main!(citadel);
