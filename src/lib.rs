@@ -6,4 +6,3 @@
 
 pub mod gadgets;
 pub mod license;
-pub mod utils;

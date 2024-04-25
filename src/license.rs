@@ -9,8 +9,10 @@ use dusk_jubjub::{dhke, GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED};
 use dusk_poseidon::cipher::PoseidonCipher;
 use dusk_poseidon::sponge;
 use ff::Field;
-use jubjub_schnorr::{PublicKey, SecretKey, Signature, SignatureDouble};
-use phoenix_core::{PublicKey as PublicSpendKey, SecretKey as SecretSpendKey, StealthAddress};
+use jubjub_schnorr::{
+    PublicKey as NotePublicKey, SecretKey as NoteSecretKey, Signature, SignatureDouble,
+};
+use phoenix_core::{PublicKey, SecretKey, StealthAddress};
 use poseidon_merkle::{Item, Opening, Tree};
 use rand_core::{CryptoRng, RngCore};
 
@@ -37,7 +39,7 @@ pub struct Request {
 
 impl Request {
     pub fn new<R: RngCore + CryptoRng>(
-        psk_lp: &PublicSpendKey,
+        pk_lp: &PublicKey,
         lsa: &StealthAddress,
         k_lic: &JubJubAffine,
         mut rng: &mut R,
@@ -46,12 +48,12 @@ impl Request {
         let nonce_2 = BlsScalar::random(&mut rng);
         let nonce_3 = BlsScalar::random(&mut rng);
 
-        let lpk = JubJubAffine::from(*lsa.pk_r().as_ref());
+        let lpk = JubJubAffine::from(*lsa.note_pk().as_ref());
         let r = JubJubAffine::from(*lsa.R());
 
         let r_dh = JubJubScalar::random(rng);
-        let rsa = psk_lp.gen_stealth_address(&r_dh);
-        let k_dh = dhke(&r_dh, psk_lp.A());
+        let rsa = pk_lp.gen_stealth_address(&r_dh);
+        let k_dh = dhke(&r_dh, pk_lp.A());
 
         let enc_1 = PoseidonCipher::encrypt(&[lpk.get_u(), lpk.get_v()], &k_dh, &nonce_1);
 
@@ -185,11 +187,11 @@ pub struct License {
 impl License {
     pub fn new<R: RngCore + CryptoRng>(
         attr_data: &JubJubScalar,
-        ssk_lp: &SecretSpendKey,
+        sk_lp: &SecretKey,
         req: &Request,
         mut rng: &mut R,
     ) -> Self {
-        let k_dh = dhke(ssk_lp.a(), req.rsa.R());
+        let k_dh = dhke(sk_lp.a(), req.rsa.R());
 
         let dec_1 = req
             .enc_1
@@ -212,7 +214,7 @@ impl License {
 
         let message = sponge::hash(&[lpk.get_u(), lpk.get_v(), BlsScalar::from(*attr_data)]);
 
-        let sig_lic = SecretKey::from(ssk_lp.a()).sign(rng, message);
+        let sig_lic = NoteSecretKey::from(sk_lp.a()).sign(rng, message);
         let sig_lic_r = JubJubAffine::from(sig_lic.R());
 
         let nonce_1 = BlsScalar::random(&mut rng);
@@ -230,7 +232,7 @@ impl License {
         Self {
             lsa: StealthAddress::from_raw_unchecked(
                 JubJubExtended::from(r),
-                PublicKey::from_raw_unchecked(JubJubExtended::from(lpk)),
+                NotePublicKey::from_raw_unchecked(JubJubExtended::from(lpk)),
             ),
             enc_1,
             nonce_1,
@@ -288,15 +290,15 @@ impl<const DEPTH: usize, const ARITY: usize> Default for CitadelProverParameters
 impl<const DEPTH: usize, const ARITY: usize> CitadelProverParameters<DEPTH, ARITY> {
     #[allow(clippy::too_many_arguments)]
     pub fn compute_parameters<R: RngCore + CryptoRng>(
-        ssk: &SecretSpendKey,
+        sk: &SecretKey,
         lic: &License,
-        psk_lp: &PublicSpendKey,
-        psk_sp: &PublicSpendKey,
+        pk_lp: &PublicKey,
+        pk_sp: &PublicKey,
         c: &JubJubScalar,
         mut rng: &mut R,
         merkle_proof: Opening<(), DEPTH, ARITY>,
     ) -> (Self, SessionCookie) {
-        let lsk = ssk.sk_r(&lic.lsa);
+        let lsk = sk.gen_note_sk(lic.lsa);
         let k_lic = JubJubAffine::from(
             GENERATOR_EXTENDED * sponge::truncated::hash(&[(*lsk.as_ref()).into()]),
         );
@@ -323,16 +325,16 @@ impl<const DEPTH: usize, const ARITY: usize> CitadelProverParameters<DEPTH, ARIT
         )
         .unwrap();
 
-        let lpk = JubJubAffine::from(*lic.lsa.pk_r().as_ref());
+        let lpk = JubJubAffine::from(*lic.lsa.note_pk().as_ref());
 
-        let lsk = ssk.sk_r(&lic.lsa);
+        let lsk = sk.gen_note_sk(lic.lsa);
         let lpk_p = JubJubAffine::from(GENERATOR_NUMS_EXTENDED * lsk.as_ref());
 
         let s_0 = BlsScalar::random(&mut rng);
         let s_1 = JubJubScalar::random(&mut rng);
         let s_2 = JubJubScalar::random(&mut rng);
 
-        let pk_sp = JubJubAffine::from(*psk_sp.A());
+        let pk_sp = JubJubAffine::from(*pk_sp.A());
         let r = BlsScalar::random(&mut rng);
 
         let session_hash = sponge::hash(&[pk_sp.get_u(), pk_sp.get_v(), r]);
@@ -341,7 +343,7 @@ impl<const DEPTH: usize, const ARITY: usize> CitadelProverParameters<DEPTH, ARIT
 
         let session_id = sponge::hash(&[lpk_p.get_u(), lpk_p.get_v(), BlsScalar::from(*c)]);
 
-        let pk_lp = JubJubAffine::from(*psk_lp.A());
+        let pk_lp = JubJubAffine::from(*pk_lp.A());
 
         let com_0 = sponge::hash(&[pk_lp.get_u(), pk_lp.get_v(), s_0]);
         let com_1 = (GENERATOR_EXTENDED * attr_data) + (GENERATOR_NUMS_EXTENDED * s_1);

@@ -4,65 +4,119 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+use dusk_jubjub::{JubJubAffine, JubJubScalar, GENERATOR_EXTENDED};
 use dusk_plonk::prelude::*;
-use phoenix_core::{PublicKey as PublicSpendKey, SecretKey as SecretSpendKey};
+use dusk_poseidon::sponge;
+use ff::Field;
+use phoenix_core::{PublicKey, SecretKey};
+use poseidon_merkle::{Item, Opening, Tree};
 
 use zk_citadel::gadgets;
-use zk_citadel::license::{CitadelProverParameters, SessionCookie};
+use zk_citadel::license::{CitadelProverParameters, License, Request, SessionCookie};
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand_core::OsRng;
-use zk_citadel::utils::CitadelUtils;
 
 static mut CONSTRAINTS_CITADEL: usize = 0;
 
 static LABEL: &[u8; 12] = b"dusk-network";
 
 const CAPACITY: usize = 15; // capacity required for the setup
-const DEPTH_CITADEL: usize = 17; // depth of the n-ary Merkle tree
+const DEPTH: usize = 17; // depth of the n-ary Merkle tree
 const ARITY: usize = 4; // arity of the Merkle tree
+
+// Example values
+const ATTRIBUTE_DATA: u64 = 112233445566778899u64;
+const CHALLENGE: u64 = 20221126u64;
 
 #[macro_use]
 extern crate lazy_static;
 
-pub struct Keys {
-    ssk: SecretSpendKey,
-    psk: PublicSpendKey,
+fn compute_random_license(
+    rng: &mut OsRng,
+    sk: &SecretKey,
+    sk_lp: &SecretKey,
+    pk_lp: &PublicKey,
+) -> (License, Opening<(), DEPTH, ARITY>) {
+    let pk = PublicKey::from(sk);
 
-    ssk_lp: SecretSpendKey,
-    psk_lp: PublicSpendKey,
+    // First, the user computes these values and requests a License
+    let lsa = pk.gen_stealth_address(&JubJubScalar::random(&mut *rng));
+    let lsk = sk.gen_note_sk(&lsa);
+    let k_lic =
+        JubJubAffine::from(GENERATOR_EXTENDED * sponge::truncated::hash(&[(*lsk.as_ref()).into()]));
+    let req = Request::new(pk_lp, &lsa, &k_lic, rng);
+
+    // Second, the LP computes these values and grants the License
+    let attr_data = JubJubScalar::from(ATTRIBUTE_DATA);
+    let lic = License::new(&attr_data, sk_lp, &req, rng);
+
+    let mut tree = Tree::<(), DEPTH, ARITY>::new();
+    let lpk = JubJubAffine::from(lic.lsa.note_pk().as_ref());
+
+    let item = Item {
+        hash: sponge::hash(&[lpk.get_u(), lpk.get_v()]),
+        data: (),
+    };
+
+    let pos = 0;
+    tree.insert(pos, item);
+
+    let merkle_proof = tree.opening(pos).expect("Tree was read successfully");
+
+    (lic, merkle_proof)
+}
+
+fn compute_citadel_parameters(
+    rng: &mut OsRng,
+    sk: &SecretKey,
+    pk_lp: &PublicKey,
+    lic: &License,
+    merkle_proof: Opening<(), DEPTH, ARITY>,
+) -> (CitadelProverParameters<DEPTH, ARITY>, SessionCookie) {
+    let c = JubJubScalar::from(CHALLENGE);
+    let (cpp, sc) =
+        CitadelProverParameters::compute_parameters(sk, lic, pk_lp, pk_lp, &c, rng, merkle_proof);
+    (cpp, sc)
+}
+
+struct Keys {
+    sk: SecretKey,
+
+    sk_lp: SecretKey,
+    pk_lp: PublicKey,
 
     citadel_prover: Prover,
     citadel_verifier: Verifier,
 }
 
 lazy_static! {
-    static ref KEYS: Keys = {
+    static ref TEST_KEYS: Keys = {
         // These are the keys of the user
-        let ssk = SecretSpendKey::random(&mut OsRng);
-        let psk = PublicSpendKey::from(ssk);
+        let sk = SecretKey::random(&mut OsRng);
 
         // These are the keys of the LP
-        let ssk_lp = SecretSpendKey::random(&mut OsRng);
-        let psk_lp = PublicSpendKey::from(ssk_lp);
+        let sk_lp = SecretKey::random(&mut OsRng);
+        let pk_lp = PublicKey::from(&sk_lp);
 
+        // Now we generate the ProverKey and VerifierKey for Citadel
         let pp = PublicParameters::setup(1 << CAPACITY, &mut OsRng).unwrap();
 
         let (citadel_prover, citadel_verifier) =
             Compiler::compile::<Citadel>(&pp, LABEL).expect("failed to compile circuit");
 
-        Keys { ssk, psk, ssk_lp, psk_lp, citadel_prover, citadel_verifier  }
+        Keys { sk, sk_lp, pk_lp, citadel_prover, citadel_verifier }
     };
 }
 
 #[derive(Default, Debug)]
 pub struct Citadel {
-    cpp: CitadelProverParameters<DEPTH_CITADEL, ARITY>,
+    cpp: CitadelProverParameters<DEPTH, ARITY>,
     sc: SessionCookie,
 }
 
 impl Citadel {
-    pub fn new(cpp: &CitadelProverParameters<DEPTH_CITADEL, ARITY>, sc: &SessionCookie) -> Self {
+    pub fn new(cpp: &CitadelProverParameters<DEPTH, ARITY>, sc: &SessionCookie) -> Self {
         Self { cpp: *cpp, sc: *sc }
     }
 }
@@ -78,18 +132,17 @@ impl Circuit for Citadel {
 }
 
 fn citadel_benchmark(crit: &mut Criterion) {
-    let (lic, merkle_proof) = CitadelUtils::compute_random_license::<OsRng, DEPTH_CITADEL, ARITY>(
+    let (lic, merkle_proof) = compute_random_license(
         &mut OsRng,
-        KEYS.ssk,
-        KEYS.psk,
-        KEYS.ssk_lp,
-        KEYS.psk_lp,
+        &TEST_KEYS.sk,
+        &TEST_KEYS.sk_lp,
+        &TEST_KEYS.pk_lp,
     );
 
-    let (cpp, sc) = CitadelUtils::compute_citadel_parameters::<OsRng, DEPTH_CITADEL, ARITY>(
+    let (cpp, sc) = compute_citadel_parameters(
         &mut OsRng,
-        KEYS.ssk,
-        KEYS.psk_lp,
+        &TEST_KEYS.sk,
+        &TEST_KEYS.pk_lp,
         &lic,
         merkle_proof,
     );
@@ -98,21 +151,23 @@ fn citadel_benchmark(crit: &mut Criterion) {
         let log = &format!("Citadel Prover ({} constraints)", CONSTRAINTS_CITADEL);
         crit.bench_function(log, |b| {
             b.iter(|| {
-                KEYS.citadel_prover
+                TEST_KEYS
+                    .citadel_prover
                     .prove(&mut OsRng, &Citadel::new(&cpp, &sc))
                     .expect("failed to prove")
             })
         });
 
         // Benchmark the verifier
-        let (proof, public_inputs) = KEYS
+        let (proof, public_inputs) = TEST_KEYS
             .citadel_prover
             .prove(&mut OsRng, &Citadel::new(&cpp, &sc))
             .expect("failed to prove");
         let log = &format!("Citadel Verifier ({} constraints)", CONSTRAINTS_CITADEL);
         crit.bench_function(log, |b| {
             b.iter(|| {
-                KEYS.citadel_verifier
+                TEST_KEYS
+                    .citadel_verifier
                     .verify(&proof, &public_inputs)
                     .expect("failed to verify proof")
             })

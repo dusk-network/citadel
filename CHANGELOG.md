@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Update `jubjub-schnorr` dependency to "0.2"
+- Update `phoenix-core` dependency to "0.26"
+
+### Removed
+
+- Remove `utils` module as it was only used for testing
+
 ## [0.11.0] - 2024-04-10
 
 ### Changed
