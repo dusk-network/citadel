@@ -6,13 +6,12 @@
 
 use dusk_bytes::Serializable;
 use dusk_jubjub::{dhke, GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED};
-use dusk_poseidon::cipher::PoseidonCipher;
 use dusk_poseidon::sponge;
 use ff::Field;
-use jubjub_schnorr::{
-    PublicKey as NotePublicKey, SecretKey as NoteSecretKey, Signature, SignatureDouble,
+use jubjub_schnorr::{SecretKey as NoteSecretKey, Signature, SignatureDouble};
+use phoenix_core::{
+    decrypt, encrypt, Error, PublicKey, SecretKey, StealthAddress, ENCRYPTION_EXTRA_SIZE,
 };
-use phoenix_core::{PublicKey, SecretKey, StealthAddress};
 use poseidon_merkle::{Item, Opening, Tree};
 use rand_core::{CryptoRng, RngCore};
 
@@ -21,6 +20,12 @@ use rkyv::{Archive, Deserialize, Serialize};
 
 use dusk_plonk::prelude::*;
 
+const REQ_PLAINTEXT_SIZE: usize = StealthAddress::SIZE + JubJubAffine::SIZE;
+const REQ_ENCRYPTION_SIZE: usize = REQ_PLAINTEXT_SIZE + ENCRYPTION_EXTRA_SIZE;
+
+const LIC_PLAINTEXT_SIZE: usize = Signature::SIZE + JubJubScalar::SIZE;
+const LIC_ENCRYPTION_SIZE: usize = LIC_PLAINTEXT_SIZE + ENCRYPTION_EXTRA_SIZE;
+
 #[cfg_attr(
     feature = "rkyv-impl",
     derive(Archive, Serialize, Deserialize),
@@ -28,13 +33,8 @@ use dusk_plonk::prelude::*;
 )]
 #[derive(Debug)]
 pub struct Request {
-    pub rsa: StealthAddress,   // request stealth address
-    pub enc_1: PoseidonCipher, // encryption of the license stealth address and k_lic
-    pub nonce_1: BlsScalar,    // IV for the encryption
-    pub enc_2: PoseidonCipher, // encryption of the license stealth address and k_lic
-    pub nonce_2: BlsScalar,    // IV for the encryption
-    pub enc_3: PoseidonCipher, // encryption of the license stealth address and k_lic
-    pub nonce_3: BlsScalar,    // IV for the encryption
+    pub rsa: StealthAddress,            // request stealth address
+    pub enc: [u8; REQ_ENCRYPTION_SIZE], // encryption of the license stealth address and k_lic
 }
 
 impl Request {
@@ -42,34 +42,18 @@ impl Request {
         pk_lp: &PublicKey,
         lsa: &StealthAddress,
         k_lic: &JubJubAffine,
-        mut rng: &mut R,
-    ) -> Self {
-        let nonce_1 = BlsScalar::random(&mut rng);
-        let nonce_2 = BlsScalar::random(&mut rng);
-        let nonce_3 = BlsScalar::random(&mut rng);
-
-        let lpk = JubJubAffine::from(*lsa.note_pk().as_ref());
-        let r = JubJubAffine::from(*lsa.R());
-
-        let r_dh = JubJubScalar::random(rng);
+        rng: &mut R,
+    ) -> Result<Self, Error> {
+        let r_dh = JubJubScalar::random(&mut *rng);
         let rsa = pk_lp.gen_stealth_address(&r_dh);
         let k_dh = dhke(&r_dh, pk_lp.A());
 
-        let enc_1 = PoseidonCipher::encrypt(&[lpk.get_u(), lpk.get_v()], &k_dh, &nonce_1);
+        let mut plaintext = lsa.to_bytes().to_vec();
+        plaintext.append(&mut k_lic.to_bytes().to_vec());
 
-        let enc_2 = PoseidonCipher::encrypt(&[r.get_u(), r.get_v()], &k_dh, &nonce_2);
+        let enc = encrypt(&k_dh, &plaintext, rng)?;
 
-        let enc_3 = PoseidonCipher::encrypt(&[k_lic.get_u(), k_lic.get_v()], &k_dh, &nonce_3);
-
-        Self {
-            rsa,
-            enc_1,
-            nonce_1,
-            enc_2,
-            nonce_2,
-            enc_3,
-            nonce_3,
-        }
+        Ok(Self { rsa, enc })
     }
 }
 
@@ -175,13 +159,10 @@ pub struct SessionCookie {
     derive(Archive, Serialize, Deserialize),
     archive_attr(derive(bytecheck::CheckBytes))
 )]
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct License {
-    pub lsa: StealthAddress,   // license stealth address
-    pub enc_1: PoseidonCipher, // encryption of the license signature and attribute data
-    pub nonce_1: BlsScalar,    // IV for the encryption
-    pub enc_2: PoseidonCipher, // encryption of the license signature and attribute data
-    pub nonce_2: BlsScalar,    // IV for the encryption
+    pub lsa: StealthAddress,            // license stealth address
+    pub enc: [u8; LIC_ENCRYPTION_SIZE], // encryption of the license signature and attribute data
 }
 
 impl License {
@@ -189,56 +170,33 @@ impl License {
         attr_data: &JubJubScalar,
         sk_lp: &SecretKey,
         req: &Request,
-        mut rng: &mut R,
-    ) -> Self {
+        rng: &mut R,
+    ) -> Result<Self, Error> {
         let k_dh = dhke(sk_lp.a(), req.rsa.R());
+        let dec: [u8; REQ_PLAINTEXT_SIZE] = decrypt(&k_dh, &req.enc)?;
 
-        let dec_1 = req
-            .enc_1
-            .decrypt(&k_dh, &req.nonce_1)
-            .expect("decryption should succeed");
+        let mut lsa_bytes = [0u8; StealthAddress::SIZE];
+        lsa_bytes.copy_from_slice(&dec[..StealthAddress::SIZE]);
+        let lsa = StealthAddress::from_bytes(&lsa_bytes).expect("Deserialization was correct.");
 
-        let dec_2 = req
-            .enc_2
-            .decrypt(&k_dh, &req.nonce_2)
-            .expect("decryption should succeed");
+        let mut k_lic_bytes = [0u8; JubJubAffine::SIZE];
+        k_lic_bytes.copy_from_slice(&dec[StealthAddress::SIZE..]);
+        let k_lic = JubJubAffine::from_bytes(k_lic_bytes).expect("Deserialization was correct.");
 
-        let dec_3 = req
-            .enc_3
-            .decrypt(&k_dh, &req.nonce_3)
-            .expect("decryption should succeed");
-
-        let lpk = JubJubAffine::from_raw_unchecked(dec_1[0], dec_1[1]);
-        let r = JubJubAffine::from_raw_unchecked(dec_2[0], dec_2[1]);
-        let k_lic = JubJubAffine::from_raw_unchecked(dec_3[0], dec_3[1]);
-
-        let message = sponge::hash(&[lpk.get_u(), lpk.get_v(), BlsScalar::from(*attr_data)]);
+        let message = sponge::hash(&[
+            lsa.note_pk().as_ref().get_u(),
+            lsa.note_pk().as_ref().get_v(),
+            BlsScalar::from(*attr_data),
+        ]);
 
         let sig_lic = NoteSecretKey::from(sk_lp.a()).sign(rng, message);
-        let sig_lic_r = JubJubAffine::from(sig_lic.R());
 
-        let nonce_1 = BlsScalar::random(&mut rng);
-        let nonce_2 = BlsScalar::random(&mut rng);
+        let mut plaintext = sig_lic.to_bytes().to_vec();
+        plaintext.append(&mut attr_data.to_bytes().to_vec());
 
-        let enc_1 = PoseidonCipher::encrypt(
-            &[BlsScalar::from(*sig_lic.u()), BlsScalar::from(*attr_data)],
-            &k_lic,
-            &nonce_1,
-        );
+        let enc = encrypt(&k_lic, &plaintext, rng)?;
 
-        let enc_2 =
-            PoseidonCipher::encrypt(&[sig_lic_r.get_u(), sig_lic_r.get_v()], &k_lic, &nonce_2);
-
-        Self {
-            lsa: StealthAddress::from_raw_unchecked(
-                JubJubExtended::from(r),
-                NotePublicKey::from_raw_unchecked(JubJubExtended::from(lpk)),
-            ),
-            enc_1,
-            nonce_1,
-            enc_2,
-            nonce_2,
-        }
+        Ok(Self { lsa, enc })
     }
 }
 
@@ -297,33 +255,22 @@ impl<const DEPTH: usize, const ARITY: usize> CitadelProverParameters<DEPTH, ARIT
         c: &JubJubScalar,
         mut rng: &mut R,
         merkle_proof: Opening<(), DEPTH, ARITY>,
-    ) -> (Self, SessionCookie) {
+    ) -> Result<(Self, SessionCookie), Error> {
         let lsk = sk.gen_note_sk(lic.lsa);
         let k_lic = JubJubAffine::from(
             GENERATOR_EXTENDED * sponge::truncated::hash(&[(*lsk.as_ref()).into()]),
         );
 
-        let dec_1 = lic
-            .enc_1
-            .decrypt(&k_lic, &lic.nonce_1)
-            .expect("decryption should succeed");
+        let dec: [u8; LIC_PLAINTEXT_SIZE] = decrypt(&k_lic, &lic.enc)?;
 
-        let dec_2 = lic
-            .enc_2
-            .decrypt(&k_lic, &lic.nonce_2)
-            .expect("decryption should succeed");
+        let mut sig_lic_bytes = [0u8; Signature::SIZE];
+        sig_lic_bytes.copy_from_slice(&dec[..Signature::SIZE]);
+        let sig_lic = Signature::from_bytes(&sig_lic_bytes).expect("Deserialization was correct.");
 
-        let attr_data = JubJubScalar::from_bytes(&dec_1[1].to_bytes()).unwrap();
-        let sig_lic = Signature::from_bytes(
-            &[
-                dec_1[0].to_bytes(),
-                JubJubAffine::from_raw_unchecked(dec_2[0], dec_2[1]).to_bytes(),
-            ]
-            .concat()
-            .try_into()
-            .expect("slice with incorrect length"),
-        )
-        .unwrap();
+        let mut attr_data_bytes = [0u8; JubJubScalar::SIZE];
+        attr_data_bytes.copy_from_slice(&dec[Signature::SIZE..]);
+        let attr_data =
+            JubJubScalar::from_bytes(&attr_data_bytes).expect("Deserialization was correct.");
 
         let lpk = JubJubAffine::from(*lic.lsa.note_pk().as_ref());
 
@@ -349,7 +296,7 @@ impl<const DEPTH: usize, const ARITY: usize> CitadelProverParameters<DEPTH, ARIT
         let com_1 = (GENERATOR_EXTENDED * attr_data) + (GENERATOR_NUMS_EXTENDED * s_1);
         let com_2 = (GENERATOR_EXTENDED * c) + (GENERATOR_NUMS_EXTENDED * s_2);
 
-        (
+        Ok((
             Self {
                 lpk,
                 lpk_p,
@@ -374,6 +321,6 @@ impl<const DEPTH: usize, const ARITY: usize> CitadelProverParameters<DEPTH, ARIT
                 s_1,
                 s_2,
             },
-        )
+        ))
     }
 }
