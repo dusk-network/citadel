@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Update `jubjub-schnorr` dependency to "0.2"
 - Update `phoenix-core` dependency to "0.26"
+- Use AES instead of PoseidonCipher [#109]
 
 ### Removed
 
@@ -151,6 +152,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add workflows for the Github Actions
 
 <!-- ISSUES -->
+[#109]: https://github.com/dusk-network/citadel/issues/109
 [#87]: https://github.com/dusk-network/citadel/issues/87
 [#86]: https://github.com/dusk-network/citadel/issues/86
 [#80]: https://github.com/dusk-network/citadel/issues/80
