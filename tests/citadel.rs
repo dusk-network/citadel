@@ -41,11 +41,11 @@ fn compute_random_license(
     let lsk = sk.gen_note_sk(&lsa);
     let k_lic =
         JubJubAffine::from(GENERATOR_EXTENDED * sponge::truncated::hash(&[(*lsk.as_ref()).into()]));
-    let req = Request::new(pk_lp, &lsa, &k_lic, rng);
+    let req = Request::new(pk_lp, &lsa, &k_lic, rng).expect("Request correctly computed.");
 
     // Second, the LP computes these values and grants the License
     let attr_data = JubJubScalar::from(ATTRIBUTE_DATA);
-    let lic = License::new(&attr_data, sk_lp, &req, rng);
+    let lic = License::new(&attr_data, sk_lp, &req, rng).expect("License correctly computed.");
 
     let mut tree = Tree::<(), DEPTH, ARITY>::new();
     let lpk = JubJubAffine::from(lic.lsa.note_pk().as_ref());
@@ -72,7 +72,8 @@ fn compute_citadel_parameters(
 ) -> (CitadelProverParameters<DEPTH, ARITY>, SessionCookie) {
     let c = JubJubScalar::from(CHALLENGE);
     let (cpp, sc) =
-        CitadelProverParameters::compute_parameters(sk, lic, pk_lp, pk_lp, &c, rng, merkle_proof);
+        CitadelProverParameters::compute_parameters(sk, lic, pk_lp, pk_lp, &c, rng, merkle_proof)
+            .expect("Parameters computed correctly.");
     (cpp, sc)
 }
 
