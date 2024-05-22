@@ -6,7 +6,7 @@
 
 use dusk_jubjub::{GENERATOR, GENERATOR_NUMS};
 use dusk_plonk::prelude::*;
-use dusk_poseidon::sponge;
+use dusk_poseidon::{Domain, HashGadget};
 use jubjub_schnorr::gadgets;
 
 use poseidon_merkle::zk::opening_gadget;
@@ -25,9 +25,9 @@ use crate::license::{CitadelProverParameters, SessionCookie};
 // public_inputs[6]: com_2.y
 // public_inputs[7]: root
 
-pub fn use_license_citadel<const DEPTH: usize, const ARITY: usize>(
+pub fn use_license_citadel<const DEPTH: usize>(
     composer: &mut Composer,
-    cpp: &CitadelProverParameters<DEPTH, ARITY>,
+    cpp: &CitadelProverParameters<DEPTH>,
     sc: &SessionCookie,
 ) -> Result<(), Error> {
     // APPEND THE LICENSE PUBLIC KEYS OF THE USER
@@ -37,21 +37,23 @@ pub fn use_license_citadel<const DEPTH: usize, const ARITY: usize>(
     // COMPUTE THE SESSION ID
     let c = composer.append_witness(sc.c);
     let session_id_pi = composer.append_public(sc.session_id);
-    let session_id = sponge::gadget(composer, &[*lpk_p.x(), *lpk_p.y(), c]);
+    let session_id = HashGadget::digest(composer, Domain::Other, &[*lpk_p.x(), *lpk_p.y(), c]);
 
-    composer.assert_equal(session_id, session_id_pi);
+    composer.assert_equal(session_id[0], session_id_pi);
 
     // VERIFY THE LICENSE SIGNATURE
-    let (sig_lic_u, sig_lic_r) = cpp.sig_lic.append(composer);
+    let sig_lic_u = composer.append_witness(*cpp.sig_lic.u());
+    let sig_lic_r = composer.append_point(cpp.sig_lic.R());
     let pk_lp = composer.append_point(sc.pk_lp);
     let attr_data = composer.append_witness(sc.attr_data);
 
-    let message = sponge::gadget(composer, &[*lpk.x(), *lpk.y(), attr_data]);
-    gadgets::verify_signature(composer, sig_lic_u, sig_lic_r, pk_lp, message)?;
+    let message = HashGadget::digest(composer, Domain::Other, &[*lpk.x(), *lpk.y(), attr_data]);
+    gadgets::verify_signature(composer, sig_lic_u, sig_lic_r, pk_lp, message[0])?;
 
     // VERIFY THE SESSION HASH SIGNATURE
-    let (sig_session_hash_u, sig_session_hash_r, sig_session_hash_r_p) =
-        cpp.sig_session_hash.append(composer);
+    let sig_session_hash_u = composer.append_witness(*cpp.sig_session_hash.u());
+    let sig_session_hash_r = composer.append_point(cpp.sig_session_hash.R());
+    let sig_session_hash_r_p  = composer.append_point(cpp.sig_session_hash.R_prime());
     let session_hash = composer.append_public(cpp.session_hash);
 
     gadgets::verify_signature_double(
@@ -67,9 +69,9 @@ pub fn use_license_citadel<const DEPTH: usize, const ARITY: usize>(
     // COMMIT TO THE PK_LP USING A HASH FUNCTION
     let s_0 = composer.append_witness(sc.s_0);
     let com_0_pi = composer.append_public(cpp.com_0);
-    let com_0 = sponge::gadget(composer, &[*pk_lp.x(), *pk_lp.y(), s_0]);
+    let com_0 = HashGadget::digest(composer, Domain::Other, &[*pk_lp.x(), *pk_lp.y(), s_0]);
 
-    composer.assert_equal(com_0, com_0_pi);
+    composer.assert_equal(com_0[0], com_0_pi);
 
     // COMMIT TO THE ATTRIBUTE DATA
     let s_1 = composer.append_witness(sc.s_1);
@@ -88,11 +90,11 @@ pub fn use_license_citadel<const DEPTH: usize, const ARITY: usize>(
     composer.assert_equal_public_point(com_2, cpp.com_2);
 
     // COMPUTE THE HASH OF THE LICENSE
-    let license_hash = sponge::gadget(composer, &[*lpk.x(), *lpk.y()]);
+    let license_hash = HashGadget::digest(composer, Domain::Other, &[*lpk.x(), *lpk.y()]);
 
     // VERIFY THE MERKLE PROOF
     let root_pi = composer.append_public(cpp.merkle_proof.root().hash);
-    let root = opening_gadget(composer, &cpp.merkle_proof, license_hash);
+    let root = opening_gadget(composer, &cpp.merkle_proof, license_hash[0]);
     composer.assert_equal(root, root_pi);
 
     Ok(())

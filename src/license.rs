@@ -6,11 +6,11 @@
 
 use dusk_bytes::Serializable;
 use dusk_jubjub::{dhke, GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED};
-use dusk_poseidon::sponge;
+use dusk_poseidon::{Domain, Hash};
 use ff::Field;
 use jubjub_schnorr::{SecretKey as NoteSecretKey, Signature, SignatureDouble};
-use phoenix_core::{
-    decrypt, encrypt, Error, PublicKey, SecretKey, StealthAddress, ENCRYPTION_EXTRA_SIZE,
+use phoenix_core::{aes::{
+    decrypt, encrypt, ENCRYPTION_EXTRA_SIZE}, Error, PublicKey, SecretKey, StealthAddress
 };
 use poseidon_merkle::{Item, Opening, Tree};
 use rand_core::{CryptoRng, RngCore};
@@ -111,12 +111,13 @@ impl Session {
             return false;
         }
 
-        let session_hash = sponge::hash(&[sc.pk_sp.get_u(), sc.pk_sp.get_v(), sc.r]);
+        let session_hash =
+            Hash::digest(Domain::Other, &[sc.pk_sp.get_u(), sc.pk_sp.get_v(), sc.r])[0];
         if session_hash != self.session_hash {
             return false;
         }
 
-        let com_0 = sponge::hash(&[pk_lp.get_u(), pk_lp.get_v(), sc.s_0]);
+        let com_0 = Hash::digest(Domain::Other, &[pk_lp.get_u(), pk_lp.get_v(), sc.s_0])[0];
         if com_0 != self.com_0 {
             return false;
         }
@@ -183,12 +184,14 @@ impl License {
         k_lic_bytes.copy_from_slice(&dec[StealthAddress::SIZE..]);
         let k_lic = JubJubAffine::from_bytes(k_lic_bytes).expect("Deserialization was correct.");
 
-        let message = sponge::hash(&[
-            lsa.note_pk().as_ref().get_u(),
-            lsa.note_pk().as_ref().get_v(),
-            BlsScalar::from(*attr_data),
-        ]);
-
+        let message = Hash::digest(
+            Domain::Other,
+            &[
+                lsa.note_pk().as_ref().get_u(),
+                lsa.note_pk().as_ref().get_v(),
+                BlsScalar::from(*attr_data),
+            ],
+        )[0];
         let sig_lic = NoteSecretKey::from(sk_lp.a()).sign(rng, message);
 
         let mut plaintext = sig_lic.to_bytes().to_vec();
@@ -206,7 +209,7 @@ impl License {
     archive_attr(derive(bytecheck::CheckBytes))
 )]
 #[derive(Debug, Clone, Copy)]
-pub struct CitadelProverParameters<const DEPTH: usize, const ARITY: usize> {
+pub struct CitadelProverParameters<const DEPTH: usize> {
     pub lpk: JubJubAffine,   // license public key
     pub lpk_p: JubJubAffine, // license public key prime
     pub sig_lic: Signature,  // signature of the license
@@ -217,10 +220,10 @@ pub struct CitadelProverParameters<const DEPTH: usize, const ARITY: usize> {
 
     pub session_hash: BlsScalar,                 // hash of the session
     pub sig_session_hash: SignatureDouble,       // signature of the session_hash
-    pub merkle_proof: Opening<(), DEPTH, ARITY>, // Merkle proof for the Proof of Validity
+    pub merkle_proof: Opening<(), DEPTH>, // Merkle proof for the Proof of Validity
 }
 
-impl<const DEPTH: usize, const ARITY: usize> Default for CitadelProverParameters<DEPTH, ARITY> {
+impl<const DEPTH: usize> Default for CitadelProverParameters<DEPTH> {
     fn default() -> Self {
         let mut tree = Tree::new();
         let item = Item {
@@ -245,7 +248,7 @@ impl<const DEPTH: usize, const ARITY: usize> Default for CitadelProverParameters
     }
 }
 
-impl<const DEPTH: usize, const ARITY: usize> CitadelProverParameters<DEPTH, ARITY> {
+impl<const DEPTH: usize> CitadelProverParameters<DEPTH> {
     #[allow(clippy::too_many_arguments)]
     pub fn compute_parameters<R: RngCore + CryptoRng>(
         sk: &SecretKey,
@@ -254,11 +257,12 @@ impl<const DEPTH: usize, const ARITY: usize> CitadelProverParameters<DEPTH, ARIT
         pk_sp: &PublicKey,
         c: &JubJubScalar,
         mut rng: &mut R,
-        merkle_proof: Opening<(), DEPTH, ARITY>,
+        merkle_proof: Opening<(), DEPTH>,
     ) -> Result<(Self, SessionCookie), Error> {
         let lsk = sk.gen_note_sk(lic.lsa);
         let k_lic = JubJubAffine::from(
-            GENERATOR_EXTENDED * sponge::truncated::hash(&[(*lsk.as_ref()).into()]),
+            GENERATOR_EXTENDED
+                * Hash::digest_truncated(Domain::Other, &[(*lsk.as_ref()).into()])[0],
         );
 
         let dec: [u8; LIC_PLAINTEXT_SIZE] = decrypt(&k_lic, &lic.enc)?;
@@ -284,15 +288,17 @@ impl<const DEPTH: usize, const ARITY: usize> CitadelProverParameters<DEPTH, ARIT
         let pk_sp = JubJubAffine::from(*pk_sp.A());
         let r = BlsScalar::random(&mut rng);
 
-        let session_hash = sponge::hash(&[pk_sp.get_u(), pk_sp.get_v(), r]);
-
+        let session_hash = Hash::digest(Domain::Other, &[pk_sp.get_u(), pk_sp.get_v(), r])[0];
         let sig_session_hash = lsk.sign_double(rng, session_hash);
 
-        let session_id = sponge::hash(&[lpk_p.get_u(), lpk_p.get_v(), BlsScalar::from(*c)]);
+        let mut session_id = Hash::new(Domain::Other);
+        let binding = &[lpk_p.get_u(), lpk_p.get_v(), BlsScalar::from(*c)];
+        session_id.update(binding);
+        let session_id = session_id.finalize()[0];
 
         let pk_lp = JubJubAffine::from(*pk_lp.A());
 
-        let com_0 = sponge::hash(&[pk_lp.get_u(), pk_lp.get_v(), s_0]);
+        let com_0 = Hash::digest(Domain::Other, &[pk_lp.get_u(), pk_lp.get_v(), s_0])[0];
         let com_1 = (GENERATOR_EXTENDED * attr_data) + (GENERATOR_NUMS_EXTENDED * s_1);
         let com_2 = (GENERATOR_EXTENDED * c) + (GENERATOR_NUMS_EXTENDED * s_2);
 

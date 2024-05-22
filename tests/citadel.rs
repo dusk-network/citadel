@@ -6,7 +6,7 @@
 
 use dusk_jubjub::{JubJubAffine, JubJubScalar, GENERATOR_EXTENDED};
 use dusk_plonk::prelude::*;
-use dusk_poseidon::sponge;
+use dusk_poseidon::{Domain, Hash};
 use ff::Field;
 use phoenix_core::{PublicKey, SecretKey};
 use poseidon_merkle::{Item, Opening, Tree};
@@ -19,7 +19,6 @@ static LABEL: &[u8; 12] = b"dusk-network";
 
 const CAPACITY: usize = 15; // capacity required for the setup
 const DEPTH: usize = 9; // depth of the n-ary Merkle tree
-const ARITY: usize = 4; // arity of the Merkle tree
 
 // Example values
 const ATTRIBUTE_DATA: u64 = 112233445566778899u64;
@@ -33,25 +32,26 @@ fn compute_random_license(
     sk: &SecretKey,
     sk_lp: &SecretKey,
     pk_lp: &PublicKey,
-) -> (License, Opening<(), DEPTH, ARITY>) {
+) -> (License, Opening<(), DEPTH>) {
     let pk = PublicKey::from(sk);
 
     // First, the user computes these values and requests a License
     let lsa = pk.gen_stealth_address(&JubJubScalar::random(&mut *rng));
     let lsk = sk.gen_note_sk(&lsa);
-    let k_lic =
-        JubJubAffine::from(GENERATOR_EXTENDED * sponge::truncated::hash(&[(*lsk.as_ref()).into()]));
+    let k_lic = JubJubAffine::from(
+        GENERATOR_EXTENDED * Hash::digest_truncated(Domain::Other, &[(*lsk.as_ref()).into()])[0],
+    );
     let req = Request::new(pk_lp, &lsa, &k_lic, rng).expect("Request correctly computed.");
 
     // Second, the LP computes these values and grants the License
     let attr_data = JubJubScalar::from(ATTRIBUTE_DATA);
     let lic = License::new(&attr_data, sk_lp, &req, rng).expect("License correctly computed.");
 
-    let mut tree = Tree::<(), DEPTH, ARITY>::new();
+    let mut tree = Tree::<(), DEPTH>::new();
     let lpk = JubJubAffine::from(lic.lsa.note_pk().as_ref());
 
     let item = Item {
-        hash: sponge::hash(&[lpk.get_u(), lpk.get_v()]),
+        hash: Hash::digest(Domain::Other, &[lpk.get_u(), lpk.get_v()])[0],
         data: (),
     };
 
@@ -68,8 +68,8 @@ fn compute_citadel_parameters(
     sk: &SecretKey,
     pk_lp: &PublicKey,
     lic: &License,
-    merkle_proof: Opening<(), DEPTH, ARITY>,
-) -> (CitadelProverParameters<DEPTH, ARITY>, SessionCookie) {
+    merkle_proof: Opening<(), DEPTH>,
+) -> (CitadelProverParameters<DEPTH>, SessionCookie) {
     let c = JubJubScalar::from(CHALLENGE);
     let (cpp, sc) =
         CitadelProverParameters::compute_parameters(sk, lic, pk_lp, pk_lp, &c, rng, merkle_proof)
@@ -108,12 +108,12 @@ lazy_static! {
 
 #[derive(Default, Debug)]
 pub struct Citadel {
-    cpp: CitadelProverParameters<DEPTH, ARITY>,
+    cpp: CitadelProverParameters<DEPTH>,
     sc: SessionCookie,
 }
 
 impl Citadel {
-    pub fn new(cpp: &CitadelProverParameters<DEPTH, ARITY>, sc: &SessionCookie) -> Self {
+    pub fn new(cpp: &CitadelProverParameters<DEPTH>, sc: &SessionCookie) -> Self {
         Self { cpp: *cpp, sc: *sc }
     }
 }
