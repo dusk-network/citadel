@@ -9,10 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Update `jubjub-schnorr` dependency to "0.2"
-- Update `phoenix-core` dependency to "0.26"
+- Update `jubjub-schnorr` dependency to "0.4"
+- Update `phoenix-core` dependency to "0.28"
 - Use AES instead of PoseidonCipher [#109]
 - Update `dusk-poseidon` dependency to "0.39" [#111]
+- Update `poseidon-merkle` dependency to "0.6"
 
 ### Removed
 
