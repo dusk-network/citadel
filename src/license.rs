@@ -9,8 +9,9 @@ use dusk_jubjub::{dhke, GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED};
 use dusk_poseidon::{Domain, Hash};
 use ff::Field;
 use jubjub_schnorr::{SecretKey as NoteSecretKey, Signature, SignatureDouble};
-use phoenix_core::{aes::{
-    decrypt, encrypt, ENCRYPTION_EXTRA_SIZE}, Error, PublicKey, SecretKey, StealthAddress
+use phoenix_core::{
+    aes::{decrypt, encrypt, ENCRYPTION_EXTRA_SIZE},
+    Error, PublicKey, SecretKey, StealthAddress,
 };
 use poseidon_merkle::{Item, Opening, Tree};
 use rand_core::{CryptoRng, RngCore};
@@ -218,9 +219,9 @@ pub struct CitadelProverParameters<const DEPTH: usize> {
     pub com_1: JubJubExtended, // Pedersen Commitment 1
     pub com_2: JubJubExtended, // Pedersen Commitment 2
 
-    pub session_hash: BlsScalar,                 // hash of the session
-    pub sig_session_hash: SignatureDouble,       // signature of the session_hash
-    pub merkle_proof: Opening<(), DEPTH>, // Merkle proof for the Proof of Validity
+    pub session_hash: BlsScalar,           // hash of the session
+    pub sig_session_hash: SignatureDouble, // signature of the session_hash
+    pub merkle_proof: Opening<(), DEPTH>,  // Merkle proof for the Proof of Validity
 }
 
 impl<const DEPTH: usize> Default for CitadelProverParameters<DEPTH> {

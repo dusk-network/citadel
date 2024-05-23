@@ -53,7 +53,7 @@ pub fn use_license_citadel<const DEPTH: usize>(
     // VERIFY THE SESSION HASH SIGNATURE
     let sig_session_hash_u = composer.append_witness(*cpp.sig_session_hash.u());
     let sig_session_hash_r = composer.append_point(cpp.sig_session_hash.R());
-    let sig_session_hash_r_p  = composer.append_point(cpp.sig_session_hash.R_prime());
+    let sig_session_hash_r_p = composer.append_point(cpp.sig_session_hash.R_prime());
     let session_hash = composer.append_public(cpp.session_hash);
 
     gadgets::verify_signature_double(
