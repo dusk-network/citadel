@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - Remove `utils` module as it was only used for testing
+- Remove `nstack` dependency [#113]
 
 ## [0.11.0] - 2024-04-10
 
@@ -154,6 +155,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add workflows for the Github Actions
 
 <!-- ISSUES -->
+[#113]: https://github.com/dusk-network/citadel/issues/113
 [#111]: https://github.com/dusk-network/citadel/issues/111
 [#109]: https://github.com/dusk-network/citadel/issues/109
 [#87]: https://github.com/dusk-network/citadel/issues/87
