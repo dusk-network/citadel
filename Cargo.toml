@@ -19,7 +19,6 @@ ff = { version = "0.13", default-features = false }
 jubjub-schnorr = { version = "0.4", features = ["zk", "rkyv-impl", "alloc"] }
 phoenix-core = { version = "0.28", features = ["rkyv-impl", "alloc"] }
 rand_core = { version = "0.6", default-features=false, features = ["getrandom"] }
-nstack = { version = "0.16" }
 rkyv = { version = "0.7", default-features = false }
 bytecheck = { version = "0.6", default-features = false }
 
