@@ -260,7 +260,7 @@ impl<const DEPTH: usize> CitadelProverParameters<DEPTH> {
         mut rng: &mut R,
         merkle_proof: Opening<(), DEPTH>,
     ) -> Result<(Self, SessionCookie), Error> {
-        let lsk = sk.gen_note_sk(lic.lsa);
+        let lsk = sk.gen_note_sk(&lic.lsa);
         let k_lic = JubJubAffine::from(
             GENERATOR_EXTENDED
                 * Hash::digest_truncated(Domain::Other, &[(*lsk.as_ref()).into()])[0],
@@ -279,7 +279,7 @@ impl<const DEPTH: usize> CitadelProverParameters<DEPTH> {
 
         let lpk = JubJubAffine::from(*lic.lsa.note_pk().as_ref());
 
-        let lsk = sk.gen_note_sk(lic.lsa);
+        let lsk = sk.gen_note_sk(&lic.lsa);
         let lpk_p = JubJubAffine::from(GENERATOR_NUMS_EXTENDED * lsk.as_ref());
 
         let s_0 = BlsScalar::random(&mut rng);

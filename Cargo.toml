@@ -17,7 +17,7 @@ dusk-bls12_381 = { version = "0.13", default-features = false, features = ["rkyv
 dusk-jubjub = { version = "0.14", default-features = false, features = ["rkyv-impl", "alloc"] }
 ff = { version = "0.13", default-features = false }
 jubjub-schnorr = { version = "0.4", features = ["zk", "rkyv-impl", "alloc"] }
-phoenix-core = { version = "0.28", features = ["rkyv-impl", "alloc"] }
+phoenix-core = { version = "0.30.0-rc", features = ["rkyv-impl", "alloc"] }
 rand_core = { version = "0.6", default-features=false, features = ["getrandom"] }
 rkyv = { version = "0.7", default-features = false }
 bytecheck = { version = "0.6", default-features = false }
