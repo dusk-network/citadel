@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Update `phoenix-core` dependency to "0.31.0-rc"
+
 ## [0.12.0] - 2024-07-03
 
 ### Changed
