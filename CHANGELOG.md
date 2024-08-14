@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2024-08-14
+
 ### Changed
 
-- Update `phoenix-core` dependency to "0.31.0-rc"
+- Update `phoenix-core` dependency to "0.32"
+- Update dusk-plonk to v0.20
+- Update dusk-poseidon to v0.40
+- Update jubjub-schnorr to v0.5
+- Update poseidon-merkle to v0.7
 
 ## [0.12.0] - 2024-07-03
 
@@ -176,7 +182,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#21]: https://github.com/dusk-network/citadel/issues/21
 
 <!-- VERSIONS -->
-[Unreleased]: https://github.com/dusk-network/citadel/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/dusk-network/citadel/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/dusk-network/citadel/compare/v0.12.0...v0.14.0
 [0.12.0]: https://github.com/dusk-network/citadel/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/dusk-network/citadel/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/dusk-network/citadel/compare/v0.9.0...v0.10.0
