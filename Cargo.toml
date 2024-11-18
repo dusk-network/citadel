@@ -24,10 +24,9 @@ bytecheck = { version = "0.6", default-features = false }
 
 [dev-dependencies]
 criterion = "0.5"
-lazy_static = "1.4"
 
 [[bench]]
-name = "citadel"
+name = "license_circuit"
 harness = false
 
 [features]
