@@ -1,5 +1,4 @@
-/target/
-/setup/
+**/target/
 Cargo.lock
 **/*.rs.bk
 .DS_Store
