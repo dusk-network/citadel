@@ -11,17 +11,13 @@ use ff::Field;
 use phoenix_core::{PublicKey, SecretKey};
 use poseidon_merkle::{Item, Tree};
 
-use zk_citadel::{gadgets, License, Request, SessionCookie};
+use zk_citadel::{circuit, gadgets, License, Request, SessionCookie};
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand_core::OsRng;
 
 static mut CONSTRAINTS: usize = 0;
-
 static LABEL: &[u8; 12] = b"dusk-network";
-
-const CAPACITY: usize = 15; // capacity required for the setup
-const DEPTH: usize = 16; // depth of the n-ary Merkle tree
 
 // Example values
 const ATTRIBUTE_DATA: u64 = 112233445566778899u64;
@@ -29,12 +25,12 @@ const CHALLENGE: u64 = 20221126u64;
 
 #[derive(Default, Debug)]
 pub struct LicenseCircuit {
-    gp: gadgets::GadgetParameters<DEPTH>,
+    gp: gadgets::GadgetParameters<{ circuit::DEPTH }>,
     sc: SessionCookie,
 }
 
 impl LicenseCircuit {
-    pub fn new(gp: &gadgets::GadgetParameters<DEPTH>, sc: &SessionCookie) -> Self {
+    pub fn new(gp: &gadgets::GadgetParameters<{ circuit::DEPTH }>, sc: &SessionCookie) -> Self {
         Self { gp: *gp, sc: *sc }
     }
 }
@@ -55,7 +51,7 @@ fn license_circuit_benchmark(crit: &mut Criterion) {
     let pk = PublicKey::from(&sk);
     let sk_lp = SecretKey::random(&mut OsRng);
     let pk_lp = PublicKey::from(&sk_lp);
-    let pp = PublicParameters::setup(1 << CAPACITY, &mut OsRng).unwrap();
+    let pp = PublicParameters::setup(1 << circuit::CAPACITY, &mut OsRng).unwrap();
     let (prover, verifier) =
         Compiler::compile::<LicenseCircuit>(&pp, LABEL).expect("failed to compile circuit");
 
@@ -70,7 +66,7 @@ fn license_circuit_benchmark(crit: &mut Criterion) {
     let lic =
         License::new(&attr_data, &sk_lp, &req, &mut OsRng).expect("License correctly computed.");
 
-    let mut tree = Tree::<(), DEPTH>::new();
+    let mut tree = Tree::<(), { circuit::DEPTH }>::new();
     let lpk = JubJubAffine::from(lic.lsa.note_pk().as_ref());
 
     let item = Item {

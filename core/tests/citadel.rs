@@ -12,35 +12,13 @@ use phoenix_core::{PublicKey, SecretKey};
 use poseidon_merkle::{Item, Tree};
 use rand_core::OsRng;
 
-use zk_citadel::{gadgets, License, Request, Session, SessionCookie};
+use zk_citadel::{circuit, gadgets, License, Request, Session, SessionCookie};
 
 static LABEL: &[u8; 12] = b"dusk-network";
-
-const CAPACITY: usize = 15; // capacity required for the setup
-const DEPTH: usize = 16; // depth of the n-ary Merkle tree
 
 // Example values
 const ATTRIBUTE_DATA: u64 = 112233445566778899u64;
 const CHALLENGE: u64 = 20221126u64;
-
-#[derive(Default, Debug)]
-pub struct LicenseCircuit {
-    gp: gadgets::GadgetParameters<DEPTH>,
-    sc: SessionCookie,
-}
-
-impl LicenseCircuit {
-    pub fn new(gp: &gadgets::GadgetParameters<DEPTH>, sc: &SessionCookie) -> Self {
-        Self { gp: *gp, sc: *sc }
-    }
-}
-
-impl Circuit for LicenseCircuit {
-    fn circuit(&self, composer: &mut Composer) -> Result<(), Error> {
-        gadgets::use_license(composer, &self.gp, &self.sc)?;
-        Ok(())
-    }
-}
 
 #[test]
 fn test_full_citadel() {
@@ -53,9 +31,9 @@ fn test_full_citadel() {
     let pk_lp = PublicKey::from(&sk_lp);
 
     // Now we generate the ProverKey and VerifierKey for the license circuit
-    let pp = PublicParameters::setup(1 << CAPACITY, &mut OsRng).unwrap();
-    let (prover, verifier) =
-        Compiler::compile::<LicenseCircuit>(&pp, LABEL).expect("failed to compile circuit");
+    let pp = PublicParameters::setup(1 << circuit::CAPACITY, &mut OsRng).unwrap();
+    let (prover, verifier) = Compiler::compile::<circuit::LicenseCircuit>(&pp, LABEL)
+        .expect("failed to compile circuit");
 
     // To use Citadel, the user first computes these values and requests a License
     let lsa = pk.gen_stealth_address(&JubJubScalar::random(&mut OsRng));
@@ -70,7 +48,7 @@ fn test_full_citadel() {
     let lic =
         License::new(&attr_data, &sk_lp, &req, &mut OsRng).expect("License correctly computed.");
 
-    let mut tree = Tree::<(), DEPTH>::new();
+    let mut tree = Tree::<(), { circuit::DEPTH }>::new();
     let lpk = JubJubAffine::from(lic.lsa.note_pk().as_ref());
 
     let item = Item {
@@ -98,7 +76,7 @@ fn test_full_citadel() {
     .expect("Parameters computed correctly.");
 
     let (proof, public_inputs) = prover
-        .prove(&mut OsRng, &LicenseCircuit::new(&gp, &sc))
+        .prove(&mut OsRng, &circuit::LicenseCircuit::new(&gp, &sc))
         .expect("failed to prove");
 
     // The network verifies the proof received from the user

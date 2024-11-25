@@ -9,6 +9,7 @@ mod license;
 mod request;
 mod session;
 
+pub mod circuit;
 pub mod gadgets;
 
 pub use license::License;
