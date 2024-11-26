@@ -18,8 +18,12 @@ use rand::{CryptoRng, RngCore, SeedableRng};
 use rkyv::{check_archived_root, Deserialize, Infallible};
 use zk_citadel::{circuit, gadgets, License, Request, SessionCookie};
 
-const PROVER_PATH: &str = "../target/prover";
-const VERIFIER_PATH: &str = "../target/verifier";
+const PROVER_BYTES: &[u8] = include_bytes!("../../target/prover");
+
+const VERIFIER_BYTES: &[u8] = include_bytes!("../../target/verifier");
+
+const LICENSE_CONTRACT_BYTECODE: &[u8] =
+    include_bytes!("../../target/wasm32-unknown-unknown/release/license_contract.wasm");
 
 pub type LicenseOpening = poseidon_merkle::Opening<(), { circuit::DEPTH }>;
 
@@ -28,9 +32,6 @@ use execution_core::{
     BlsScalar, ContractId, JubJubAffine, JubJubScalar, GENERATOR_EXTENDED,
 };
 use rusk_abi::{ContractData, Session};
-
-use std::fs::File;
-use std::io::Read;
 
 #[path = "../src/license_types.rs"]
 mod license_types;
@@ -61,15 +62,11 @@ fn create_test_license<R: RngCore + CryptoRng>(
 
 fn initialize() -> Session {
     let vm = rusk_abi::new_ephemeral_vm().expect("Creating a VM should succeed");
-
-    let bytecode =
-        include_bytes!("../../target/wasm32-unknown-unknown/release/license_contract.wasm");
-
     let mut session = rusk_abi::new_genesis_session(&vm, CHAIN_ID);
 
     session
         .deploy(
-            bytecode,
+            LICENSE_CONTRACT_BYTECODE,
             ContractData::builder()
                 .owner(TEST_OWNER)
                 .contract_id(LICENSE_CONTRACT_ID),
@@ -307,18 +304,10 @@ fn use_license_get_session() {
     // PUB_PARAMS initialization code
     let rng = &mut StdRng::seed_from_u64(0xbeef);
 
-    let mut f = File::open(PROVER_PATH).expect("Failed to open file.");
-    let mut buffer = Vec::new();
-    f.read_to_end(&mut buffer).expect("Failed to read file.");
-
     let prover =
-        Prover::try_from_bytes(buffer.as_slice()).expect("Prover failed to be created from slice.");
+        Prover::try_from_bytes(PROVER_BYTES).expect("Prover failed to be created from slice.");
 
-    let mut f = File::open(VERIFIER_PATH).expect("Failed to open file.");
-    let mut buffer = Vec::new();
-    f.read_to_end(&mut buffer).expect("Failed to read file.");
-
-    let verifier = Verifier::try_from_bytes(buffer.as_slice())
+    let verifier = Verifier::try_from_bytes(VERIFIER_BYTES)
         .expect("Verifier failed to be created from slice.");
 
     // user
