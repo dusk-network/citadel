@@ -17,17 +17,19 @@ static LABEL: &[u8; 12] = b"dusk-network";
 
 const CRS_URL: &str = "https://nodes.dusk.network/trusted-setup";
 const CRS_17_HASH: &str = "6161605616b62356cf09fa28252c672ef53b2c8489ad5f81d87af26e105f6059";
+
+const PROVER_PATH: &str = "../target/prover";
 const VERIFIER_PATH: &str = "../target/verifier";
 
 #[tokio::main]
 async fn main() {
-    // If verifier key already exists, no need to download again
-    if !(Path::new(VERIFIER_PATH).exists()) {
+    // If keys already exist locally, no need to download again
+    if !(Path::new(PROVER_PATH).exists()) || !(Path::new(VERIFIER_PATH).exists()) {
         let response = reqwest::get(CRS_URL).await;
 
         match response {
             Ok(pp_bytes) => {
-                // If verifier key didn't exist, we download again from server
+                // If setup didn't exist locally, we download the setup again from server
                 let pp_bytes = pp_bytes.bytes().await.unwrap();
                 let mut hasher = Sha256::new();
                 hasher.update(pp_bytes.clone());
@@ -40,8 +42,12 @@ async fn main() {
                     .expect("Creating PublicParameters from slice failed.");
 
                 // Compile the license circuit
-                let (_prover, verifier) = Compiler::compile::<circuit::LicenseCircuit>(&pp, LABEL)
+                let (prover, verifier) = Compiler::compile::<circuit::LicenseCircuit>(&pp, LABEL)
                     .expect("failed to compile circuit");
+
+                // Write prover key to disk
+                let mut file = File::create(PROVER_PATH).unwrap();
+                file.write_all(&prover.to_bytes()).unwrap();
 
                 // Write verifier key to disk
                 let mut file = File::create(VERIFIER_PATH).unwrap();
@@ -54,8 +60,12 @@ async fn main() {
                 let pp = PublicParameters::setup(1 << circuit::CAPACITY, &mut OsRng).unwrap();
 
                 // Compile the license circuit
-                let (_prover, verifier) = Compiler::compile::<circuit::LicenseCircuit>(&pp, LABEL)
+                let (prover, verifier) = Compiler::compile::<circuit::LicenseCircuit>(&pp, LABEL)
                     .expect("failed to compile circuit");
+
+                // Write prover key to disk
+                let mut file = File::create(PROVER_PATH).unwrap();
+                file.write_all(&prover.to_bytes()).unwrap();
 
                 // Write verifier key to disk
                 let mut file = File::create(VERIFIER_PATH).unwrap();

@@ -4,6 +4,16 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-fn main() {
-    println!("Hello, world!");
+use core::fmt;
+
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub enum Error {
+    ProofVerification,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", &self)
+    }
 }
