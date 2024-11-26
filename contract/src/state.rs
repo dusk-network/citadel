@@ -8,8 +8,7 @@ use core::ops::Range;
 
 use alloc::vec::Vec;
 
-use dusk_bytes::Serializable;
-use execution_core::BlsScalar;
+use dusk_bls12_381::BlsScalar;
 
 use crate::collection::Map;
 use crate::error::Error;
@@ -102,7 +101,7 @@ impl LicenseContractState {
     pub fn use_license(&mut self, use_license_arg: UseLicenseArg) {
         Self::assert_proof(
             verifier_data_license_circuit(),
-            use_license_arg.proof.to_bytes().to_vec(),
+            use_license_arg.proof,
             use_license_arg.public_inputs.clone(),
         )
         .expect("Provided proof verification should succeed!");

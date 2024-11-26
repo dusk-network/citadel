@@ -9,13 +9,13 @@ use alloc::vec::Vec;
 use bytecheck::CheckBytes;
 use rkyv::{Archive, Deserialize, Serialize};
 
-use execution_core::{plonk::Proof, BlsScalar};
+use dusk_bls12_381::BlsScalar;
 
 /// Use License Argument.
 #[derive(Debug, Clone, PartialEq, Archive, Serialize, Deserialize)]
 #[archive_attr(derive(CheckBytes))]
 pub struct UseLicenseArg {
-    pub proof: Proof,
+    pub proof: Vec<u8>,
     pub public_inputs: Vec<BlsScalar>,
 }
 

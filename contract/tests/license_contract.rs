@@ -9,6 +9,7 @@ extern crate alloc;
 use std::ops::Range;
 use std::sync::mpsc;
 
+use dusk_bytes::Serializable;
 use dusk_poseidon::{Domain, Hash};
 use execution_core::plonk::{Prover, Verifier};
 use ff::Field;
@@ -397,7 +398,7 @@ fn use_license_get_session() {
         .expect("Verifying the circuit should succeed");
 
     let use_license_arg = UseLicenseArg {
-        proof,
+        proof: proof.to_bytes().to_vec(),
         public_inputs,
     };
 
