@@ -4,5 +4,14 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+mod error;
+mod license;
+mod request;
+mod session;
+
+pub mod circuit;
 pub mod gadgets;
-pub mod license;
+
+pub use license::License;
+pub use request::Request;
+pub use session::{Session, SessionCookie};

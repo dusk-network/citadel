@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add `circuit` module
+
+### Changed
+
+- Refactor the crate [#98]
+
 ## [0.14.0] - 2024-08-14
 
 ### Changed
@@ -167,6 +175,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add workflows for the Github Actions
 
 <!-- ISSUES -->
+[#98]: https://github.com/dusk-network/citadel/issues/98
 [#113]: https://github.com/dusk-network/citadel/issues/113
 [#111]: https://github.com/dusk-network/citadel/issues/111
 [#109]: https://github.com/dusk-network/citadel/issues/109

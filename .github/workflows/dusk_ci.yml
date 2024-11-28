@@ -25,11 +25,22 @@ jobs:
 
   test_std:
     name: Stable toolchain tests
-    uses: dusk-network/.github/.github/workflows/run-tests.yml@main
+    runs-on: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dsherret/rust-toolchain-file@v1
+      - run: cargo b --release
+      - run: rustup target add wasm32-unknown-unknown
+      - run: cd contract && cargo b --target wasm32-unknown-unknown --release
+      - run: cargo t --release
 
   test_no_std:
     name: Stable toolchain no_std tests
-    uses: dusk-network/.github/.github/workflows/run-tests.yml@main
-    with:
-      test_flags: --no-default-features
-      
+    runs-on: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dsherret/rust-toolchain-file@v1
+      - run: cargo b --release
+      - run: rustup target add wasm32-unknown-unknown
+      - run: cd contract && cargo b --target wasm32-unknown-unknown --release
+      - run: cargo t --release --no-default-features
