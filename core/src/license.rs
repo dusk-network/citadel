@@ -54,13 +54,11 @@ impl License {
         k_lic_bytes.copy_from_slice(&dec[StealthAddress::SIZE..]);
         let k_lic = JubJubAffine::from_bytes(k_lic_bytes).expect("Deserialization was correct.");
 
+        let lpk = JubJubAffine::from(lsa.note_pk().as_ref());
+
         let message = Hash::digest(
             Domain::Other,
-            &[
-                lsa.note_pk().as_ref().get_u(),
-                lsa.note_pk().as_ref().get_v(),
-                BlsScalar::from(*attr_data),
-            ],
+            &[lpk.get_u(), lpk.get_v(), BlsScalar::from(*attr_data)],
         )[0];
         let sig_lic = NoteSecretKey::from(sk_lp.a()).sign(rng, message);
 
