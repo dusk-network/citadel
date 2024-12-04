@@ -5,11 +5,12 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use dusk_bytes::Serializable;
-use dusk_jubjub::dhke;
+use dusk_jubjub::{dhke, GENERATOR_EXTENDED};
+use dusk_poseidon::{Domain, Hash};
 use ff::Field;
 use phoenix_core::{
     aes::{encrypt, ENCRYPTION_EXTRA_SIZE},
-    Error, PublicKey, StealthAddress,
+    Error, PublicKey, SecretKey, StealthAddress,
 };
 
 use rand_core::{CryptoRng, RngCore};
@@ -35,11 +36,18 @@ pub struct Request {
 
 impl Request {
     pub fn new<R: RngCore + CryptoRng>(
+        sk_user: &SecretKey,
+        pk_user: &PublicKey,
         pk_lp: &PublicKey,
-        lsa: &StealthAddress,
-        k_lic: &JubJubAffine,
         rng: &mut R,
     ) -> Result<Self, Error> {
+        let lsa = pk_user.gen_stealth_address(&JubJubScalar::random(&mut *rng));
+        let lsk = sk_user.gen_note_sk(&lsa);
+        let k_lic = JubJubAffine::from(
+            GENERATOR_EXTENDED
+                * Hash::digest_truncated(Domain::Other, &[(*lsk.as_ref()).into()])[0],
+        );
+
         let r_dh = JubJubScalar::random(&mut *rng);
         let rsa = pk_lp.gen_stealth_address(&r_dh);
         let k_dh = dhke(&r_dh, pk_lp.A());

@@ -4,7 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use dusk_jubjub::{JubJubAffine, JubJubScalar, GENERATOR_EXTENDED};
+use dusk_jubjub::{JubJubAffine, JubJubScalar};
 use dusk_plonk::prelude::*;
 use dusk_poseidon::{Domain, Hash};
 use ff::Field;
@@ -36,12 +36,7 @@ fn test_full_citadel() {
         .expect("failed to compile circuit");
 
     // To use Citadel, the user first computes these values and requests a License
-    let lsa = pk.gen_stealth_address(&JubJubScalar::random(&mut OsRng));
-    let lsk = sk.gen_note_sk(&lsa);
-    let k_lic = JubJubAffine::from(
-        GENERATOR_EXTENDED * Hash::digest_truncated(Domain::Other, &[(*lsk.as_ref()).into()])[0],
-    );
-    let req = Request::new(&pk_lp, &lsa, &k_lic, &mut OsRng).expect("Request correctly computed.");
+    let req = Request::new(&sk, &pk, &pk_lp, &mut OsRng).expect("Request correctly computed.");
 
     // Second, the LP computes these values and grants the License on-chain
     let attr_data = JubJubScalar::from(ATTRIBUTE_DATA);
