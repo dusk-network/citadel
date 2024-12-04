@@ -16,7 +16,7 @@ use ff::Field;
 use rand::rngs::StdRng;
 use rand::{CryptoRng, RngCore, SeedableRng};
 use rkyv::{check_archived_root, Deserialize, Infallible};
-use zk_citadel::{circuit, gadgets, License, Request, SessionCookie};
+use zk_citadel::{circuit, gadgets, License, LicenseCreator, Request, SessionCookie};
 
 const PROVER_BYTES: &[u8] = include_bytes!("../../target/prover");
 
@@ -57,7 +57,7 @@ fn create_test_license<R: RngCore + CryptoRng>(
     rng: &mut R,
 ) -> License {
     let request = Request::new(pk_lp, sa_user, k_lic, rng).unwrap();
-    License::new(attr, sk_lp, &request, rng).unwrap()
+    License::new(attr, sk_lp, &LicenseCreator::FromRequest(request), rng).unwrap()
 }
 
 fn initialize() -> Session {
@@ -319,7 +319,7 @@ fn use_license_get_session() {
 
     let request = create_request(&sk_user, &pk_lp, rng);
     let attr = JubJubScalar::from(USER_ATTRIBUTES);
-    let license = License::new(&attr, &sk_lp, &request, rng).unwrap();
+    let license = License::new(&attr, &sk_lp, &LicenseCreator::FromRequest(request), rng).unwrap();
 
     let license_blob = rkyv::to_bytes::<_, 4096>(&license)
         .expect("Request should serialize correctly")
