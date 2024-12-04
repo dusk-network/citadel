@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed 'issue_license' by removing the 'pos' argument and self position determination [#1039]
 - Fixed `license` tests error when creating `PublicParameters` from a slice
 - Moved the `license-contract` to the `Citadel` repository [#122]
+- Changed tests to match the new `core` API
 
 ## [0.1.0] - 2023-07-13
 

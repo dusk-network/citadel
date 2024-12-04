@@ -12,7 +12,6 @@ use std::sync::mpsc;
 use dusk_bytes::Serializable;
 use dusk_poseidon::{Domain, Hash};
 use execution_core::plonk::{Prover, Verifier};
-use ff::Field;
 use rand::rngs::StdRng;
 use rand::{CryptoRng, RngCore, SeedableRng};
 use rkyv::{check_archived_root, Deserialize, Infallible};
@@ -28,8 +27,8 @@ const LICENSE_CONTRACT_BYTECODE: &[u8] =
 pub type LicenseOpening = poseidon_merkle::Opening<(), { circuit::DEPTH }>;
 
 use execution_core::{
-    transfer::phoenix::{PublicKey, SecretKey, StealthAddress, ViewKey},
-    BlsScalar, ContractId, JubJubAffine, JubJubScalar, GENERATOR_EXTENDED,
+    transfer::phoenix::{PublicKey, SecretKey, ViewKey},
+    BlsScalar, ContractId, JubJubAffine, JubJubScalar,
 };
 use rusk_abi::{ContractData, Session};
 
@@ -52,11 +51,11 @@ fn create_test_license<R: RngCore + CryptoRng>(
     attr: &JubJubScalar,
     sk_lp: &SecretKey,
     pk_lp: &PublicKey,
-    sa_user: &StealthAddress,
-    k_lic: &JubJubAffine,
+    sk_user: &SecretKey,
+    pk_user: &PublicKey,
     rng: &mut R,
 ) -> License {
-    let request = Request::new(pk_lp, sa_user, k_lic, rng).unwrap();
+    let request = Request::new(sk_user, pk_user, pk_lp, rng).unwrap();
     License::new(attr, sk_lp, &LicenseCreator::FromRequest(request), rng).unwrap()
 }
 
@@ -102,21 +101,6 @@ fn find_owned_license(
     None
 }
 
-/// Creates the Citadel request object
-fn create_request<R: RngCore + CryptoRng>(
-    sk_user: &SecretKey,
-    pk_lp: &PublicKey,
-    rng: &mut R,
-) -> Request {
-    let pk = PublicKey::from(sk_user);
-    let lsa = pk.gen_stealth_address(&JubJubScalar::random(&mut *rng));
-    let lsk = sk_user.gen_note_sk(&lsa);
-    let k_lic = JubJubAffine::from(
-        GENERATOR_EXTENDED * Hash::digest_truncated(Domain::Other, &[(*lsk.as_ref()).into()])[0],
-    );
-    Request::new(pk_lp, &lsa, &k_lic, rng).unwrap()
-}
-
 fn compute_citadel_parameters(
     rng: &mut StdRng,
     sk: &SecretKey,
@@ -140,16 +124,14 @@ fn license_issue_get_merkle() {
     // user
     let sk_user = SecretKey::random(rng);
     let pk_user = PublicKey::from(&sk_user);
-    let sa_user = pk_user.gen_stealth_address(&JubJubScalar::random(&mut *rng));
 
     // license provider
     let sk_lp = SecretKey::random(rng);
     let pk_lp = PublicKey::from(&sk_lp);
-    let k_lic = JubJubAffine::from(GENERATOR_EXTENDED * JubJubScalar::random(&mut *rng));
 
     let attr = JubJubScalar::from(USER_ATTRIBUTES);
 
-    let license = create_test_license(&attr, &sk_lp, &pk_lp, &sa_user, &k_lic, rng);
+    let license = create_test_license(&attr, &sk_lp, &pk_lp, &sk_user, &pk_user, rng);
     let license_blob = rkyv::to_bytes::<_, 4096>(&license)
         .expect("Request should serialize correctly")
         .to_vec();
@@ -210,7 +192,6 @@ fn multiple_licenses_issue_get_merkle() {
     // user
     let sk_user = SecretKey::random(rng);
     let pk_user = PublicKey::from(&sk_user);
-    let sa_user = pk_user.gen_stealth_address(&JubJubScalar::random(&mut *rng));
 
     // license provider
     let sk_lp = SecretKey::random(rng);
@@ -220,8 +201,7 @@ fn multiple_licenses_issue_get_merkle() {
 
     const NUM_LICENSES: usize = 4 + 1;
     for _ in 0..NUM_LICENSES {
-        let k_lic = JubJubAffine::from(GENERATOR_EXTENDED * JubJubScalar::random(&mut *rng));
-        let license = create_test_license(&attr, &sk_lp, &pk_lp, &sa_user, &k_lic, rng);
+        let license = create_test_license(&attr, &sk_lp, &pk_lp, &sk_user, &pk_user, rng);
         let license_blob = rkyv::to_bytes::<_, 4096>(&license)
             .expect("Request should serialize correctly")
             .to_vec();
@@ -312,12 +292,14 @@ fn use_license_get_session() {
 
     // user
     let sk_user = SecretKey::random(rng);
+    let pk_user = PublicKey::from(&sk_user);
 
     // license provider
     let sk_lp = SecretKey::random(rng);
     let pk_lp = PublicKey::from(&sk_lp);
 
-    let request = create_request(&sk_user, &pk_lp, rng);
+    let request =
+        Request::new(&sk_user, &pk_user, &pk_lp, rng).expect("Request correctly created.");
     let attr = JubJubScalar::from(USER_ATTRIBUTES);
     let license = License::new(&attr, &sk_lp, &LicenseCreator::FromRequest(request), rng).unwrap();
 
