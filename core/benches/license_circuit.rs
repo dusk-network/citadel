@@ -4,14 +4,13 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use dusk_jubjub::{JubJubAffine, JubJubScalar, GENERATOR_EXTENDED};
+use dusk_jubjub::{JubJubAffine, JubJubScalar};
 use dusk_plonk::prelude::*;
 use dusk_poseidon::{Domain, Hash};
-use ff::Field;
 use phoenix_core::{PublicKey, SecretKey};
 use poseidon_merkle::{Item, Tree};
 
-use zk_citadel::{circuit, gadgets, License, Request, SessionCookie};
+use zk_citadel::{circuit, gadgets, License, LicenseCreator, SessionCookie};
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand_core::OsRng;
@@ -46,25 +45,23 @@ impl Circuit for LicenseCircuit {
 }
 
 fn license_circuit_benchmark(crit: &mut Criterion) {
-    // Compute gadget parameters
     let sk = SecretKey::random(&mut OsRng);
     let pk = PublicKey::from(&sk);
     let sk_lp = SecretKey::random(&mut OsRng);
     let pk_lp = PublicKey::from(&sk_lp);
+
     let pp = PublicParameters::setup(1 << circuit::CAPACITY, &mut OsRng).unwrap();
     let (prover, verifier) =
         Compiler::compile::<LicenseCircuit>(&pp, LABEL).expect("failed to compile circuit");
 
-    let lsa = pk.gen_stealth_address(&JubJubScalar::random(&mut OsRng));
-    let lsk = sk.gen_note_sk(&lsa);
-    let k_lic = JubJubAffine::from(
-        GENERATOR_EXTENDED * Hash::digest_truncated(Domain::Other, &[(*lsk.as_ref()).into()])[0],
-    );
-    let req = Request::new(&pk_lp, &lsa, &k_lic, &mut OsRng).expect("Request correctly computed.");
-
     let attr_data = JubJubScalar::from(ATTRIBUTE_DATA);
-    let lic =
-        License::new(&attr_data, &sk_lp, &req, &mut OsRng).expect("License correctly computed.");
+    let lic = License::new(
+        &attr_data,
+        &sk_lp,
+        &LicenseCreator::FromPublicKey(pk),
+        &mut OsRng,
+    )
+    .expect("License correctly computed.");
 
     let mut tree = Tree::<(), { circuit::DEPTH }>::new();
     let lpk = JubJubAffine::from(lic.lsa.note_pk().as_ref());

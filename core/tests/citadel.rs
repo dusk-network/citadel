@@ -12,7 +12,7 @@ use phoenix_core::{PublicKey, SecretKey};
 use poseidon_merkle::{Item, Tree};
 use rand_core::OsRng;
 
-use zk_citadel::{circuit, gadgets, License, Request, Session, SessionCookie};
+use zk_citadel::{circuit, gadgets, License, LicenseCreator, Request, Session, SessionCookie};
 
 static LABEL: &[u8; 12] = b"dusk-network";
 
@@ -45,8 +45,13 @@ fn test_full_citadel() {
 
     // Second, the LP computes these values and grants the License on-chain
     let attr_data = JubJubScalar::from(ATTRIBUTE_DATA);
-    let lic =
-        License::new(&attr_data, &sk_lp, &req, &mut OsRng).expect("License correctly computed.");
+    let lic = License::new(
+        &attr_data,
+        &sk_lp,
+        &LicenseCreator::FromRequest(req),
+        &mut OsRng,
+    )
+    .expect("License correctly computed from request.");
 
     let mut tree = Tree::<(), { circuit::DEPTH }>::new();
     let lpk = JubJubAffine::from(lic.lsa.note_pk().as_ref());
@@ -117,4 +122,51 @@ fn test_full_citadel() {
 
     // So, this should be an error
     assert!(session.verify(sc_false).is_err());
+
+    // A license issued from a public key should also work
+    let lic_from_pk = License::new(
+        &attr_data,
+        &sk_lp,
+        &LicenseCreator::FromPublicKey(pk),
+        &mut OsRng,
+    )
+    .expect("License correctly computed from public key.");
+
+    let lpk = JubJubAffine::from(lic_from_pk.lsa.note_pk().as_ref());
+
+    let item = Item {
+        hash: Hash::digest(Domain::Other, &[lpk.get_u(), lpk.get_v()])[0],
+        data: (),
+    };
+
+    tree.insert(pos + 1, item);
+
+    let merkle_proof = tree.opening(pos + 1).expect("Tree was read successfully");
+
+    let (gp, sc) = gadgets::GadgetParameters::compute_parameters(
+        &sk,
+        &lic_from_pk,
+        &pk_lp,
+        &pk_sp,
+        &c,
+        &mut OsRng,
+        merkle_proof,
+    )
+    .expect("Parameters computed correctly.");
+
+    let (proof, public_inputs) = prover
+        .prove(&mut OsRng, &circuit::LicenseCircuit::new(&gp, &sc))
+        .expect("failed to prove");
+    verifier
+        .verify(&proof, &public_inputs)
+        .expect("failed to verify proof");
+
+    assert_eq!(JubJubAffine::from(pk_lp.A()), sc.pk_lp);
+    assert_eq!(JubJubAffine::from(pk_sp.A()), sc.pk_sp);
+    assert_eq!(c, sc.c);
+    assert_eq!(attr_data, sc.attr_data);
+
+    let session = Session::from(&public_inputs);
+    assert_eq!(session.session_id, sc.session_id);
+    session.verify(sc).expect("Session verified correctly.");
 }

@@ -12,6 +12,6 @@ mod session;
 pub mod circuit;
 pub mod gadgets;
 
-pub use license::License;
+pub use license::{License, LicenseCreator};
 pub use request::Request;
 pub use session::{Session, SessionCookie};
