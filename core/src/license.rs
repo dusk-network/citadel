@@ -7,10 +7,11 @@
 use dusk_bytes::Serializable;
 use dusk_jubjub::dhke;
 use dusk_poseidon::{Domain, Hash};
+use ff::Field;
 use jubjub_schnorr::{SecretKey as NoteSecretKey, Signature};
 use phoenix_core::{
     aes::{decrypt, encrypt, ENCRYPTION_EXTRA_SIZE},
-    Error, SecretKey, StealthAddress,
+    Error, PublicKey, SecretKey, StealthAddress,
 };
 
 use rand_core::{CryptoRng, RngCore};
@@ -24,6 +25,11 @@ use crate::request::{Request, REQ_PLAINTEXT_SIZE};
 
 pub(crate) const LIC_PLAINTEXT_SIZE: usize = Signature::SIZE + JubJubScalar::SIZE;
 const LIC_ENCRYPTION_SIZE: usize = LIC_PLAINTEXT_SIZE + ENCRYPTION_EXTRA_SIZE;
+
+pub enum LicenseCreator {
+    FromRequest(Request),
+    FromPublicKey(PublicKey),
+}
 
 #[cfg_attr(
     feature = "rkyv-impl",
@@ -40,27 +46,40 @@ impl License {
     pub fn new<R: RngCore + CryptoRng>(
         attr_data: &JubJubScalar,
         sk_lp: &SecretKey,
-        req: &Request,
+        lc: &LicenseCreator,
         rng: &mut R,
     ) -> Result<Self, Error> {
-        let k_dh = dhke(sk_lp.a(), req.rsa.R());
-        let dec: [u8; REQ_PLAINTEXT_SIZE] = decrypt(&k_dh, &req.enc)?;
+        let (lsa, k_lic) = match lc {
+            LicenseCreator::FromRequest(req) => {
+                let k_dh = dhke(sk_lp.a(), req.rsa.R());
+                let dec: [u8; REQ_PLAINTEXT_SIZE] = decrypt(&k_dh, &req.enc)?;
 
-        let mut lsa_bytes = [0u8; StealthAddress::SIZE];
-        lsa_bytes.copy_from_slice(&dec[..StealthAddress::SIZE]);
-        let lsa = StealthAddress::from_bytes(&lsa_bytes).expect("Deserialization was correct.");
+                let mut lsa_bytes = [0u8; StealthAddress::SIZE];
+                lsa_bytes.copy_from_slice(&dec[..StealthAddress::SIZE]);
+                let lsa =
+                    StealthAddress::from_bytes(&lsa_bytes).expect("Deserialization was correct.");
 
-        let mut k_lic_bytes = [0u8; JubJubAffine::SIZE];
-        k_lic_bytes.copy_from_slice(&dec[StealthAddress::SIZE..]);
-        let k_lic = JubJubAffine::from_bytes(k_lic_bytes).expect("Deserialization was correct.");
+                let mut k_lic_bytes = [0u8; JubJubAffine::SIZE];
+                k_lic_bytes.copy_from_slice(&dec[StealthAddress::SIZE..]);
+                let k_lic =
+                    JubJubAffine::from_bytes(k_lic_bytes).expect("Deserialization was correct.");
+
+                (lsa, k_lic)
+            }
+            LicenseCreator::FromPublicKey(pk_user) => {
+                let r_dh = JubJubScalar::random(&mut *rng);
+                let lsa = pk_user.gen_stealth_address(&r_dh);
+                let k_lic = dhke(&r_dh, pk_user.A());
+
+                (lsa, k_lic)
+            }
+        };
+
+        let lpk = JubJubAffine::from(lsa.note_pk().as_ref());
 
         let message = Hash::digest(
             Domain::Other,
-            &[
-                lsa.note_pk().as_ref().get_u(),
-                lsa.note_pk().as_ref().get_v(),
-                BlsScalar::from(*attr_data),
-            ],
+            &[lpk.get_u(), lpk.get_v(), BlsScalar::from(*attr_data)],
         )[0];
         let sig_lic = NoteSecretKey::from(sk_lp.a()).sign(rng, message);
 

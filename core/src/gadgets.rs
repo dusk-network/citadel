@@ -5,8 +5,7 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use dusk_bytes::Serializable;
-use dusk_jubjub::{GENERATOR, GENERATOR_NUMS};
-use dusk_jubjub::{GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED};
+use dusk_jubjub::{dhke, GENERATOR, GENERATOR_EXTENDED, GENERATOR_NUMS, GENERATOR_NUMS_EXTENDED};
 use dusk_plonk::prelude::*;
 use dusk_poseidon::Hash;
 use dusk_poseidon::{Domain, HashGadget};
@@ -168,12 +167,19 @@ impl<const DEPTH: usize> GadgetParameters<DEPTH> {
         merkle_proof: Opening<(), DEPTH>,
     ) -> Result<(Self, SessionCookie), phoenix_core::Error> {
         let lsk = sk.gen_note_sk(&lic.lsa);
-        let k_lic = JubJubAffine::from(
-            GENERATOR_EXTENDED
-                * Hash::digest_truncated(Domain::Other, &[(*lsk.as_ref()).into()])[0],
-        );
+        let k_lic = dhke(sk.a(), lic.lsa.R());
 
-        let dec: [u8; LIC_PLAINTEXT_SIZE] = decrypt(&k_lic, &lic.enc)?;
+        let dec: [u8; LIC_PLAINTEXT_SIZE] = match decrypt(&k_lic, &lic.enc) {
+            Ok(dec) => dec,
+            Err(_err) => {
+                let k_lic = JubJubAffine::from(
+                    GENERATOR_EXTENDED
+                        * Hash::digest_truncated(Domain::Other, &[(*lsk.as_ref()).into()])[0],
+                );
+
+                decrypt(&k_lic, &lic.enc)?
+            }
+        };
 
         let mut sig_lic_bytes = [0u8; Signature::SIZE];
         sig_lic_bytes.copy_from_slice(&dec[..Signature::SIZE]);
@@ -185,8 +191,6 @@ impl<const DEPTH: usize> GadgetParameters<DEPTH> {
             JubJubScalar::from_bytes(&attr_data_bytes).expect("Deserialization was correct.");
 
         let lpk = JubJubAffine::from(*lic.lsa.note_pk().as_ref());
-
-        let lsk = sk.gen_note_sk(&lic.lsa);
         let lpk_p = JubJubAffine::from(GENERATOR_NUMS_EXTENDED * lsk.as_ref());
 
         let s_0 = BlsScalar::random(&mut rng);
