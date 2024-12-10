@@ -10,7 +10,7 @@ use dusk_poseidon::{Domain, Hash};
 use phoenix_core::{PublicKey, SecretKey};
 use poseidon_merkle::{Item, Tree};
 
-use zk_citadel::{circuit, gadgets, License, LicenseCreator, SessionCookie};
+use zk_citadel::{circuit, gadgets, License, LicenseOrigin, SessionCookie};
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand_core::OsRng;
@@ -58,7 +58,7 @@ fn license_circuit_benchmark(crit: &mut Criterion) {
     let lic = License::new(
         &attr_data,
         &sk_lp,
-        &LicenseCreator::FromPublicKey(pk),
+        &LicenseOrigin::FromPublicKey(pk),
         &mut OsRng,
     )
     .expect("License correctly computed.");

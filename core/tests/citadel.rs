@@ -12,7 +12,7 @@ use phoenix_core::{PublicKey, SecretKey};
 use poseidon_merkle::{Item, Tree};
 use rand_core::OsRng;
 
-use zk_citadel::{circuit, gadgets, License, LicenseCreator, Request, Session, SessionCookie};
+use zk_citadel::{circuit, gadgets, License, LicenseOrigin, Request, Session, SessionCookie};
 
 static LABEL: &[u8; 12] = b"dusk-network";
 
@@ -43,7 +43,7 @@ fn test_full_citadel() {
     let lic = License::new(
         &attr_data,
         &sk_lp,
-        &LicenseCreator::FromRequest(req),
+        &LicenseOrigin::FromRequest(req),
         &mut OsRng,
     )
     .expect("License correctly computed from request.");
@@ -122,7 +122,7 @@ fn test_full_citadel() {
     let lic_from_pk = License::new(
         &attr_data,
         &sk_lp,
-        &LicenseCreator::FromPublicKey(pk),
+        &LicenseOrigin::FromPublicKey(pk),
         &mut OsRng,
     )
     .expect("License correctly computed from public key.");

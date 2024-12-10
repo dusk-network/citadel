@@ -7,7 +7,6 @@
 use core::fmt;
 
 /// All possible errors for Citadel
-#[allow(missing_docs)]
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone)]
 pub enum Error {

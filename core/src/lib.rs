@@ -4,14 +4,27 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+//! This package contains the core implementation of Citadel, a self-sovereign identity protocol for decentralized networks.
+//!
+//! **DISCLAIMER**: this package **has not gone through an exhaustive security analysis**,
+//! so it is not intended to be used in a production environment, only for academic purposes.
+
+#![deny(missing_docs)]
+
 mod error;
 mod license;
 mod request;
 mod session;
 
+/// The arithmetic circuit module to use licenses
 pub mod circuit;
+
+/// The gadget module required by the license circuit and / or
+/// in third party circuits, to use licenses
 pub mod gadgets;
 
-pub use license::{License, LicenseCreator};
+pub use license::{License, LicenseOrigin};
 pub use request::Request;
 pub use session::{Session, SessionCookie};
+
+pub use error::Error;

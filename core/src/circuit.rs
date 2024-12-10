@@ -8,9 +8,14 @@ use crate::{gadgets, SessionCookie};
 use dusk_plonk::prelude::*;
 
 #[allow(dead_code)]
-pub const CAPACITY: usize = 15; // capacity required for the setup
-pub const DEPTH: usize = 16; // depth of the n-ary Merkle tree
 
+/// The capacity required for the setup
+pub const CAPACITY: usize = 15;
+/// The depth of the n-ary Merkle tree
+pub const DEPTH: usize = 16;
+
+/// A standard license circuit that simply uses the [`use_license`]
+/// gadget with no additional operations
 #[derive(Default, Debug)]
 pub struct LicenseCircuit {
     gp: gadgets::GadgetParameters<DEPTH>,
@@ -18,6 +23,8 @@ pub struct LicenseCircuit {
 }
 
 impl LicenseCircuit {
+    /// A method to create a new [`LicenseCircuit`] from some [`GadgetParameters`]
+    /// and a [`SessionCookie`]
     pub fn new(gp: &gadgets::GadgetParameters<DEPTH>, sc: &SessionCookie) -> Self {
         Self { gp: *gp, sc: *sc }
     }
