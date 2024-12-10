@@ -26,11 +26,16 @@ use crate::request::{Request, REQ_PLAINTEXT_SIZE};
 pub(crate) const LIC_PLAINTEXT_SIZE: usize = Signature::SIZE + JubJubScalar::SIZE;
 const LIC_ENCRYPTION_SIZE: usize = LIC_PLAINTEXT_SIZE + ENCRYPTION_EXTRA_SIZE;
 
-pub enum LicenseCreator {
+/// Enumaration used to create new licenses
+pub enum LicenseOrigin {
+    /// From a [`Request`] sent onchain
     FromRequest(Request),
+    /// From a [`PublicKey`] of a given user
     FromPublicKey(PublicKey),
 }
 
+/// The struct defining a Citadel license, an asset that represents
+/// the right of a user to use a specific service
 #[cfg_attr(
     feature = "rkyv-impl",
     derive(Archive, Serialize, Deserialize),
@@ -38,19 +43,22 @@ pub enum LicenseCreator {
 )]
 #[derive(Debug, Clone)]
 pub struct License {
-    pub lsa: StealthAddress,            // license stealth address
-    pub enc: [u8; LIC_ENCRYPTION_SIZE], // encryption of the license signature and attribute data
+    /// The stealth address of the license
+    pub lsa: StealthAddress,
+    /// The encryption of the license signature and the attribute data     
+    pub enc: [u8; LIC_ENCRYPTION_SIZE],
 }
 
 impl License {
+    /// Method to generate a new [`License`]
     pub fn new<R: RngCore + CryptoRng>(
         attr_data: &JubJubScalar,
         sk_lp: &SecretKey,
-        lc: &LicenseCreator,
+        lc: &LicenseOrigin,
         rng: &mut R,
     ) -> Result<Self, Error> {
         let (lsa, k_lic) = match lc {
-            LicenseCreator::FromRequest(req) => {
+            LicenseOrigin::FromRequest(req) => {
                 let k_dh = dhke(sk_lp.a(), req.rsa.R());
                 let dec: [u8; REQ_PLAINTEXT_SIZE] = decrypt(&k_dh, &req.enc)?;
 
@@ -66,7 +74,7 @@ impl License {
 
                 (lsa, k_lic)
             }
-            LicenseCreator::FromPublicKey(pk_user) => {
+            LicenseOrigin::FromPublicKey(pk_user) => {
                 let r_dh = JubJubScalar::random(&mut *rng);
                 let lsa = pk_user.gen_stealth_address(&r_dh);
                 let k_lic = dhke(&r_dh, pk_user.A());

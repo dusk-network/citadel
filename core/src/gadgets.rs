@@ -23,18 +23,18 @@ use crate::{license::LIC_PLAINTEXT_SIZE, License, SessionCookie};
 
 use poseidon_merkle::zk::opening_gadget;
 
-// out of this circuit, the generated public inputs vector collects
-// these values in that particular order:
-//
-// public_inputs[0]: session_id
-// public_inputs[1]: session_hash
-// public_inputs[2]: com_0
-// public_inputs[3]: com_1.x
-// public_inputs[4]: com_1.y
-// public_inputs[5]: com_2.x
-// public_inputs[6]: com_2.y
-// public_inputs[7]: root
-
+/// The [`use_license`] gadget for the [`LicenseCircuit`]. It is meant
+/// to use Citadel licenses onchain. Out of this circuit, the generated
+/// public inputs vector collects these values in that particular order:
+///
+/// session_id
+/// session_hash
+/// com_0
+/// com_1.x
+/// com_1.y
+/// com_2.x
+/// com_2.y
+/// root
 pub fn use_license<const DEPTH: usize>(
     composer: &mut Composer,
     gp: &GadgetParameters<DEPTH>,
@@ -110,6 +110,7 @@ pub fn use_license<const DEPTH: usize>(
     Ok(())
 }
 
+/// The parameters required by the [`use_license`] gadget
 #[cfg_attr(
     feature = "rkyv-impl",
     derive(Archive, Serialize, Deserialize),
@@ -117,17 +118,17 @@ pub fn use_license<const DEPTH: usize>(
 )]
 #[derive(Debug, Clone, Copy)]
 pub struct GadgetParameters<const DEPTH: usize> {
-    pub lpk: JubJubAffine,   // license public key
-    pub lpk_p: JubJubAffine, // license public key prime
-    pub sig_lic: Signature,  // signature of the license
+    lpk: JubJubAffine,   // license public key
+    lpk_p: JubJubAffine, // license public key prime
+    sig_lic: Signature,  // signature of the license
 
-    pub com_0: BlsScalar,      // Hash commitment 0
-    pub com_1: JubJubExtended, // Pedersen Commitment 1
-    pub com_2: JubJubExtended, // Pedersen Commitment 2
+    com_0: BlsScalar,      // Hash commitment 0
+    com_1: JubJubExtended, // Pedersen Commitment 1
+    com_2: JubJubExtended, // Pedersen Commitment 2
 
-    pub session_hash: BlsScalar,           // hash of the session
-    pub sig_session_hash: SignatureDouble, // signature of the session_hash
-    pub merkle_proof: Opening<(), DEPTH>,  // Merkle proof for the Proof of Validity
+    session_hash: BlsScalar,           // hash of the session
+    sig_session_hash: SignatureDouble, // signature of the session_hash
+    merkle_proof: Opening<(), DEPTH>,  // Merkle proof for the Proof of Validity
 }
 
 impl<const DEPTH: usize> Default for GadgetParameters<DEPTH> {
@@ -156,6 +157,7 @@ impl<const DEPTH: usize> Default for GadgetParameters<DEPTH> {
 }
 
 impl<const DEPTH: usize> GadgetParameters<DEPTH> {
+    /// Method to generate the [`GadgetParameters`] struct
     #[allow(clippy::too_many_arguments)]
     pub fn compute_parameters<R: RngCore + CryptoRng>(
         sk: &SecretKey,
