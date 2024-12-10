@@ -15,7 +15,7 @@ use execution_core::plonk::{Prover, Verifier};
 use rand::rngs::StdRng;
 use rand::{CryptoRng, RngCore, SeedableRng};
 use rkyv::{check_archived_root, Deserialize, Infallible};
-use zk_citadel::{circuit, gadgets, License, LicenseCreator, Request, SessionCookie};
+use zk_citadel::{circuit, gadgets, License, LicenseOrigin, Request, SessionCookie};
 
 const PROVER_BYTES: &[u8] = include_bytes!("../../target/prover");
 
@@ -56,7 +56,7 @@ fn create_test_license<R: RngCore + CryptoRng>(
     rng: &mut R,
 ) -> License {
     let request = Request::new(sk_user, pk_user, pk_lp, rng).unwrap();
-    License::new(attr, sk_lp, &LicenseCreator::FromRequest(request), rng).unwrap()
+    License::new(attr, sk_lp, &LicenseOrigin::FromRequest(request), rng).unwrap()
 }
 
 fn initialize() -> Session {
@@ -301,7 +301,7 @@ fn use_license_get_session() {
     let request =
         Request::new(&sk_user, &pk_user, &pk_lp, rng).expect("Request correctly created.");
     let attr = JubJubScalar::from(USER_ATTRIBUTES);
-    let license = License::new(&attr, &sk_lp, &LicenseCreator::FromRequest(request), rng).unwrap();
+    let license = License::new(&attr, &sk_lp, &LicenseOrigin::FromRequest(request), rng).unwrap();
 
     let license_blob = rkyv::to_bytes::<_, 4096>(&license)
         .expect("Request should serialize correctly")
