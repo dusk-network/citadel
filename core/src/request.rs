@@ -23,6 +23,9 @@ use dusk_plonk::prelude::*;
 pub(crate) const REQ_PLAINTEXT_SIZE: usize = StealthAddress::SIZE + JubJubAffine::SIZE;
 const REQ_ENCRYPTION_SIZE: usize = REQ_PLAINTEXT_SIZE + ENCRYPTION_EXTRA_SIZE;
 
+/// The struct defining a Citadel request, a set of information that
+/// a user sends to the network to inform a LP that the user is
+/// requesting a license from them
 #[cfg_attr(
     feature = "rkyv-impl",
     derive(Archive, Serialize, Deserialize),
@@ -30,11 +33,14 @@ const REQ_ENCRYPTION_SIZE: usize = REQ_PLAINTEXT_SIZE + ENCRYPTION_EXTRA_SIZE;
 )]
 #[derive(Debug)]
 pub struct Request {
-    pub rsa: StealthAddress,            // request stealth address
-    pub enc: [u8; REQ_ENCRYPTION_SIZE], // encryption of the license stealth address and k_lic
+    /// The stealth address for the request
+    pub rsa: StealthAddress,
+    /// The encryption of the license stealth address and the k_lic symmetric key
+    pub enc: [u8; REQ_ENCRYPTION_SIZE],
 }
 
 impl Request {
+    /// Method to create a new [`Request`] given ther user keys and the public key of LP
     pub fn new<R: RngCore + CryptoRng>(
         sk_user: &SecretKey,
         pk_user: &PublicKey,
