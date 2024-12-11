@@ -15,7 +15,7 @@ use rkyv::{Archive, Deserialize, Serialize};
 use dusk_plonk::prelude::*;
 
 /// The struct defining a Citadel session, a set of public values shared
-/// onchain that represent the use of a service by an unknown user
+/// on-chain that represent the use of a service by an unknown user
 #[cfg_attr(
     feature = "rkyv-impl",
     derive(Archive, Serialize, Deserialize),
@@ -23,7 +23,7 @@ use dusk_plonk::prelude::*;
 )]
 #[derive(Debug)]
 pub struct Session {
-    /// The hash of the public key of the SP plus a nonce
+    /// The hash of the public key of the SP and a nonce
     pub session_hash: BlsScalar,
     /// The ID of the [`Session`], computed as the hash of
     /// the lpk' and the challenge

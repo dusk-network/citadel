@@ -8,7 +8,7 @@ use dusk_bytes::Serializable;
 use dusk_jubjub::dhke;
 use dusk_poseidon::{Domain, Hash};
 use ff::Field;
-use jubjub_schnorr::{SecretKey as NoteSecretKey, Signature};
+use jubjub_schnorr::{SecretKey as LicenseSecretKey, Signature};
 use phoenix_core::{
     aes::{decrypt, encrypt, ENCRYPTION_EXTRA_SIZE},
     Error, PublicKey, SecretKey, StealthAddress,
@@ -26,9 +26,9 @@ use crate::request::{Request, REQ_PLAINTEXT_SIZE};
 pub(crate) const LIC_PLAINTEXT_SIZE: usize = Signature::SIZE + JubJubScalar::SIZE;
 const LIC_ENCRYPTION_SIZE: usize = LIC_PLAINTEXT_SIZE + ENCRYPTION_EXTRA_SIZE;
 
-/// Enumaration used to create new licenses
+/// Enumeration used to create new licenses
 pub enum LicenseOrigin {
-    /// From a [`Request`] sent onchain
+    /// From a [`Request`] sent on-chain
     FromRequest(Request),
     /// From a [`PublicKey`] of a given user
     FromPublicKey(PublicKey),
@@ -54,10 +54,10 @@ impl License {
     pub fn new<R: RngCore + CryptoRng>(
         attr_data: &JubJubScalar,
         sk_lp: &SecretKey,
-        lc: &LicenseOrigin,
+        lo: &LicenseOrigin,
         rng: &mut R,
     ) -> Result<Self, Error> {
-        let (lsa, k_lic) = match lc {
+        let (lsa, k_lic) = match lo {
             LicenseOrigin::FromRequest(req) => {
                 let k_dh = dhke(sk_lp.a(), req.rsa.R());
                 let dec: [u8; REQ_PLAINTEXT_SIZE] = decrypt(&k_dh, &req.enc)?;
@@ -89,7 +89,7 @@ impl License {
             Domain::Other,
             &[lpk.get_u(), lpk.get_v(), BlsScalar::from(*attr_data)],
         )[0];
-        let sig_lic = NoteSecretKey::from(sk_lp.a()).sign(rng, message);
+        let sig_lic = LicenseSecretKey::from(sk_lp.a()).sign(rng, message);
 
         let mut plaintext = sig_lic.to_bytes().to_vec();
         plaintext.append(&mut attr_data.to_bytes().to_vec());

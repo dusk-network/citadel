@@ -24,7 +24,7 @@ use crate::{license::LIC_PLAINTEXT_SIZE, License, SessionCookie};
 use poseidon_merkle::zk::opening_gadget;
 
 /// The [`use_license`] gadget for the [`LicenseCircuit`]. It is meant
-/// to use Citadel licenses onchain. Out of this circuit, the generated
+/// to use Citadel licenses on-chain. Out of this circuit, the generated
 /// public inputs vector collects these values in that particular order:
 ///
 /// session_id

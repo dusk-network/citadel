@@ -4,7 +4,11 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-//! This package contains the core implementation of Citadel, a self-sovereign identity protocol for decentralized networks.
+//! This package contains the core implementation of Citadel, a self-sovereign identity protocol for
+//! decentralized networks, allowing users to receive licenses issued by license providers (LP), and
+//! to use them to prove sensitive information in zero-knowledge to service providers (SP).
+//!
+//! Reference: https://arxiv.org/pdf/2301.09378
 //!
 //! **DISCLAIMER**: this package **has not gone through an exhaustive security analysis**,
 //! so it is not intended to be used in a production environment, only for academic purposes.
