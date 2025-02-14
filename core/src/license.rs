@@ -60,7 +60,9 @@ impl License {
         let (lsa, k_lic) = match lo {
             LicenseOrigin::FromRequest(req) => {
                 let k_dh = dhke(sk_lp.a(), req.rsa.R());
-                let dec: [u8; REQ_PLAINTEXT_SIZE] = decrypt(&k_dh, &req.enc)?;
+
+                let salt = req.rsa.note_pk().to_bytes();
+                let dec: [u8; REQ_PLAINTEXT_SIZE] = decrypt(&k_dh, &salt, &req.enc)?;
 
                 let mut lsa_bytes = [0u8; StealthAddress::SIZE];
                 lsa_bytes.copy_from_slice(&dec[..StealthAddress::SIZE]);
@@ -94,7 +96,8 @@ impl License {
         let mut plaintext = sig_lic.to_bytes().to_vec();
         plaintext.append(&mut attr_data.to_bytes().to_vec());
 
-        let enc = encrypt(&k_lic, &plaintext, rng)?;
+        let salt = lsa.note_pk().to_bytes();
+        let enc = encrypt(&k_lic, &salt, &plaintext, rng)?;
 
         Ok(Self { lsa, enc })
     }

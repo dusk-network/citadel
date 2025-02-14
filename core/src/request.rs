@@ -61,7 +61,8 @@ impl Request {
         let mut plaintext = lsa.to_bytes().to_vec();
         plaintext.append(&mut k_lic.to_bytes().to_vec());
 
-        let enc = encrypt(&k_dh, &plaintext, rng)?;
+        let salt = rsa.note_pk().to_bytes();
+        let enc = encrypt(&k_dh, &salt, &plaintext, rng)?;
 
         Ok(Self { rsa, enc })
     }

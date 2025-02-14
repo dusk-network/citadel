@@ -171,7 +171,8 @@ impl<const DEPTH: usize> GadgetParameters<DEPTH> {
         let lsk = sk.gen_note_sk(&lic.lsa);
         let k_lic = dhke(sk.a(), lic.lsa.R());
 
-        let dec: [u8; LIC_PLAINTEXT_SIZE] = match decrypt(&k_lic, &lic.enc) {
+        let salt = lic.lsa.note_pk().to_bytes();
+        let dec: [u8; LIC_PLAINTEXT_SIZE] = match decrypt(&k_lic, &salt, &lic.enc) {
             Ok(dec) => dec,
             Err(_err) => {
                 let k_lic = JubJubAffine::from(
@@ -179,7 +180,7 @@ impl<const DEPTH: usize> GadgetParameters<DEPTH> {
                         * Hash::digest_truncated(Domain::Other, &[(*lsk.as_ref()).into()])[0],
                 );
 
-                decrypt(&k_lic, &lic.enc)?
+                decrypt(&k_lic, &salt, &lic.enc)?
             }
         };
 
