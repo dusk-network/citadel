@@ -11,7 +11,6 @@ use std::sync::mpsc;
 
 use dusk_bytes::Serializable;
 use dusk_poseidon::{Domain, Hash};
-use execution_core::plonk::{Prover, Verifier};
 use rand::rngs::StdRng;
 use rand::{CryptoRng, RngCore, SeedableRng};
 use rkyv::{check_archived_root, Deserialize, Infallible};
@@ -26,11 +25,13 @@ const LICENSE_CONTRACT_BYTECODE: &[u8] =
 
 pub type LicenseOpening = poseidon_merkle::Opening<(), { circuit::DEPTH }>;
 
-use execution_core::{
+use dusk_core::{
+    abi::ContractId,
+    plonk::{Prover, Verifier},
     transfer::phoenix::{PublicKey, SecretKey, ViewKey},
-    BlsScalar, ContractId, JubJubAffine, JubJubScalar,
+    BlsScalar, JubJubAffine, JubJubScalar,
 };
-use rusk_abi::{ContractData, Session};
+use dusk_vm::{ContractData, Session, VM};
 
 #[path = "../src/license_types.rs"]
 mod license_types;
@@ -60,8 +61,8 @@ fn create_test_license<R: RngCore + CryptoRng>(
 }
 
 fn initialize() -> Session {
-    let vm = rusk_abi::new_ephemeral_vm().expect("Creating a VM should succeed");
-    let mut session = rusk_abi::new_genesis_session(&vm, CHAIN_ID);
+    let vm = &mut VM::ephemeral().expect("Creating ephemeral VM should work");
+    let mut session = vm.genesis_session(CHAIN_ID);
 
     session
         .deploy(
