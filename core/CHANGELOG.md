@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Refactor the crate [#98]
+- Update dependencies
 
 ## [0.14.0] - 2024-08-14
 

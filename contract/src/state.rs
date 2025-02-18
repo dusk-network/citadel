@@ -66,7 +66,7 @@ impl LicenseContractState {
             pos += 1;
         }
         self.tree.insert(pos, item);
-        let block_height = rusk_abi::block_height();
+        let block_height = dusk_core::abi::block_height();
         self.licenses.insert(
             pos,
             LicenseEntry {
@@ -84,7 +84,7 @@ impl LicenseContractState {
             .entries_filter(|(_, le)| block_heights.contains(&le.block_height))
             .map(|(pos, le)| (*pos, le.license.clone()))
         {
-            rusk_abi::feed(pos_license_pair);
+            dusk_core::abi::feed(pos_license_pair);
         }
     }
 
@@ -132,7 +132,7 @@ impl LicenseContractState {
         proof: Vec<u8>,
         public_inputs: Vec<BlsScalar>,
     ) -> Result<(), Error> {
-        rusk_abi::verify_plonk(verifier_data.to_vec(), proof, public_inputs)
+        dusk_core::abi::verify_plonk(verifier_data.to_vec(), proof, public_inputs)
             .then_some(())
             .ok_or(Error::ProofVerification)
     }
