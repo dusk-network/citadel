@@ -13,8 +13,8 @@ use dusk_bytes::Serializable;
 use dusk_poseidon::{Domain, Hash};
 use rand::rngs::StdRng;
 use rand::{CryptoRng, RngCore, SeedableRng};
-use rkyv::{check_archived_root, Deserialize, Infallible};
-use zk_citadel::{circuit, gadgets, License, LicenseOrigin, Request, SessionCookie};
+use rkyv::{Deserialize, Infallible, check_archived_root};
+use zk_citadel::{License, LicenseOrigin, Request, SessionCookie, circuit, gadgets};
 
 const PROVER_BYTES: &[u8] = include_bytes!("../../target/prover");
 
@@ -26,10 +26,10 @@ const LICENSE_CONTRACT_BYTECODE: &[u8] =
 pub type LicenseOpening = poseidon_merkle::Opening<(), { circuit::DEPTH }>;
 
 use dusk_core::{
+    BlsScalar, JubJubAffine, JubJubScalar,
     abi::ContractId,
     plonk::{Prover, Verifier},
     transfer::phoenix::{PublicKey, SecretKey, ViewKey},
-    BlsScalar, JubJubAffine, JubJubScalar,
 };
 use dusk_vm::{ContractData, Session, VM};
 
@@ -280,6 +280,10 @@ fn session_not_found() {
 #[test]
 fn use_license_get_session() {
     let mut session = initialize();
+    // TODO: Keep contract proof verification on PLONK V3. The VM host query
+    // still defaults to V2, while dusk-plonk currently generates V3 proofs.
+    let _plonk_version_guard =
+        dusk_vm::host_queries::set_plonk_version(dusk_core::plonk::PlonkVersion::current());
 
     // NOTE: it is important that the seed is the same as in the recovery
     // PUB_PARAMS initialization code

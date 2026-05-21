@@ -5,21 +5,21 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use dusk_bytes::Serializable;
-use dusk_jubjub::{dhke, GENERATOR, GENERATOR_EXTENDED, GENERATOR_NUMS, GENERATOR_NUMS_EXTENDED};
+use dusk_jubjub::{GENERATOR, GENERATOR_EXTENDED, GENERATOR_NUMS, GENERATOR_NUMS_EXTENDED, dhke};
 use dusk_plonk::prelude::*;
 use dusk_poseidon::Hash;
 use dusk_poseidon::{Domain, HashGadget};
 use ff::Field;
 use jubjub_schnorr::gadgets;
 use jubjub_schnorr::{Signature, SignatureDouble};
-use phoenix_core::{aes::decrypt, PublicKey, SecretKey};
+use phoenix_core::{PublicKey, SecretKey, aes::decrypt};
 use poseidon_merkle::{Item, Opening, Tree};
 use rand_core::{CryptoRng, RngCore};
 
 #[cfg(feature = "rkyv-impl")]
 use rkyv::{Archive, Deserialize, Serialize};
 
-use crate::{license::LIC_PLAINTEXT_SIZE, License, SessionCookie};
+use crate::{License, SessionCookie, license::LIC_PLAINTEXT_SIZE};
 
 use poseidon_merkle::zk::opening_gadget;
 

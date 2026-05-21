@@ -5,12 +5,12 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use dusk_bytes::Serializable;
-use dusk_jubjub::{dhke, GENERATOR_EXTENDED};
+use dusk_jubjub::{GENERATOR_EXTENDED, dhke};
 use dusk_poseidon::{Domain, Hash};
 use ff::Field;
 use phoenix_core::{
-    aes::{encrypt, ENCRYPTION_EXTRA_SIZE},
     Error, PublicKey, SecretKey, StealthAddress,
+    aes::{ENCRYPTION_EXTRA_SIZE, encrypt},
 };
 
 use rand_core::{CryptoRng, RngCore};

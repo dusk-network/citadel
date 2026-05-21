@@ -12,7 +12,7 @@ use phoenix_core::{PublicKey, SecretKey};
 use poseidon_merkle::{Item, Tree};
 use rand_core::OsRng;
 
-use zk_citadel::{circuit, gadgets, License, LicenseOrigin, Request, Session, SessionCookie};
+use zk_citadel::{License, LicenseOrigin, Request, Session, SessionCookie, circuit, gadgets};
 
 static LABEL: &[u8; 12] = b"dusk-network";
 
