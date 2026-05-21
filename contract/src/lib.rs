@@ -6,7 +6,6 @@
 
 #![cfg_attr(target_family = "wasm", no_std)]
 #![cfg(target_family = "wasm")]
-#![feature(arbitrary_self_types)]
 #![deny(unused_crate_dependencies)]
 #![deny(unused_extern_crates)]
 
@@ -33,48 +32,76 @@ pub const fn verifier_data_license_circuit() -> &'static [u8] {
 mod wasm {
     use super::*;
 
+    use core::cell::UnsafeCell;
+
     use state::LicenseContractState;
 
-    static mut STATE: LicenseContractState = LicenseContractState::new();
+    struct ContractState(UnsafeCell<LicenseContractState>);
 
-    #[no_mangle]
+    unsafe impl Sync for ContractState {}
+
+    impl ContractState {
+        const fn new() -> Self {
+            Self(UnsafeCell::new(LicenseContractState::new()))
+        }
+
+        unsafe fn with_mut<R>(&self, f: impl FnOnce(&mut LicenseContractState) -> R) -> R {
+            f(unsafe { &mut *self.0.get() })
+        }
+
+        unsafe fn with_ref<R>(&self, f: impl FnOnce(&LicenseContractState) -> R) -> R {
+            f(unsafe { &*self.0.get() })
+        }
+    }
+
+    static STATE: ContractState = ContractState::new();
+
+    #[unsafe(no_mangle)]
     unsafe fn issue_license(arg_len: u32) -> u32 {
-        dusk_core::abi::wrap_call(arg_len, |(license, hash)| {
-            STATE.issue_license(license, hash)
+        dusk_core::abi::wrap_call(arg_len, |(license, hash)| unsafe {
+            STATE.with_mut(|state| state.issue_license(license, hash))
         })
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     unsafe fn get_licenses(arg_len: u32) -> u32 {
-        dusk_core::abi::wrap_call(arg_len, |user_public_key| {
-            STATE.get_licenses(user_public_key)
+        dusk_core::abi::wrap_call(arg_len, |user_public_key| unsafe {
+            STATE.with_mut(|state| state.get_licenses(user_public_key))
         })
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     unsafe fn get_merkle_opening(arg_len: u32) -> u32 {
-        dusk_core::abi::wrap_call(arg_len, |position| STATE.get_merkle_opening(position))
-    }
-
-    #[no_mangle]
-    unsafe fn use_license(arg_len: u32) -> u32 {
-        dusk_core::abi::wrap_call(arg_len, |use_license_arg| {
-            STATE.use_license(use_license_arg)
+        dusk_core::abi::wrap_call(arg_len, |position| unsafe {
+            STATE.with_mut(|state| state.get_merkle_opening(position))
         })
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
+    unsafe fn use_license(arg_len: u32) -> u32 {
+        dusk_core::abi::wrap_call(arg_len, |use_license_arg| unsafe {
+            STATE.with_mut(|state| state.use_license(use_license_arg))
+        })
+    }
+
+    #[unsafe(no_mangle)]
     unsafe fn get_session(arg_len: u32) -> u32 {
-        dusk_core::abi::wrap_call(arg_len, |nullifier| STATE.get_session(nullifier))
+        dusk_core::abi::wrap_call(arg_len, |nullifier| unsafe {
+            STATE.with_ref(|state| state.get_session(nullifier))
+        })
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     unsafe fn request_license(arg_len: u32) -> u32 {
-        dusk_core::abi::wrap_call(arg_len, |_: ()| STATE.request_license())
+        dusk_core::abi::wrap_call(arg_len, |_: ()| unsafe {
+            STATE.with_ref(|state| state.request_license())
+        })
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     unsafe fn get_info(arg_len: u32) -> u32 {
-        dusk_core::abi::wrap_call(arg_len, |_: ()| STATE.get_info())
+        dusk_core::abi::wrap_call(arg_len, |_: ()| unsafe {
+            STATE.with_ref(|state| state.get_info())
+        })
     }
 }

@@ -71,7 +71,9 @@ async fn main() {
                 let mut file = File::create(VERIFIER_PATH).unwrap();
                 file.write_all(&verifier.to_bytes()).unwrap();
 
-                warn!("Download of trusted setup from server failed. A new one was generated from scratch. USE AT YOUR OWN RISK.");
+                warn!(
+                    "Download of trusted setup from server failed. A new one was generated from scratch. USE AT YOUR OWN RISK."
+                );
             }
         }
     }
