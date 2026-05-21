@@ -10,8 +10,8 @@ use dusk_poseidon::{Domain, Hash};
 use ff::Field;
 use jubjub_schnorr::{SecretKey as LicenseSecretKey, Signature};
 use phoenix_core::{
-    aes::{decrypt, encrypt, ENCRYPTION_EXTRA_SIZE},
     Error, PublicKey, SecretKey, StealthAddress,
+    aes::{ENCRYPTION_EXTRA_SIZE, decrypt, encrypt},
 };
 
 use rand_core::{CryptoRng, RngCore};
@@ -21,7 +21,7 @@ use rkyv::{Archive, Deserialize, Serialize};
 
 use dusk_plonk::prelude::*;
 
-use crate::request::{Request, REQ_PLAINTEXT_SIZE};
+use crate::request::{REQ_PLAINTEXT_SIZE, Request};
 
 pub(crate) const LIC_PLAINTEXT_SIZE: usize = Signature::SIZE + JubJubScalar::SIZE;
 const LIC_ENCRYPTION_SIZE: usize = LIC_PLAINTEXT_SIZE + ENCRYPTION_EXTRA_SIZE;

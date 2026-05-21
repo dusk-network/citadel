@@ -10,12 +10,13 @@ use dusk_poseidon::{Domain, Hash};
 use phoenix_core::{PublicKey, SecretKey};
 use poseidon_merkle::{Item, Tree};
 
-use zk_citadel::{circuit, gadgets, License, LicenseOrigin, SessionCookie};
+use zk_citadel::{License, LicenseOrigin, SessionCookie, circuit, gadgets};
 
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use rand_core::OsRng;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
-static mut CONSTRAINTS: usize = 0;
+static CONSTRAINTS: AtomicUsize = AtomicUsize::new(0);
 static LABEL: &[u8; 12] = b"dusk-network";
 
 // Example values
@@ -37,9 +38,7 @@ impl LicenseCircuit {
 impl Circuit for LicenseCircuit {
     fn circuit(&self, composer: &mut Composer) -> Result<(), Error> {
         gadgets::use_license(composer, &self.gp, &self.sc)?;
-        unsafe {
-            CONSTRAINTS = composer.constraints();
-        }
+        CONSTRAINTS.store(composer.constraints(), Ordering::Relaxed);
         Ok(())
     }
 }
@@ -90,30 +89,30 @@ fn license_circuit_benchmark(crit: &mut Criterion) {
     .expect("Parameters correctly computed.");
 
     // Perform the actual benchmarks
-    unsafe {
-        // Benchmark the prover
-        let log = &format!("License Circuit Prover ({} constraints)", CONSTRAINTS);
-        crit.bench_function(log, |b| {
-            b.iter(|| {
-                prover
-                    .prove(&mut OsRng, &LicenseCircuit::new(&gp, &sc))
-                    .expect("failed to prove")
-            })
-        });
+    // Benchmark the prover
+    let constraints = CONSTRAINTS.load(Ordering::Relaxed);
+    let log = &format!("License Circuit Prover ({constraints} constraints)");
+    crit.bench_function(log, |b| {
+        b.iter(|| {
+            prover
+                .prove(&mut OsRng, &LicenseCircuit::new(&gp, &sc))
+                .expect("failed to prove")
+        })
+    });
 
-        // Benchmark the verifier
-        let (proof, public_inputs) = prover
-            .prove(&mut OsRng, &LicenseCircuit::new(&gp, &sc))
-            .expect("failed to prove");
-        let log = &format!("License Circuit Verifier ({} constraints)", CONSTRAINTS);
-        crit.bench_function(log, |b| {
-            b.iter(|| {
-                verifier
-                    .verify(&proof, &public_inputs)
-                    .expect("failed to verify proof")
-            })
-        });
-    }
+    // Benchmark the verifier
+    let (proof, public_inputs) = prover
+        .prove(&mut OsRng, &LicenseCircuit::new(&gp, &sc))
+        .expect("failed to prove");
+    let constraints = CONSTRAINTS.load(Ordering::Relaxed);
+    let log = &format!("License Circuit Verifier ({constraints} constraints)");
+    crit.bench_function(log, |b| {
+        b.iter(|| {
+            verifier
+                .verify(&proof, &public_inputs)
+                .expect("failed to verify proof")
+        })
+    });
 }
 
 criterion_group! {
