@@ -269,6 +269,176 @@ fn multiple_licenses_issue_get_merkle() {
 }
 
 #[test]
+fn metadata_and_info_track_state() {
+    let rng = &mut StdRng::seed_from_u64(0xcafe);
+    let mut session = initialize();
+
+    let metadata = session
+        .call::<(), DeploymentMetadata>(LICENSE_CONTRACT_ID, "get_metadata", &(), POINT_LIMIT)
+        .expect("Get metadata should succeed")
+        .data;
+
+    assert_eq!(metadata.deployment_id, BlsScalar::zero());
+    assert_eq!(metadata.protocol_version, BlsScalar::one());
+    assert_eq!(metadata.chain_id, BlsScalar::zero());
+    assert_eq!(metadata.contract_id, BlsScalar::zero());
+    assert_eq!(metadata.merkle_depth, circuit::DEPTH as u32);
+    assert_eq!(metadata.root_history_size, 8);
+    assert_eq!(metadata.public_inputs_len, PUBLIC_INPUTS_LEN as u32);
+
+    let initial_info = session
+        .call::<(), (u32, u32, u32)>(LICENSE_CONTRACT_ID, "get_info", &(), POINT_LIMIT)
+        .expect("Get info should succeed")
+        .data;
+    assert_eq!(initial_info, (0, 0, 0));
+
+    let empty_opening = session
+        .call::<u64, Option<LicenseOpening>>(
+            LICENSE_CONTRACT_ID,
+            "get_merkle_opening",
+            &0,
+            POINT_LIMIT,
+        )
+        .expect("Querying an empty opening should succeed")
+        .data;
+    assert!(empty_opening.is_none());
+
+    let sk_user = SecretKey::random(rng);
+    let pk_user = PublicKey::from(&sk_user);
+    let sk_lp = SecretKey::random(rng);
+    let pk_lp = PublicKey::from(&sk_lp);
+    let attr = JubJubScalar::from(USER_ATTRIBUTES);
+    let license = create_test_license(&attr, &sk_lp, &pk_lp, &sk_user, &pk_user, rng);
+    let license_blob = rkyv::to_bytes::<_, 4096>(&license)
+        .expect("License should serialize correctly")
+        .to_vec();
+    let issue_arg = issue_arg(&license, license_blob);
+
+    session
+        .call::<IssueLicenseArg, ()>(
+            LICENSE_CONTRACT_ID,
+            "issue_license",
+            &issue_arg,
+            POINT_LIMIT,
+        )
+        .expect("Issuing license should succeed");
+
+    let issued_info = session
+        .call::<(), (u32, u32, u32)>(LICENSE_CONTRACT_ID, "get_info", &(), POINT_LIMIT)
+        .expect("Get info should succeed")
+        .data;
+    assert_eq!(issued_info, (1, 1, 0));
+
+    let opening = session
+        .call::<u64, Option<LicenseOpening>>(
+            LICENSE_CONTRACT_ID,
+            "get_merkle_opening",
+            &0,
+            POINT_LIMIT,
+        )
+        .expect("Querying an issued opening should succeed")
+        .data;
+    assert!(opening.is_some());
+}
+
+#[test]
+fn issue_license_rejects_invalid_and_duplicate_public_keys() {
+    let rng = &mut StdRng::seed_from_u64(0xcafe);
+    let mut session = initialize();
+
+    let invalid_issue_arg = IssueLicenseArg {
+        license: vec![1, 2, 3],
+        lpk_u: BlsScalar::zero(),
+        lpk_v: BlsScalar::zero(),
+    };
+    assert!(
+        session
+            .call::<IssueLicenseArg, ()>(
+                LICENSE_CONTRACT_ID,
+                "issue_license",
+                &invalid_issue_arg,
+                POINT_LIMIT,
+            )
+            .is_err(),
+        "Invalid license public key should be rejected"
+    );
+
+    let sk_user = SecretKey::random(rng);
+    let pk_user = PublicKey::from(&sk_user);
+    let sk_lp = SecretKey::random(rng);
+    let pk_lp = PublicKey::from(&sk_lp);
+    let attr = JubJubScalar::from(USER_ATTRIBUTES);
+    let license = create_test_license(&attr, &sk_lp, &pk_lp, &sk_user, &pk_user, rng);
+    let license_blob = rkyv::to_bytes::<_, 4096>(&license)
+        .expect("License should serialize correctly")
+        .to_vec();
+    let issue_arg = issue_arg(&license, license_blob);
+
+    session
+        .call::<IssueLicenseArg, ()>(
+            LICENSE_CONTRACT_ID,
+            "issue_license",
+            &issue_arg,
+            POINT_LIMIT,
+        )
+        .expect("Issuing license should succeed");
+
+    assert!(
+        session
+            .call::<IssueLicenseArg, ()>(
+                LICENSE_CONTRACT_ID,
+                "issue_license",
+                &issue_arg,
+                POINT_LIMIT,
+            )
+            .is_err(),
+        "Duplicate license public key should be rejected"
+    );
+
+    let info = session
+        .call::<(), (u32, u32, u32)>(LICENSE_CONTRACT_ID, "get_info", &(), POINT_LIMIT)
+        .expect("Get info should succeed")
+        .data;
+    assert_eq!(info, (1, 1, 0));
+}
+
+#[test]
+fn use_license_rejects_bad_public_inputs_before_proof_verification() {
+    let mut session = initialize();
+
+    let short_arg = UseLicenseArg {
+        proof: vec![],
+        public_inputs: vec![BlsScalar::zero(); PUBLIC_INPUTS_LEN - 1],
+    };
+    let short_result = session.call::<UseLicenseArg, ()>(
+        LICENSE_CONTRACT_ID,
+        "use_license",
+        &short_arg,
+        POINT_LIMIT,
+    );
+    assert!(
+        short_result.is_err(),
+        "Wrong public input length should be rejected"
+    );
+
+    let unknown_root_arg = UseLicenseArg {
+        proof: vec![],
+        public_inputs: vec![BlsScalar::zero(); PUBLIC_INPUTS_LEN],
+    };
+    assert!(
+        session
+            .call::<UseLicenseArg, ()>(
+                LICENSE_CONTRACT_ID,
+                "use_license",
+                &unknown_root_arg,
+                POINT_LIMIT,
+            )
+            .is_err(),
+        "Unknown root should be rejected before proof verification"
+    );
+}
+
+#[test]
 fn session_not_found() {
     const SESSION_ID: u64 = 7u64;
     let mut session = initialize();
@@ -394,6 +564,7 @@ fn use_license_get_session() {
         proof: proof.to_bytes().to_vec(),
         public_inputs,
     };
+    let duplicate_use_license_arg = use_license_arg.clone();
 
     session
         .call::<UseLicenseArg, ()>(
@@ -416,6 +587,18 @@ fn use_license_get_session() {
             .data
             .is_some(),
         "Call to get session should return a session"
+    );
+
+    assert!(
+        session
+            .call::<UseLicenseArg, ()>(
+                LICENSE_CONTRACT_ID,
+                "use_license",
+                &duplicate_use_license_arg,
+                POINT_LIMIT,
+            )
+            .is_err(),
+        "A duplicate session_id should be rejected"
     );
 }
 
