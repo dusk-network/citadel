@@ -12,18 +12,20 @@ pub mod license_contract {
 
     use dusk_bls12_381::BlsScalar;
     use dusk_core::abi::{block_height, feed, verify_plonk};
+    use dusk_jubjub::JubJubAffine;
+    use dusk_poseidon::{Domain, Hash};
     use license_contract::{
         collection::Map,
         error::Error,
-        license_types::{LicenseSession, LicenseSessionId, UseLicenseArg},
+        license_types::{
+            DeploymentMetadata, IssueLicenseArg, LicenseOpening, LicenseSession, LicenseSessionId,
+            LicenseTree, PI_ROOT, PUBLIC_INPUTS_LEN, UseLicenseArg,
+        },
         verifier_data_license_circuit,
     };
 
     const DEPTH: usize = 16; // the depth of LicenseCircuit's Merkle tree
-
-    pub type LicenseTree = poseidon_merkle::Tree<(), DEPTH>;
-    pub type LicenseOpening = poseidon_merkle::Opening<(), DEPTH>;
-    pub type LicenseTreeItem = poseidon_merkle::Item<()>;
+    const ROOT_HISTORY_SIZE: usize = 8;
 
     #[allow(dead_code)]
     #[derive(Debug, Clone)]
@@ -42,7 +44,9 @@ pub mod license_contract {
     pub struct LicenseContractState {
         sessions: Map<LicenseSessionId, LicenseSession>,
         licenses: Map<u64, LicenseEntry>,
-        tree: LicenseTree,
+        license_hashes: Map<BlsScalar, ()>,
+        accepted_roots: Vec<BlsScalar>,
+        tree: LicenseTree<DEPTH>,
     }
 
     impl LicenseContractState {
@@ -50,7 +54,9 @@ pub mod license_contract {
             Self {
                 sessions: Map::new(),
                 licenses: Map::new(),
-                tree: LicenseTree::new(),
+                license_hashes: Map::new(),
+                accepted_roots: Vec::new(),
+                tree: LicenseTree::<DEPTH>::new(),
             }
         }
 
@@ -61,19 +67,32 @@ pub mod license_contract {
 
         /// Inserts a license into the collection of licenses.
         /// Method intended to be called by the License Provider.
-        pub fn issue_license(&mut self, license: Vec<u8>, hash: BlsScalar) {
-            let item = LicenseTreeItem { hash, data: () };
+        pub fn issue_license(&mut self, arg: IssueLicenseArg) {
+            if self.tree.len() >= self.tree.capacity() {
+                panic!("License tree is full");
+            }
+
+            let hash = Self::license_hash(arg.lpk_u, arg.lpk_v);
+            if self.license_hashes.get(&hash).is_some() {
+                panic!("License already issued");
+            }
+
+            let item = poseidon_merkle::Item { hash, data: () };
             let mut pos = self.tree.len();
             while self.tree.contains(pos) {
                 pos += 1;
             }
             self.tree.insert(pos, item);
+            self.license_hashes.insert(hash, ());
+            let root = self.tree.root().hash;
+            self.record_accepted_root(root);
+
             let block_height = block_height();
             self.licenses.insert(
                 pos,
                 LicenseEntry {
                     block_height,
-                    license,
+                    license: arg.license,
                 },
             );
         }
@@ -94,7 +113,7 @@ pub mod license_contract {
         /// Returns merkle opening for a given position in the merkle tree of
         /// license hashes. Returns none if the given position slot in the tree is
         /// empty. Method intended to be called by the user.
-        pub fn get_merkle_opening(&mut self, position: u64) -> Option<LicenseOpening> {
+        pub fn get_merkle_opening(&mut self, position: u64) -> Option<LicenseOpening<DEPTH>> {
             self.tree.opening(position)
         }
 
@@ -102,6 +121,13 @@ pub mod license_contract {
         /// creates a session with the corresponding session id.
         /// Method intended to be called by the user.
         pub fn use_license(&mut self, use_license_arg: UseLicenseArg) {
+            if use_license_arg.public_inputs.len() != PUBLIC_INPUTS_LEN {
+                panic!("Wrong public input length");
+            }
+            if !self.accepts_root(use_license_arg.public_inputs[PI_ROOT]) {
+                panic!("Root is not accepted");
+            }
+
             Self::assert_proof(
                 verifier_data_license_circuit(),
                 use_license_arg.proof,
@@ -114,7 +140,9 @@ pub mod license_contract {
             let license_session = LicenseSession {
                 public_inputs: use_license_arg.public_inputs,
             };
-            let session_id = license_session.session_id();
+            let session_id = license_session
+                .session_id()
+                .expect("public input length was checked");
             if self.sessions.get(&session_id).is_some() {
                 panic!("License already nullified");
             }
@@ -138,6 +166,48 @@ pub mod license_contract {
             verify_plonk(verifier_data.to_vec(), proof, public_inputs)
                 .then_some(())
                 .ok_or(Error::ProofVerification)
+        }
+
+        fn license_hash(lpk_u: BlsScalar, lpk_v: BlsScalar) -> BlsScalar {
+            let lpk = JubJubAffine::from_raw_unchecked(lpk_u, lpk_v);
+            if !bool::from(lpk.is_on_curve()) || !bool::from(lpk.is_prime_order()) {
+                panic!("Invalid license public key");
+            }
+
+            let ctx = Hash::digest(
+                Domain::Other,
+                &[
+                    BlsScalar::zero(),
+                    BlsScalar::zero(),
+                    BlsScalar::from(0x04u64),
+                ],
+            )[0];
+
+            Hash::digest(Domain::Other, &[ctx, lpk_u, lpk_v])[0]
+        }
+
+        fn record_accepted_root(&mut self, root: BlsScalar) {
+            self.accepted_roots.push(root);
+            while self.accepted_roots.len() > ROOT_HISTORY_SIZE {
+                self.accepted_roots.remove(0);
+            }
+        }
+
+        fn accepts_root(&self, root: BlsScalar) -> bool {
+            self.accepted_roots.iter().any(|accepted| accepted == &root)
+        }
+
+        /// Deployment metadata needed by wallets and service providers.
+        pub fn get_metadata(&self) -> DeploymentMetadata {
+            DeploymentMetadata {
+                deployment_id: BlsScalar::zero(),
+                protocol_version: BlsScalar::one(),
+                chain_id: BlsScalar::zero(),
+                contract_id: BlsScalar::zero(),
+                merkle_depth: DEPTH as u32,
+                root_history_size: ROOT_HISTORY_SIZE as u32,
+                public_inputs_len: PUBLIC_INPUTS_LEN as u32,
+            }
         }
 
         /// Info about contract state

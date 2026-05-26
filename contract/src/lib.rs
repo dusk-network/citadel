@@ -18,7 +18,9 @@ pub(crate) mod license_types;
 #[cfg(target_family = "wasm")]
 mod state;
 
-pub use license_types::{LicenseSession, LicenseSessionId, UseLicenseArg};
+pub use license_types::{
+    DeploymentMetadata, IssueLicenseArg, LicenseSession, LicenseSessionId, UseLicenseArg,
+};
 
 const VD_LICENSE_CIRCUIT: &[u8] = include_bytes!("../../target/verifier");
 

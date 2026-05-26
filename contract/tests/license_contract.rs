@@ -10,7 +10,6 @@ use std::ops::Range;
 use std::sync::mpsc;
 
 use dusk_bytes::Serializable;
-use dusk_poseidon::{Domain, Hash};
 use rand::rngs::StdRng;
 use rand::{CryptoRng, RngCore, SeedableRng};
 use rkyv::{Deserialize, Infallible, check_archived_root};
@@ -57,7 +56,22 @@ fn create_test_license<R: RngCore + CryptoRng>(
     rng: &mut R,
 ) -> License {
     let request = Request::new(sk_user, pk_user, pk_lp, rng).unwrap();
-    License::new(attr, sk_lp, &LicenseOrigin::FromRequest(request), rng).unwrap()
+    License::new(
+        attr,
+        sk_lp,
+        &LicenseOrigin::FromRequest(Box::new(request)),
+        rng,
+    )
+    .unwrap()
+}
+
+fn issue_arg(license: &License, license_blob: Vec<u8>) -> IssueLicenseArg {
+    let lpk = JubJubAffine::from(license.lsa.note_pk().as_ref());
+    IssueLicenseArg {
+        license: license_blob,
+        lpk_u: lpk.get_u(),
+        lpk_v: lpk.get_v(),
+    }
 }
 
 fn initialize() -> Session {
@@ -137,14 +151,13 @@ fn license_issue_get_merkle() {
         .expect("Request should serialize correctly")
         .to_vec();
 
-    let lpk = JubJubAffine::from(license.lsa.note_pk().as_ref());
-    let license_hash = Hash::digest(Domain::Other, &[lpk.get_u(), lpk.get_v()])[0];
+    let issue_arg = issue_arg(&license, license_blob);
 
     session
-        .call::<(Vec<u8>, BlsScalar), ()>(
+        .call::<IssueLicenseArg, ()>(
             LICENSE_CONTRACT_ID,
             "issue_license",
-            &(license_blob, license_hash),
+            &issue_arg,
             POINT_LIMIT,
         )
         .expect("Issuing license should succeed");
@@ -207,13 +220,12 @@ fn multiple_licenses_issue_get_merkle() {
             .expect("Request should serialize correctly")
             .to_vec();
 
-        let lpk = JubJubAffine::from(license.lsa.note_pk().as_ref());
-        let license_hash = Hash::digest(Domain::Other, &[lpk.get_u(), lpk.get_v()])[0];
+        let issue_arg = issue_arg(&license, license_blob);
         session
-            .call::<(Vec<u8>, BlsScalar), ()>(
+            .call::<IssueLicenseArg, ()>(
                 LICENSE_CONTRACT_ID,
                 "issue_license",
-                &(license_blob, license_hash),
+                &issue_arg,
                 POINT_LIMIT,
             )
             .expect("Issuing license should succeed");
@@ -306,20 +318,25 @@ fn use_license_get_session() {
     let request =
         Request::new(&sk_user, &pk_user, &pk_lp, rng).expect("Request correctly created.");
     let attr = JubJubScalar::from(USER_ATTRIBUTES);
-    let license = License::new(&attr, &sk_lp, &LicenseOrigin::FromRequest(request), rng).unwrap();
+    let license = License::new(
+        &attr,
+        &sk_lp,
+        &LicenseOrigin::FromRequest(Box::new(request)),
+        rng,
+    )
+    .unwrap();
 
     let license_blob = rkyv::to_bytes::<_, 4096>(&license)
         .expect("Request should serialize correctly")
         .to_vec();
 
-    let lpk = JubJubAffine::from(license.lsa.note_pk().as_ref());
-    let license_hash = Hash::digest(Domain::Other, &[lpk.get_u(), lpk.get_v()])[0];
+    let issue_arg = issue_arg(&license, license_blob);
 
     session
-        .call::<(Vec<u8>, BlsScalar), ()>(
+        .call::<IssueLicenseArg, ()>(
             LICENSE_CONTRACT_ID,
             "issue_license",
-            &(license_blob, license_hash),
+            &issue_arg,
             POINT_LIMIT,
         )
         .expect("Issuing license should succeed");
