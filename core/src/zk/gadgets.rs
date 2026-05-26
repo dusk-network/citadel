@@ -7,7 +7,6 @@
 use dusk_bytes::Serializable;
 use dusk_jubjub::{GENERATOR, GENERATOR_EXTENDED, GENERATOR_NUMS, GENERATOR_NUMS_EXTENDED, dhke};
 use dusk_plonk::prelude::*;
-use dusk_poseidon::Hash;
 use dusk_poseidon::{Domain, HashGadget};
 use ff::Field;
 use jubjub_schnorr::gadgets;
@@ -19,7 +18,14 @@ use rand_core::{CryptoRng, RngCore};
 #[cfg(feature = "rkyv-impl")]
 use rkyv::{Archive, Deserialize, Serialize};
 
-use crate::{License, SessionCookie, license::LIC_PLAINTEXT_SIZE};
+use crate::{
+    License, SessionCookie,
+    assets::LIC_PLAINTEXT_SIZE,
+    helpers::{
+        CitadelDomain, DEFAULT_DEPLOYMENT, license_key, lp_commitment, session_auth, session_hash,
+        session_id,
+    },
+};
 
 use poseidon_merkle::zk::opening_gadget;
 
@@ -40,46 +46,56 @@ pub fn use_license<const DEPTH: usize>(
     gp: &GadgetParameters<DEPTH>,
     sc: &SessionCookie,
 ) -> Result<(), Error> {
+    let deployment = DEFAULT_DEPLOYMENT;
+
     // APPEND THE LICENSE PUBLIC KEYS OF THE USER
     let lpk = composer.append_point(gp.lpk);
     let lpk_p = composer.append_point(gp.lpk_p);
 
-    // COMPUTE THE SESSION ID
+    // APPEND PUBLIC INPUTS IN THE SPECIFIED ORDER
     let c = composer.append_witness(sc.c);
     let session_id_pi = composer.append_public(sc.session_id);
-    let session_id = HashGadget::digest(composer, Domain::Other, &[*lpk_p.x(), *lpk_p.y(), c]);
+    let session_hash_pi = composer.append_public(gp.session_hash);
+    let com_0_pi = composer.append_public(gp.com_0);
+    let com_1_pi = composer.append_public_point(gp.com_1);
+    let com_2_pi = composer.append_public_point(gp.com_2);
+    let root_pi = composer.append_public(gp.merkle_proof.root().hash);
+
+    // COMPUTE THE SESSION ID
+    let session_id_ctx = composer.append_constant(deployment.context(CitadelDomain::SessionId));
+    let session_id = HashGadget::digest(
+        composer,
+        Domain::Other,
+        &[session_id_ctx, *lpk_p.x(), *lpk_p.y(), c],
+    );
 
     composer.assert_equal(session_id[0], session_id_pi);
 
     // VERIFY THE LICENSE SIGNATURE
     let sig_lic_u = composer.append_witness(*gp.sig_lic.u());
     let sig_lic_r = composer.append_point(gp.sig_lic.R());
-    let pk_lp = composer.append_point(sc.pk_lp);
+    let pk_lp_a = JubJubAffine::from(sc.pk_lp.A());
+    let pk_lp = composer.append_point(pk_lp_a);
     let attr_data = composer.append_witness(sc.attr_data);
 
-    let message = HashGadget::digest(composer, Domain::Other, &[*lpk.x(), *lpk.y(), attr_data]);
-    gadgets::verify_signature(composer, sig_lic_u, sig_lic_r, pk_lp, message[0])?;
-
-    // VERIFY THE SESSION HASH SIGNATURE
-    let sig_session_hash_u = composer.append_witness(*gp.sig_session_hash.u());
-    let sig_session_hash_r = composer.append_point(gp.sig_session_hash.R());
-    let sig_session_hash_r_p = composer.append_point(gp.sig_session_hash.R_prime());
-    let session_hash = composer.append_public(gp.session_hash);
-
-    gadgets::verify_signature_double(
+    let license_sig_ctx =
+        composer.append_constant(deployment.context(CitadelDomain::LicenseSigMsg));
+    let message = HashGadget::digest(
         composer,
-        sig_session_hash_u,
-        sig_session_hash_r,
-        sig_session_hash_r_p,
-        lpk,
-        lpk_p,
-        session_hash,
-    )?;
+        Domain::Other,
+        &[license_sig_ctx, *lpk.x(), *lpk.y(), attr_data],
+    );
+    gadgets::verify_signature(composer, sig_lic_u, sig_lic_r, pk_lp, message[0])?;
 
     // COMMIT TO THE PK_LP USING A HASH FUNCTION
     let s_0 = composer.append_witness(sc.s_0);
-    let com_0_pi = composer.append_public(gp.com_0);
-    let com_0 = HashGadget::digest(composer, Domain::Other, &[*pk_lp.x(), *pk_lp.y(), s_0]);
+    let lp_commitment_ctx =
+        composer.append_constant(deployment.context(CitadelDomain::LpCommitment));
+    let com_0 = HashGadget::digest(
+        composer,
+        Domain::Other,
+        &[lp_commitment_ctx, *pk_lp.x(), *pk_lp.y(), s_0],
+    );
 
     composer.assert_equal(com_0[0], com_0_pi);
 
@@ -89,7 +105,7 @@ pub fn use_license<const DEPTH: usize>(
     let pc_1_2 = composer.component_mul_generator(s_1, GENERATOR_NUMS);
     let com_1 = composer.component_add_point(pc_1_1.unwrap(), pc_1_2.unwrap());
 
-    composer.assert_equal_public_point(com_1, gp.com_1);
+    composer.assert_equal_point(com_1, com_1_pi);
 
     // COMMIT TO THE CHALLENGE
     let s_2 = composer.append_witness(sc.s_2);
@@ -97,13 +113,49 @@ pub fn use_license<const DEPTH: usize>(
     let pc_2_2 = composer.component_mul_generator(s_2, GENERATOR_NUMS);
     let com_2 = composer.component_add_point(pc_2_1.unwrap(), pc_2_2.unwrap());
 
-    composer.assert_equal_public_point(com_2, gp.com_2);
+    composer.assert_equal_point(com_2, com_2_pi);
+
+    // VERIFY THE SESSION AUTHORIZATION SIGNATURE
+    let session_auth_ctx = composer.append_constant(deployment.context(CitadelDomain::SessionAuth));
+    let session_auth = HashGadget::digest(
+        composer,
+        Domain::Other,
+        &[
+            session_auth_ctx,
+            session_id_pi,
+            session_hash_pi,
+            com_0_pi,
+            *com_1_pi.x(),
+            *com_1_pi.y(),
+            *com_2_pi.x(),
+            *com_2_pi.y(),
+            root_pi,
+        ],
+    );
+
+    let sig_session_auth_u = composer.append_witness(*gp.sig_session_auth.u());
+    let sig_session_auth_r = composer.append_point(gp.sig_session_auth.R());
+    let sig_session_auth_r_p = composer.append_point(gp.sig_session_auth.R_prime());
+
+    gadgets::verify_signature_double(
+        composer,
+        sig_session_auth_u,
+        sig_session_auth_r,
+        sig_session_auth_r_p,
+        lpk,
+        lpk_p,
+        session_auth[0],
+    )?;
 
     // COMPUTE THE HASH OF THE LICENSE
-    let license_hash = HashGadget::digest(composer, Domain::Other, &[*lpk.x(), *lpk.y()]);
+    let license_hash_ctx = composer.append_constant(deployment.context(CitadelDomain::LicenseHash));
+    let license_hash = HashGadget::digest(
+        composer,
+        Domain::Other,
+        &[license_hash_ctx, *lpk.x(), *lpk.y()],
+    );
 
     // VERIFY THE MERKLE PROOF
-    let root_pi = composer.append_public(gp.merkle_proof.root().hash);
     let root = opening_gadget(composer, &gp.merkle_proof, license_hash[0]);
     composer.assert_equal(root, root_pi);
 
@@ -127,7 +179,7 @@ pub struct GadgetParameters<const DEPTH: usize> {
     com_2: JubJubExtended, // Pedersen Commitment 2
 
     session_hash: BlsScalar,           // hash of the session
-    sig_session_hash: SignatureDouble, // signature of the session_hash
+    sig_session_auth: SignatureDouble, // signature of the public session tuple
     merkle_proof: Opening<(), DEPTH>,  // Merkle proof for the Proof of Validity
 }
 
@@ -150,7 +202,7 @@ impl<const DEPTH: usize> Default for GadgetParameters<DEPTH> {
             com_2: JubJubExtended::default(),
 
             session_hash: BlsScalar::default(),
-            sig_session_hash: SignatureDouble::default(),
+            sig_session_auth: SignatureDouble::default(),
             merkle_proof,
         }
     }
@@ -175,9 +227,11 @@ impl<const DEPTH: usize> GadgetParameters<DEPTH> {
         let dec: [u8; LIC_PLAINTEXT_SIZE] = match decrypt(&k_lic, &salt, &lic.enc) {
             Ok(dec) => dec,
             Err(_err) => {
-                let k_lic = JubJubAffine::from(
-                    GENERATOR_EXTENDED
-                        * Hash::digest_truncated(Domain::Other, &[(*lsk.as_ref()).into()])[0],
+                let k_lic = license_key(
+                    DEFAULT_DEPLOYMENT,
+                    *lsk.as_ref(),
+                    JubJubAffine::from(lic.lsa.note_pk().as_ref()),
+                    JubJubAffine::from(lic.lsa.R()),
                 );
 
                 decrypt(&k_lic, &salt, &lic.enc)?
@@ -186,12 +240,12 @@ impl<const DEPTH: usize> GadgetParameters<DEPTH> {
 
         let mut sig_lic_bytes = [0u8; Signature::SIZE];
         sig_lic_bytes.copy_from_slice(&dec[..Signature::SIZE]);
-        let sig_lic = Signature::from_bytes(&sig_lic_bytes).expect("Deserialization was correct.");
+        let sig_lic = Signature::from_bytes(&sig_lic_bytes)?;
 
         let mut attr_data_bytes = [0u8; JubJubScalar::SIZE];
         attr_data_bytes.copy_from_slice(&dec[Signature::SIZE..]);
-        let attr_data =
-            JubJubScalar::from_bytes(&attr_data_bytes).expect("Deserialization was correct.");
+        let attr_data = Option::<JubJubScalar>::from(JubJubScalar::from_bytes(&attr_data_bytes))
+            .ok_or(phoenix_core::Error::InvalidData)?;
 
         let lpk = JubJubAffine::from(*lic.lsa.note_pk().as_ref());
         let lpk_p = JubJubAffine::from(GENERATOR_NUMS_EXTENDED * lsk.as_ref());
@@ -200,22 +254,30 @@ impl<const DEPTH: usize> GadgetParameters<DEPTH> {
         let s_1 = JubJubScalar::random(&mut rng);
         let s_2 = JubJubScalar::random(&mut rng);
 
-        let pk_sp = JubJubAffine::from(*pk_sp.A());
+        let pk_sp_a = JubJubAffine::from(*pk_sp.A());
         let r = BlsScalar::random(&mut rng);
 
-        let session_hash = Hash::digest(Domain::Other, &[pk_sp.get_u(), pk_sp.get_v(), r])[0];
-        let sig_session_hash = lsk.sign_double(rng, session_hash);
+        let session_hash = session_hash(DEFAULT_DEPLOYMENT, pk_sp_a, r);
+        let session_id = session_id(DEFAULT_DEPLOYMENT, lpk_p, *c);
 
-        let mut session_id = Hash::new(Domain::Other);
-        let binding = &[lpk_p.get_u(), lpk_p.get_v(), BlsScalar::from(*c)];
-        session_id.update(binding);
-        let session_id = session_id.finalize()[0];
+        let pk_lp_a = JubJubAffine::from(*pk_lp.A());
 
-        let pk_lp = JubJubAffine::from(*pk_lp.A());
-
-        let com_0 = Hash::digest(Domain::Other, &[pk_lp.get_u(), pk_lp.get_v(), s_0])[0];
+        let com_0 = lp_commitment(DEFAULT_DEPLOYMENT, pk_lp_a, s_0);
         let com_1 = (GENERATOR_EXTENDED * attr_data) + (GENERATOR_NUMS_EXTENDED * s_1);
         let com_2 = (GENERATOR_EXTENDED * c) + (GENERATOR_NUMS_EXTENDED * s_2);
+        let root = merkle_proof.root().hash;
+        let sig_session_auth = lsk.sign_double(
+            rng,
+            session_auth(
+                DEFAULT_DEPLOYMENT,
+                session_id,
+                session_hash,
+                com_0,
+                JubJubAffine::from(com_1),
+                JubJubAffine::from(com_2),
+                root,
+            ),
+        );
 
         Ok((
             Self {
@@ -228,14 +290,15 @@ impl<const DEPTH: usize> GadgetParameters<DEPTH> {
                 com_2,
 
                 session_hash,
-                sig_session_hash,
+                sig_session_auth,
                 merkle_proof,
             },
             SessionCookie {
-                pk_sp,
+                deployment_id: DEFAULT_DEPLOYMENT.id,
+                pk_sp: *pk_sp,
                 r,
                 session_id,
-                pk_lp,
+                pk_lp: *pk_lp,
                 attr_data,
                 c: *c,
                 s_0,

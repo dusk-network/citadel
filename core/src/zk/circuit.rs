@@ -4,12 +4,12 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use crate::{SessionCookie, gadgets};
+use crate::{SessionCookie, zk::gadgets};
 use dusk_plonk::prelude::*;
 
 #[allow(dead_code)]
 /// The capacity required for the setup
-pub const CAPACITY: usize = 15;
+pub const CAPACITY: usize = 16;
 /// The depth of the n-ary Merkle tree
 pub const DEPTH: usize = 16;
 

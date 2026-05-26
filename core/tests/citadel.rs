@@ -4,15 +4,19 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+#![cfg(feature = "zk")]
+
 use dusk_jubjub::{JubJubAffine, JubJubScalar};
 use dusk_plonk::prelude::*;
-use dusk_poseidon::{Domain, Hash};
 use ff::Field;
 use phoenix_core::{PublicKey, SecretKey};
 use poseidon_merkle::{Item, Tree};
 use rand_core::OsRng;
 
-use zk_citadel::{License, LicenseOrigin, Request, Session, SessionCookie, circuit, gadgets};
+use zk_citadel::{
+    License, LicenseOrigin, Request, Session, SessionCookie, circuit, gadgets,
+    helpers::{DEFAULT_DEPLOYMENT, license_hash},
+};
 
 static LABEL: &[u8; 12] = b"dusk-network";
 
@@ -43,7 +47,7 @@ fn test_full_citadel() {
     let lic = License::new(
         &attr_data,
         &sk_lp,
-        &LicenseOrigin::FromRequest(req),
+        &LicenseOrigin::FromRequest(Box::new(req)),
         &mut OsRng,
     )
     .expect("License correctly computed from request.");
@@ -52,7 +56,7 @@ fn test_full_citadel() {
     let lpk = JubJubAffine::from(lic.lsa.note_pk().as_ref());
 
     let item = Item {
-        hash: Hash::digest(Domain::Other, &[lpk.get_u(), lpk.get_v()])[0],
+        hash: license_hash(DEFAULT_DEPLOYMENT, lpk),
         data: (),
     };
 
@@ -92,18 +96,19 @@ fn test_full_citadel() {
     assert!(verifier.verify(&proof, &false_public_inputs).is_err());
 
     // Now, the SP can verify a received session cookie
-    assert_eq!(JubJubAffine::from(pk_lp.A()), sc.pk_lp);
-    assert_eq!(JubJubAffine::from(pk_sp.A()), sc.pk_sp);
+    assert_eq!(pk_lp, sc.pk_lp);
+    assert_eq!(pk_sp, sc.pk_sp);
     assert_eq!(c, sc.c);
     assert_eq!(attr_data, sc.attr_data);
 
     // Finally, the SP can verify a session, related by the session_id
-    let session = Session::from(&public_inputs);
+    let session = Session::from(&public_inputs).expect("Session parsed correctly.");
     assert_eq!(session.session_id, sc.session_id);
     session.verify(sc).expect("Session verified correctly.");
 
     // We also test setting a false session cookie
     let sc_false = SessionCookie {
+        deployment_id: sc.deployment_id,
         pk_sp: sc.pk_sp,
         r: sc.r,
         session_id: sc.session_id,
@@ -122,7 +127,7 @@ fn test_full_citadel() {
     let lic_from_pk = License::new(
         &attr_data,
         &sk_lp,
-        &LicenseOrigin::FromPublicKey(pk),
+        &LicenseOrigin::FromPublicKey(Box::new(pk)),
         &mut OsRng,
     )
     .expect("License correctly computed from public key.");
@@ -130,7 +135,7 @@ fn test_full_citadel() {
     let lpk = JubJubAffine::from(lic_from_pk.lsa.note_pk().as_ref());
 
     let item = Item {
-        hash: Hash::digest(Domain::Other, &[lpk.get_u(), lpk.get_v()])[0],
+        hash: license_hash(DEFAULT_DEPLOYMENT, lpk),
         data: (),
     };
 
@@ -156,12 +161,12 @@ fn test_full_citadel() {
         .verify(&proof, &public_inputs)
         .expect("failed to verify proof");
 
-    assert_eq!(JubJubAffine::from(pk_lp.A()), sc.pk_lp);
-    assert_eq!(JubJubAffine::from(pk_sp.A()), sc.pk_sp);
+    assert_eq!(pk_lp, sc.pk_lp);
+    assert_eq!(pk_sp, sc.pk_sp);
     assert_eq!(c, sc.c);
     assert_eq!(attr_data, sc.attr_data);
 
-    let session = Session::from(&public_inputs);
+    let session = Session::from(&public_inputs).expect("Session parsed correctly.");
     assert_eq!(session.session_id, sc.session_id);
     session.verify(sc).expect("Session verified correctly.");
 }

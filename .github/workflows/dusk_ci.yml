@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
-      - run: cargo bench --no-run
+      - run: cargo bench --no-run --features zk
 
   test_std:
     name: Stable toolchain tests
@@ -29,10 +29,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dsherret/rust-toolchain-file@v1
-      - run: cargo b --release
+      - run: cargo build --release --features zk
       - run: rustup target add wasm32-unknown-unknown
-      - run: cd contract && cargo b --target wasm32-unknown-unknown --release
-      - run: cargo t --release
+      - run: cd contract && cargo build --target wasm32-unknown-unknown --release
+      - run: cargo test --release --features zk
 
   test_no_std:
     name: Stable toolchain no_std tests
@@ -40,7 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dsherret/rust-toolchain-file@v1
-      - run: cargo b --release
+      - run: cargo build --release --no-default-features --features zk
       - run: rustup target add wasm32-unknown-unknown
-      - run: cd contract && cargo b --target wasm32-unknown-unknown --release
-      - run: cargo t --release --no-default-features
+      - run: cd contract && cargo build --target wasm32-unknown-unknown --release
+      - run: cargo test --release --no-default-features --features zk
