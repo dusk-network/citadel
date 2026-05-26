@@ -1,6 +1,7 @@
 # Citadel Core
 
 ![Build Status](https://github.com/dusk-network/citadel/actions/workflows/dusk_ci.yml/badge.svg)
+[![Crates.io](https://img.shields.io/crates/v/zk-citadel.svg)](https://crates.io/crates/zk-citadel)
 [![Repository](https://img.shields.io/badge/github-citadel-blueviolet?logo=github)](https://github.com/dusk-network/citadel)
 
 This package contains the core implementation of Citadel.
@@ -22,3 +23,7 @@ The package can be benchmarked by running:
 ```
 cargo bench --features zk
 ```
+
+## License
+
+This project is licensed under the [Mozilla Public License 2.0](../LICENSE).
