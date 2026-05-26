@@ -12,7 +12,7 @@ This package contains the core implementation of Citadel.
 The package can be tested by running:
 
 ```
-cargo t --release
+cargo test --release --features zk
 ```
 
 ## Benchmarks
@@ -20,5 +20,5 @@ cargo t --release
 The package can be benchmarked by running:
 
 ```
-cargo bench
+cargo bench --features zk
 ```
