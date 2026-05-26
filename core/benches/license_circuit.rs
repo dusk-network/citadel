@@ -6,11 +6,13 @@
 
 use dusk_jubjub::{JubJubAffine, JubJubScalar};
 use dusk_plonk::prelude::*;
-use dusk_poseidon::{Domain, Hash};
 use phoenix_core::{PublicKey, SecretKey};
 use poseidon_merkle::{Item, Tree};
 
-use zk_citadel::{License, LicenseOrigin, SessionCookie, circuit, gadgets};
+use zk_citadel::{
+    License, LicenseOrigin, SessionCookie, circuit, gadgets,
+    helpers::{DEFAULT_DEPLOYMENT, license_hash},
+};
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use rand_core::OsRng;
@@ -57,7 +59,7 @@ fn license_circuit_benchmark(crit: &mut Criterion) {
     let lic = License::new(
         &attr_data,
         &sk_lp,
-        &LicenseOrigin::FromPublicKey(pk),
+        &LicenseOrigin::FromPublicKey(Box::new(pk)),
         &mut OsRng,
     )
     .expect("License correctly computed.");
@@ -66,7 +68,7 @@ fn license_circuit_benchmark(crit: &mut Criterion) {
     let lpk = JubJubAffine::from(lic.lsa.note_pk().as_ref());
 
     let item = Item {
-        hash: Hash::digest(Domain::Other, &[lpk.get_u(), lpk.get_v()])[0],
+        hash: license_hash(DEFAULT_DEPLOYMENT, lpk),
         data: (),
     };
 

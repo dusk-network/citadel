@@ -10,6 +10,14 @@ use core::fmt;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone)]
 pub enum Error {
+    /// The public input vector has the wrong length
+    InvalidPublicInputs,
+    /// A public commitment point is malformed or not allowed
+    InvalidCommitment,
+    /// The session ID in the cookie does not match the session
+    WrongSessionId,
+    /// The deployment metadata in the cookie does not match this verifier
+    WrongDeployment,
     /// The commitment to the public key of the License Provider is incorrect
     WrongLicenseProviderComm,
     /// The commitment to the attribute data is incorrect

@@ -16,6 +16,13 @@
 #![deny(missing_docs)]
 
 mod error;
+/// Protocol helper functions and constants shared by the off-chain API,
+/// circuit gadgets, tests, and benchmarks.
+///
+/// This module contains the fixed public-input order, Merkle arity,
+/// deployment-bound domain separation helpers, and the canonical hash/KDF
+/// helpers used by Citadel.
+pub mod helpers;
 mod license;
 mod request;
 mod session;

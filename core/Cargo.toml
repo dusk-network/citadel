@@ -34,4 +34,4 @@ harness = false
 [features]
 rkyv-impl = []
 std = ["dusk-plonk/std"]
-default = ["rkyv-impl"]
+default = ["rkyv-impl", "std"]

@@ -5,8 +5,7 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use dusk_bytes::Serializable;
-use dusk_jubjub::{GENERATOR_EXTENDED, dhke};
-use dusk_poseidon::{Domain, Hash};
+use dusk_jubjub::dhke;
 use ff::Field;
 use phoenix_core::{
     Error, PublicKey, SecretKey, StealthAddress,
@@ -20,7 +19,11 @@ use rkyv::{Archive, Deserialize, Serialize};
 
 use dusk_plonk::prelude::*;
 
-pub(crate) const REQ_PLAINTEXT_SIZE: usize = StealthAddress::SIZE + JubJubAffine::SIZE;
+use crate::helpers::{DEFAULT_DEPLOYMENT, Deployment, license_key};
+
+const DEPLOYMENT_CONTEXT_SIZE: usize = BlsScalar::SIZE;
+pub(crate) const REQ_PLAINTEXT_SIZE: usize =
+    StealthAddress::SIZE + JubJubAffine::SIZE + DEPLOYMENT_CONTEXT_SIZE + PublicKey::SIZE;
 const REQ_ENCRYPTION_SIZE: usize = REQ_PLAINTEXT_SIZE + ENCRYPTION_EXTRA_SIZE;
 
 /// The struct defining a Citadel request, a set of information that
@@ -33,6 +36,8 @@ const REQ_ENCRYPTION_SIZE: usize = REQ_PLAINTEXT_SIZE + ENCRYPTION_EXTRA_SIZE;
 )]
 #[derive(Debug)]
 pub struct Request {
+    /// Compact deployment identifier.
+    pub deployment_id: BlsScalar,
     /// The stealth address for the request
     pub rsa: StealthAddress,
     /// The encryption of the license stealth address and the k_lic symmetric key
@@ -47,11 +52,24 @@ impl Request {
         pk_lp: &PublicKey,
         rng: &mut R,
     ) -> Result<Self, Error> {
+        Self::new_with_deployment(sk_user, pk_user, pk_lp, DEFAULT_DEPLOYMENT, rng)
+    }
+
+    /// Method to create a new [`Request`] bound to a deployment.
+    pub fn new_with_deployment<R: RngCore + CryptoRng>(
+        sk_user: &SecretKey,
+        pk_user: &PublicKey,
+        pk_lp: &PublicKey,
+        deployment: Deployment,
+        rng: &mut R,
+    ) -> Result<Self, Error> {
         let lsa = pk_user.gen_stealth_address(&JubJubScalar::random(&mut *rng));
         let lsk = sk_user.gen_note_sk(&lsa);
-        let k_lic = JubJubAffine::from(
-            GENERATOR_EXTENDED
-                * Hash::digest_truncated(Domain::Other, &[(*lsk.as_ref()).into()])[0],
+        let k_lic = license_key(
+            deployment,
+            *lsk.as_ref(),
+            JubJubAffine::from(lsa.note_pk().as_ref()),
+            JubJubAffine::from(lsa.R()),
         );
 
         let r_dh = JubJubScalar::random(&mut *rng);
@@ -60,10 +78,16 @@ impl Request {
 
         let mut plaintext = lsa.to_bytes().to_vec();
         plaintext.append(&mut k_lic.to_bytes().to_vec());
+        plaintext.append(&mut deployment.id.to_bytes().to_vec());
+        plaintext.append(&mut pk_lp.to_bytes().to_vec());
 
         let salt = rsa.note_pk().to_bytes();
         let enc = encrypt(&k_dh, &salt, &plaintext, rng)?;
 
-        Ok(Self { rsa, enc })
+        Ok(Self {
+            deployment_id: deployment.id,
+            rsa,
+            enc,
+        })
     }
 }
