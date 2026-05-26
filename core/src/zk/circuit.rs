@@ -4,7 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use crate::{SessionCookie, gadgets};
+use crate::{SessionCookie, zk::gadgets};
 use dusk_plonk::prelude::*;
 
 #[allow(dead_code)]

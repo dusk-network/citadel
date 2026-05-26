@@ -20,8 +20,8 @@ use rkyv::{Archive, Deserialize, Serialize};
 
 use dusk_plonk::prelude::*;
 
+use crate::assets::{REQ_PLAINTEXT_SIZE, Request};
 use crate::helpers::{DEFAULT_DEPLOYMENT, Deployment, license_sig_message};
-use crate::request::{REQ_PLAINTEXT_SIZE, Request};
 
 pub(crate) const LIC_PLAINTEXT_SIZE: usize = Signature::SIZE + JubJubScalar::SIZE;
 const LIC_ENCRYPTION_SIZE: usize = LIC_PLAINTEXT_SIZE + ENCRYPTION_EXTRA_SIZE;

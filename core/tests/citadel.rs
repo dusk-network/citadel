@@ -4,6 +4,8 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+#![cfg(feature = "zk")]
+
 use dusk_jubjub::{JubJubAffine, JubJubScalar};
 use dusk_plonk::prelude::*;
 use ff::Field;

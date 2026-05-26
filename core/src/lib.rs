@@ -16,6 +16,10 @@
 #![deny(missing_docs)]
 
 mod error;
+
+/// Protocol assets exchanged by Citadel participants.
+pub mod assets;
+
 /// Protocol helper functions and constants shared by the off-chain API,
 /// circuit gadgets, tests, and benchmarks.
 ///
@@ -23,19 +27,12 @@ mod error;
 /// deployment-bound domain separation helpers, and the canonical hash/KDF
 /// helpers used by Citadel.
 pub mod helpers;
-mod license;
-mod request;
-mod session;
 
-/// The arithmetic circuit module to use licenses
-pub mod circuit;
+/// Zero-knowledge circuits and reusable gadgets.
+#[cfg(feature = "zk")]
+pub mod zk;
 
-/// The gadget module required by the license circuit and / or
-/// in third party circuits, to use licenses
-pub mod gadgets;
-
-pub use license::{License, LicenseOrigin};
-pub use request::Request;
-pub use session::{Session, SessionCookie};
-
+pub use assets::{License, LicenseOrigin, Request, Session, SessionCookie};
 pub use error::Error;
+#[cfg(feature = "zk")]
+pub use zk::{circuit, gadgets};

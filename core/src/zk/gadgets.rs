@@ -20,11 +20,11 @@ use rkyv::{Archive, Deserialize, Serialize};
 
 use crate::{
     License, SessionCookie,
+    assets::LIC_PLAINTEXT_SIZE,
     helpers::{
         CitadelDomain, DEFAULT_DEPLOYMENT, license_key, lp_commitment, session_auth, session_hash,
         session_id,
     },
-    license::LIC_PLAINTEXT_SIZE,
 };
 
 use poseidon_merkle::zk::opening_gadget;
