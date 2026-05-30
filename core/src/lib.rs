@@ -8,7 +8,7 @@
 //! decentralized networks, allowing users to receive licenses issued by license providers (LP), and
 //! to use them to prove sensitive information in zero-knowledge to service providers (SP).
 //!
-//! Reference: https://arxiv.org/pdf/2301.09378
+//! Reference: <https://arxiv.org/pdf/2301.09378>
 //!
 //! **DISCLAIMER**: this package **has not gone through an exhaustive security analysis**,
 //! so it is not intended to be used in a production environment, only for academic purposes.
@@ -28,11 +28,18 @@ pub mod assets;
 /// helpers used by Citadel.
 pub mod helpers;
 
+/// Citadel-specific Schnorr signature wrappers.
+pub mod signatures;
+
 /// Zero-knowledge circuits and reusable gadgets.
 #[cfg(feature = "zk")]
 pub mod zk;
 
-pub use assets::{License, LicenseOrigin, Request, Session, SessionCookie};
+pub use assets::{
+    AttributeOpening, License, LicenseContext, LicenseOrigin, Request, Session, SessionCookie,
+    SessionPolicy,
+};
 pub use error::Error;
+pub use signatures::{LicenseSignature, SessionAuthSignature};
 #[cfg(feature = "zk")]
 pub use zk::{circuit, gadgets};
