@@ -3,7 +3,7 @@
 ![Build Status](https://github.com/dusk-network/citadel/actions/workflows/dusk_ci.yml/badge.svg)
 [![Repository](https://img.shields.io/badge/github-citadel-blueviolet?logo=github)](https://github.com/dusk-network/citadel)
 
-This package contains the Citadel contract. It stores encrypted requests for LP discovery, encrypted licenses and license hashes, accepted Merkle roots, public session records, and deployment metadata used by wallets and Service Providers.
+This package contains the Citadel contract. It stores encrypted licenses and license hashes, accepted Merkle roots, public session records, and deployment metadata used by wallets and Service Providers. Request delivery is handled outside the base contract by the selected deployment or application transport.
 
 **DISCLAIMER**: this contract **has not gone through an exhaustive security analysis**, so it is not intended to be used in a production environment, only for academic purposes.
 

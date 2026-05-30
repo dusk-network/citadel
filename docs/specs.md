@@ -27,7 +27,7 @@ Citadel also does not automatically provide:
 - replay protection for a disclosed cookie;
 - revocation or current-validity checks beyond membership in an accepted root;
 - issuer-verifier unlinkability when attributes are unique, when timing or network metadata is identifying, or when the LP and SP collude;
-- availability protection for request discovery, registry storage, or SP service endpoints;
+- availability protection for request delivery, registry storage, or SP service endpoints;
 - authorization for every service that accepts Citadel proofs.
 
 The standalone [threat model](security.md) defines adversaries, assets, security goals, residual risks, and proof obligations. The protocol specification keeps only the normative mechanics needed for interoperable implementations.
@@ -39,7 +39,7 @@ The standalone [threat model](security.md) defines adversaries, assets, security
 - **User:** controls a wallet key pair, requests licenses, owns license secret keys, opens sessions, and sends cookies to SPs.
 - **License Provider (LP):** evaluates requests, defines signed attributes, signs licenses, and publishes encrypted licenses.
 - **Service Provider (SP):** publishes a policy profile, verifies cookies, and grants or denies service.
-- **Contract:** stores encrypted request and license blobs, stores issued license commitments, maintains accepted Merkle roots, verifies license-use proofs, rejects duplicate session IDs, and stores public session records.
+- **Contract:** stores encrypted license blobs, stores issued license commitments, maintains accepted Merkle roots, verifies license-use proofs, rejects duplicate session IDs, and stores public session records. The base contract does not store issuance requests unless a deployment adds an explicit request-availability extension.
 - **Validators:** execute the contract and verify proofs according to the deployed verifier key.
 - **Optional proof helper:** may help generate a proof, but MUST NOT receive the user's license secret key.
 
@@ -102,7 +102,7 @@ Each Citadel deployment MUST define:
 - compact hash-context derivation;
 - Merkle tree parameters;
 - root acceptance policy;
-- request insertion, retention, duplicate, size-limit, fee, and spam-control policy;
+- request transport, admission, replay, duplicate, size-limit, retention, payment-binding, and spam-control policy, if request objects are used;
 - license issuance access policy;
 - duplicate `license_hash` policy;
 - tree-full behavior;
@@ -193,7 +193,7 @@ For structured data, implementations MUST:
 - use versioned canonical serialization;
 - avoid ad hoc concatenation without lengths or type tags;
 - bind the `deployment_id`, schema ID, policy ID, and cookie mode where relevant;
-- enforce maximum payload sizes for contract-stored request and license blobs;
+- enforce maximum payload sizes for request payloads and contract-stored license blobs;
 - reject unknown critical fields unless the object version explicitly permits forward-compatible extension.
 
 The same validation rules apply to requests, licenses, public inputs, cookies, LP keys, SP keys, Merkle openings, signatures, and off-chain predicate proof inputs.
@@ -307,7 +307,7 @@ Citadel uses:
 
 ### 5.5 Encryption And KDF
 
-Encrypted request and license payloads MUST use authenticated encryption. The concrete AEAD MAY be supplied by the deployment, but it MUST provide confidentiality, integrity, explicit failure on tampering, unambiguous serialization, and nonce-misuse resistance appropriate to the chosen mode.
+Encrypted request objects and license payloads MUST use authenticated encryption. The concrete AEAD MAY be supplied by the deployment, but it MUST provide confidentiality, integrity, explicit failure on tampering, unambiguous serialization, and nonce-misuse resistance appropriate to the chosen mode.
 
 Every encryption key MUST be derived with a domain-separated KDF that includes:
 
@@ -323,7 +323,7 @@ AEAD nonces or salts MUST be unique for a given encryption key unless the chosen
 
 Decryption failure MUST be treated as authentication failure. Callers MUST NOT use unauthenticated plaintext.
 
-License encryption key material sent inside a request MUST NOT be the license secret key and MUST NOT allow recovery of the license secret key. It MAY be derived deterministically from `lsk` through a one-way KDF with a license-encryption domain, or it MAY be generated independently and stored by the user. The LP may learn the license encryption key material, but must not learn `lsk`.
+License encryption key material sent inside a request MUST NOT be the license secret key and MUST NOT allow recovery of the license secret key. It MAY be derived deterministically from `lsk` through a one-way KDF with a license-encryption domain, or it MAY be generated independently and stored by the user. The LP may learn the license encryption key material, but must not learn `lsk`. In direct issuance without a request object, the deployment MUST define an equivalent license-encryption key derivation, typically from the DH shared secret used to create the license stealth address.
 
 ### 5.6 Merkle Tree
 
@@ -363,11 +363,11 @@ The base circuit is verified by the deployed PlonK verifier key. The verifier ke
 
 ## 6. Data Objects
 
-### 6.1 Request
+### 6.1 Issuance Request
 
-A request asks an LP to issue a license to a user-owned license stealth address.
+An issuance request is a transport-neutral object asking an LP to issue a license to a user-controlled license destination. It is not part of the base contract state and is not consumed by the license-use circuit. A deployment MAY use this object for private request-based issuance, or it MAY use direct issuance without an encrypted request when the relevant privacy tradeoffs are acceptable.
 
-Fields:
+Fields for the encrypted request object:
 
 - `version`
 - `deployment_id`
@@ -378,7 +378,7 @@ Where:
 
 - `lsa` is the license stealth address where the license will be issued.
 - `k_lic_enc` is license encryption key material known to the user and disclosed to the LP only inside the encrypted request.
-- `request_context` includes `deployment_id`, intended LP key or LP identifier, object version, requested schema or policy information, and any LP-required application metadata.
+- `request_context` includes `deployment_id`, intended LP key or LP identifier, object version, requested schema or policy information, any LP-required application metadata, and any transport binding required by the deployment profile. Transport binding MAY include an invoice ID, payment reference, transaction hash commitment, expected payment recipient, payment asset, payment amount, request expiry, or off-chain authorization data.
 
 The request ID is:
 
@@ -386,11 +386,13 @@ The request ID is:
 
 LPs MUST maintain a replay policy for request IDs and license stealth addresses. They MUST NOT issue duplicate licenses for the same `lsa` unless duplicate issuance is an explicit application requirement.
 
-After decryption, the LP MUST check that `request_context` matches the visible request fields, intended LP key, `deployment_id`, and deployment profile. A mismatch invalidates the request.
+After decryption, the LP MUST check that `request_context` matches the visible request fields, intended LP key, `deployment_id`, deployment profile, and selected request transport. A mismatch invalidates the request.
 
-The base deployment stores encrypted request blobs in the contract. The contract is not expected to decrypt or semantically validate requests, but it MUST provide a stable insertion and retrieval interface so LPs can discover requests from authenticated contract state.
+Request delivery is selected by the deployment or application profile. Acceptable transports include an authenticated off-chain channel, an in-person handoff such as a QR code, a payment transaction memo or equivalent transaction metadata field, or an optional authenticated availability layer. The base Citadel contract MUST NOT be assumed to store or make requests available. If a deployment adds a contract-backed request registry, it is an extension and MUST specify insertion authorization, retention, retrieval, payload size limits, duplicate handling, fees, and spam policy.
 
-Request insertion policy is a deployment parameter. Gas consumption MAY be the primary spam control only if the deployment explicitly documents that gas and any additional insertion fees adequately price persistent storage, index growth, LP scanning burden, and state availability costs. Otherwise, deployments SHOULD add at least one of: maximum payload sizes, per-request fees, deposits, rate limits, allow lists, pruning/retention limits, or application-level admission controls. The contract SHOULD reject empty request payloads and exact duplicate request blobs unless the deployment profile explicitly allows them.
+If a request is carried in payment transaction metadata, the request payload MUST be encrypted unless public-address or public-request disclosure is an explicit application choice. The LP MUST verify payment finality, payment recipient, asset, amount, memo or payload size limits, and the binding between the payment or invoice and `request_id` or `lsa` before issuance. If the transaction metadata cannot fit the complete request, it MAY carry a request reference plus a cryptographic hash of the referenced request object. The referenced payload MUST be fetched from an authenticated source or verified against the hash before use.
+
+If privacy is not required, the user MAY provide `lsa` and license encryption material through an authenticated channel, or MAY provide a static public address or direct-issuance target as specified in Section 8.4. Public-address issuance is a lower-privacy mode because the LP can associate the issued license with the disclosed address, account, payment, or in-person identity.
 
 ### 6.2 License
 
@@ -477,13 +479,13 @@ Selective-disclosure cookies and proofs MUST be bound to `session_id`, `deployme
 
 ## 7. Contract State, Registry Policy, And Interfaces
 
-### 7.1 Request Registry
+### 7.1 Request Transport
 
-The request registry stores encrypted user-to-LP request blobs for LP discovery. Each deployment MUST define who may insert requests, how request storage spam is controlled, maximum payload size, duplicate handling, how long clients are expected to scan historical requests, and whether request data is retained in contract state, events, or another authenticated availability layer.
+The base contract has no request registry. Request delivery is an application or deployment transport, not a cryptographic requirement of the license-use circuit. Each deployment or LP profile that supports request-based issuance MUST define accepted request transports, whether requests are encrypted or intentionally public, maximum payload or memo sizes, replay and duplicate policy, payment or invoice binding, finality requirements, retention and discovery expectations, and admission or spam control.
 
-Successful request insertion does not mean an LP has accepted, decrypted, or even seen the request. LPs MUST still enforce their own `request_id`, `lsa`, eligibility, payment, replay, issuance, and business policies after decryption.
+Successful request delivery, memo inclusion, or payment submission does not mean an LP has accepted, decrypted, or even seen the request. LPs MUST still enforce their own `request_id`, `lsa`, eligibility, payment, replay, issuance, and business policies after decryption or direct handoff.
 
-Gas is an economic deterrent, not a cryptographic invariant. Gas can be sufficient for a deployment only when it prices all relevant costs and when the deployment accepts that well-funded actors may still insert many requests. If request spam affects LP scanning, state size, user UX, or application availability, the deployment SHOULD add explicit non-gas controls.
+A deployment MAY add a contract-backed request availability extension. Such an extension is outside the base contract interface and MUST specify its own insertion authorization, retrieval API, retention policy, size limits, duplicate handling, fees, and spam controls. Gas is an economic deterrent, not a cryptographic invariant; it is sufficient only if the deployment explicitly accepts the economics and operational cost assumptions.
 
 ### 7.2 License Registry
 
@@ -507,9 +509,6 @@ SP trust in LPs is separate from contract insertion permission. A license leaf b
 
 The base contract interface for wallets, LPs, SPs, and web clients SHOULD expose at least:
 
-- `insert_request`: store an encrypted request blob.
-- `get_requests`: stream stored requests by block-height range or indexed range.
-- `get_request`: fetch a request by request position.
 - `issue_license`: store an encrypted license blob and register its license leaf.
 - `get_licenses`: stream stored licenses by block-height range or indexed range.
 - `get_license`: fetch a license by license tree position.
@@ -518,7 +517,9 @@ The base contract interface for wallets, LPs, SPs, and web clients SHOULD expose
 - `get_session`: fetch a session by `session_id`.
 - `get_metadata`: fetch deployment metadata.
 - `get_current_root` and `get_accepted_roots`: inspect root state.
-- `get_state_info`: fetch named request, license, tree, session, and root counters.
+- `get_state_info`: fetch named license, tree, session, and root counters.
+
+A request-availability extension MAY expose `insert_request`, `get_requests`, or `get_request`, but those calls are not part of the base Citadel contract interface.
 
 Legacy or constrained clients MAY expose smaller compatibility queries, such as tuple-shaped `get_info`, but new clients SHOULD prefer named return types to avoid positional ambiguity.
 
@@ -526,7 +527,7 @@ Legacy or constrained clients MAY expose smaller compatibility queries, such as 
 
 ### 8.1 User Requests A License
 
-The user creates a license destination and submits an encrypted request for LP discovery.
+The user creates a license destination and delivers an issuance request to the LP through the request transport selected by the deployment, LP, payment flow, or application profile.
 
 1. Generate a fresh license stealth address for the user:
 
@@ -560,17 +561,24 @@ The user creates a license destination and submits an encrypted request for LP d
 
    `k_req = KDF[CITADEL_REQUEST_KEY_V1](K_req, rsa, pk_lp, deployment_id, salt_req)`
 
-6. Encrypt `lsa || k_lic_enc || request_context` with AEAD under `k_req`, using associated data that includes the visible request fields.
+6. Encrypt `lsa || k_lic_enc || request_context` with AEAD under `k_req`, using associated data that includes the visible request fields and the transport-binding fields required by the deployment profile.
 
-7. Submit `Request { version, deployment_id, rsa, enc }` through `insert_request`.
+7. Deliver `Request { version, deployment_id, rsa, enc }` to the LP through one of the selected request transports, such as:
 
-The request is public contract state. It MUST NOT reveal the user's static key, license secret key, or license attributes.
+   - an authenticated and confidential off-chain channel;
+   - an in-person handoff or QR code;
+   - a payment transaction memo or equivalent transaction metadata field;
+   - an authenticated off-chain availability layer or optional contract-backed request extension.
+
+If the request is embedded in transaction metadata, the user MUST respect the transport's size and encoding limits. The user MUST NOT place `lsk` in the request or memo. The user SHOULD send an encrypted request object, or a request reference plus a hash, unless public-address or public-request disclosure is an explicit application choice.
+
+The request is not base contract state by default. It MUST NOT reveal the user's static key, license secret key, or license attributes unless the user intentionally selects a public or direct-issuance mode.
 
 ### 8.2 LP Processes A Request
 
-The LP scans contract request payloads with `get_requests`, optionally using `get_request` for direct lookup if it already knows a request position. Application channels MAY notify the LP that a request was inserted, but the LP MUST treat the contract request registry or the deployment's declared authenticated request transport as the canonical source.
+The LP obtains candidate requests from the selected request transport. For payment-memo issuance, the LP MUST verify payment finality, payment recipient, asset, amount, memo or reference integrity, and binding to the relevant invoice, `request_id`, or `lsa` before issuance. For off-chain or in-person delivery, the LP MUST apply the authentication, confidentiality, and admission rules required by its profile.
 
-For each candidate request:
+For each candidate encrypted request:
 
 1. Validate all encodings and size limits.
 2. Compute `K_req = sk_lp.a * R_req`.
@@ -582,14 +590,14 @@ For each candidate request:
 5. Attempt AEAD decryption. Failure means the request is not accepted.
 6. Recover `lsa`, `k_lic_enc`, and request context.
 7. Check the request replay policy.
-8. Check that `deployment_id`, intended LP key, schema requests, and visible request fields match the decrypted context.
+8. Check that `deployment_id`, intended LP key, schema requests, visible request fields, and transport-binding fields match the decrypted context.
 9. Evaluate any off-chain identity, payment, KYC, authorization, or business requirements.
 
-The recovered `lsa` tells the LP where to issue the license. It does not reveal the user's static public key in the request path.
+The recovered `lsa` tells the LP where to issue the license. It does not reveal the user's static public key in the encrypted request path. Transport metadata, payment metadata, or application identity checks may still reveal the user to the LP.
 
 ### 8.3 LP Issues A License
 
-If the request is accepted, the LP creates a license.
+If the request or direct-issuance input is accepted, the LP creates a license.
 
 1. Define the attribute schema and canonical attributes.
 2. Compute schema-scoped `attr_data` as specified by the schema. See Section 11.
@@ -601,7 +609,7 @@ If the request is accepted, the LP creates a license.
 
    `sig_lic = SchnorrSign(sk_lp.a, msg_lic)`
 
-5. Encrypt `sig_lic || attr_data || license_context` under `k_lic_enc` with AEAD and context-bound associated data.
+5. Encrypt `sig_lic || attr_data || license_context` under `k_lic_enc` or the deployment-defined direct-issuance license encryption key with AEAD and context-bound associated data.
 
 6. Publish `License { version, deployment_id, lsa, enc }`.
 
@@ -619,9 +627,11 @@ The LP MUST NOT reuse the same license stealth address for independent licenses 
 
 ### 8.4 Direct Issuance
 
-A deployment MAY support direct issuance to a user's public key instead of a request. Direct issuance derives the license destination and encryption material using DHKE with the user's public key or another deployment-defined authenticated channel.
+A deployment MAY support direct issuance without an encrypted request object. In direct issuance, the user provides a static public key, account identifier, `lsa`, or another deployment-defined issuance target to the LP through a payment flow, service flow, or in-person process.
 
-Direct issuance is a lower-privacy mode. The LP can know the user's static public key or application identity when issuing the license. Wallets and SPs SHOULD treat direct-issued licenses differently if issuer-verifier unlinkability matters.
+When the user provides a static public key, the LP derives the license destination and license encryption material using DHKE with that public key. When the user provides an `lsa`, the user MUST also provide a license encryption mechanism that lets the LP encrypt the license without learning `lsk`. In all cases, the license encryption method MUST be deployment-defined and context-bound.
+
+Direct issuance is a lower-privacy mode. The LP can know the user's static public key, account, payment identity, or in-person identity when issuing the license. Wallets and SPs SHOULD treat direct-issued licenses differently if issuer-verifier unlinkability matters.
 
 ### 8.5 User Fetches A License
 
@@ -955,7 +965,7 @@ For long-lived sessions, the SP SHOULD bind access to an authenticated account o
 
 On-chain observers see:
 
-- encrypted request blobs and request insertion timing;
+- request payloads, payment memos, transaction notes, or request references when the selected transport publishes them on-chain;
 - encrypted license blobs;
 - license stealth addresses;
 - license hashes;
@@ -977,13 +987,13 @@ These privacy properties rely on fresh randomness, valid commitments, PlonK zero
 
 ### 13.2 LP And SP Knowledge
 
-The LP learns whatever the user discloses during license request review and the attributes it signs. In request-based issuance, the LP does not learn the user's static public key from the cryptographic request alone.
+The LP learns whatever the user discloses during license request review, payment processing, direct handoff, and the attributes it signs. In encrypted request-based issuance, the LP does not learn the user's static public key from the cryptographic request alone unless the request context, payment channel, network metadata, or business process reveals it.
 
 The SP learns whatever is disclosed by the selected cookie mode and policy proof. In base mode, it learns `attr_data` or enough data to interpret it.
 
 If the LP also knows that same `attr_data`, the value itself can link issuance and service use under LP/SP collusion.
 
-If the LP and SP collude, unique attributes, request metadata, timing, payments, network metadata, or direct issuance can link issuance to service use. Citadel does not prevent correlation through non-cryptographic side channels.
+If the LP and SP collude, unique attributes, request metadata, payment memo metadata, timing, payments, network metadata, or direct issuance can link issuance to service use. Citadel does not prevent correlation through non-cryptographic side channels.
 
 ### 13.3 Proof Helpers
 
@@ -1020,9 +1030,9 @@ A deployment conforms to this specification only if:
 - every Poseidon, KDF, and signature context is domain-separated;
 - every external point and scalar is canonically validated;
 - circuit witness points are constrained to valid non-identity subgroup points;
-- request and license encryption is authenticated and context-bound;
-- request insertion, retrieval, retention, duplicate handling, size limits, fees, and spam controls are explicit;
-- gas-only spam control, if used, is explicitly justified by deployment economics and operational cost assumptions;
+- request-object encryption, when used, and license encryption are authenticated and context-bound;
+- request transport, replay handling, payment binding, retention, duplicate handling, size limits, fees, and spam controls are explicit when request objects are used;
+- gas-only spam control, if used for license insertion or an optional request-availability extension, is explicitly justified by deployment economics and operational cost assumptions;
 - license hashes are derived from visible license public key data;
 - issuance access and tree-capacity behavior are explicit;
 - duplicate `license_hash` handling is explicit;
@@ -1044,10 +1054,10 @@ A deployment conforms to this specification only if:
 
 For an academic or prototype deployment:
 
-- use request-based issuance;
-- expose contract-backed request discovery for LPs;
-- set maximum request and license blob sizes;
-- define request spam limits, fees, or a clear gas-only rationale;
+- use encrypted request-based issuance unless direct issuance privacy tradeoffs are acceptable;
+- deliver requests through the payment, service, or authenticated off-chain channel instead of the base contract;
+- set maximum request payload, payment-memo, request-reference, and license blob sizes;
+- define request-transport admission, replay, payment-binding, and spam controls;
 - allow-list LP issuers or require fees for registry insertion;
 - keep a bounded root history;
 - use base disclosure only for non-sensitive attributes;
