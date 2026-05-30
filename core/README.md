@@ -14,7 +14,6 @@ The package can be tested by running:
 
 ```
 cargo test --release --features zk
-cargo test --release --no-default-features --features zk
 ```
 
 Documentation can be checked by running:
