@@ -10,12 +10,12 @@ This document separates Citadel's threat model from the normative protocol speci
 
 Citadel has three cryptographic phases and one policy phase:
 
-1. **Request and issuance:** a user requests issuance to a license stealth address; an LP issues an encrypted license and registers a license leaf.
+1. **Request and issuance:** a user requests issuance to a license stealth address through a selected request transport, payment flow, or direct handoff; an LP issues an encrypted license and registers a license leaf.
 2. **License-use proof:** the user proves in zero knowledge that a hidden registered license exists, that the LP signed its attributes, and that the user knows the license secret key.
 3. **Session recording:** the contract verifies the proof, checks root acceptance, rejects duplicate `session_id`, and stores public session values.
 4. **Service authorization:** the SP verifies the cookie opening and applies its own issuer, attribute, challenge, replay, revocation, expiration, and account policy.
 
-The base Citadel protocol covers phases 1-3 and the cryptographic part of cookie opening in phase 4. It does not define universal service authorization.
+The base Citadel protocol covers the request object format, phases 2-3, and the cryptographic part of cookie opening in phase 4. It does not require request storage in the base contract and does not define universal request transport or service authorization.
 
 ## 2. Assets
 
@@ -27,26 +27,26 @@ Citadel protects or depends on the following assets:
 - SP service keys and service-policy state;
 - signed attributes and eligibility claims;
 - attribute blinding randomness;
-- encrypted request payloads and request metadata;
+- encrypted request payloads, request transport metadata, and payment/request binding data;
 - encrypted license payloads and license metadata;
 - session cookies and cookie openings;
 - Merkle tree state, accepted roots, and Merkle openings;
 - contract verifier key and circuit definition;
 - deployment metadata, domain constants, generator set, and public-input order;
 - privacy of which issued license was used in a session;
-- availability of request discovery, license registry, session registry, indexers, and SP verification endpoints.
+- availability of request delivery transports, license registry, session registry, indexers, and SP verification endpoints.
 
 ## 3. Adversaries
 
 ### 3.1 Passive Chain Observer
 
-Sees all public contract data, including encrypted request blobs, encrypted license blobs, license stealth addresses, license hashes, roots, session public inputs, transaction timing, and fees.
+Sees all public contract data, including encrypted license blobs, license stealth addresses, license hashes, roots, session public inputs, transaction timing, and fees. If the selected request transport publishes requests, request references, or payment memos on-chain, the observer also sees those payloads and their timing.
 
 Goals may include linking issuance to session use, identifying the LP or SP behind a session, inferring attributes or challenges, or tracking users across sessions.
 
 ### 3.2 Network Observer Or Active Network Attacker
 
-Sees or modifies off-chain communication unless the channel is authenticated and confidential. May attempt cookie theft, replay, request correlation, traffic analysis, downgrade attacks, or SP endpoint impersonation.
+Sees or modifies off-chain communication unless the channel is authenticated and confidential. May attempt request substitution, request correlation, payment/request misbinding, cookie theft, replay, traffic analysis, downgrade attacks, or SP endpoint impersonation.
 
 ### 3.3 Malicious User
 
@@ -76,15 +76,15 @@ Users must treat disclosed attributes and cookies as data intentionally revealed
 
 ### 3.6 LP/SP Collusion
 
-Combines issuance records, unique attributes, disclosed `attr_data`, request timing, service timing, payments, network metadata, account identifiers, and direct-issuance data to deanonymize users.
+Combines issuance records, unique attributes, disclosed `attr_data`, request timing, payment memo metadata, service timing, payments, network metadata, account identifiers, and direct-issuance data to deanonymize users.
 
 Citadel's on-chain zero knowledge does not prevent correlation through data intentionally disclosed to LPs or SPs or through external metadata.
 
-### 3.7 State Spammer
+### 3.7 State Or Request-Transport Spammer
 
-Attempts to fill request storage, exhaust license tree capacity, increase indexer load, force LPs to scan noise, store bogus license leaves, or induce expensive proof verification.
+Attempts to exhaust license tree capacity, increase indexer load, store bogus license leaves, induce expensive proof verification, or flood LP request transports with empty, duplicate, huge, or malformed requests. If a deployment adds an on-chain request-availability extension or uses payment memos as request transport, the attacker may also try to create persistent request metadata or force LPs to scan noisy payment/request streams.
 
-Gas is an economic deterrent but not a cryptographic defense. Gas-only spam control is a deployment choice and must be justified against persistent storage cost, finite tree capacity, low-fee environments, subsidized attackers, and off-chain scanning costs.
+Gas is an economic deterrent but not a cryptographic defense. Gas-only spam control is a deployment choice and must be justified against persistent storage cost, finite tree capacity, low-fee environments, subsidized attackers, and off-chain scanning costs. Off-chain request transports require their own admission controls, payment thresholds, rate limits, authentication, or abuse handling.
 
 ### 3.8 Malicious Or Curious Proof Helper
 
@@ -99,7 +99,7 @@ Obtains user, LP, SP, transport, or service-channel keys. Consequences depend on
 - user wallet key can derive future or stored license secrets depending on wallet design;
 - license secret key can open sessions for that license under accepted challenges;
 - LP signing key can issue licenses trusted by SPs until revoked by policy;
-- SP channel or server keys can expose cookies or allow service impersonation;
+- request transport, payment service, SP channel, or server keys can expose requests, cookies, or allow service impersonation;
 - deployment or verifier-key compromise invalidates protocol assumptions.
 
 ### 3.10 Chain Reorganization Or State-Availability Adversary
@@ -116,6 +116,7 @@ Citadel assumes:
 - all external encodings are canonical and validated before cryptographic use;
 - wallets and services use fresh CSPRNG randomness or safe deterministic nonce derivation;
 - contract state is read from authenticated sources with the deployment's finality policy;
+- request transports and payment flows provide the authenticity, confidentiality, finality, and availability claimed by the selected deployment or LP profile;
 - SPs correctly enforce their own policy profiles;
 - LPs are trusted only for claims under keys that the SP explicitly accepts;
 - users understand that disclosed cookies are bearer credentials unless the SP profile adds binding.
@@ -176,7 +177,7 @@ This goal is conditional on the SP actually performing all required policy check
 
 ### 5.9 Request And License Confidentiality
 
-Encrypted request and license payloads should reveal no plaintext to unauthorized parties under the AEAD, KDF, DHKE, and stealth-address assumptions. Visible metadata such as insertion time, payload size, and target LP scanning behavior is not hidden by the base protocol.
+Encrypted request objects and license payloads should reveal no plaintext to unauthorized parties under the AEAD, KDF, DHKE, and stealth-address assumptions. Request metadata leakage is transport-dependent: payment memo timing, payload size, request references, network metadata, direct handoff context, and target LP processing behavior are not hidden by the base protocol. If a user intentionally uses public-address or public-request issuance, the disclosed fields are outside this confidentiality goal.
 
 ### 5.10 Deployment Separation
 
@@ -193,8 +194,8 @@ Citadel does not by itself guarantee:
 - resistance to LP/SP collusion through disclosed attributes or metadata;
 - resistance to malicious LPs signing false claims;
 - resistance to voluntary sharing or sale of `lsk`;
-- availability of request scanning or license registry capacity;
-- privacy against network, payment, browser, account, or device fingerprinting;
+- availability of request delivery transports or license registry capacity;
+- privacy against network, payment, payment-memo, browser, account, or device fingerprinting;
 - policy safety when the SP accepts arbitrary user-chosen `c`;
 - protection after LP signing-key compromise unless the SP updates trust policy.
 
@@ -202,7 +203,7 @@ Citadel does not by itself guarantee:
 
 | Area | Attack | Primary mitigation |
 | --- | --- | --- |
-| Request registry | Empty, duplicate, huge, or high-volume request spam | Gas or fees only if documented as sufficient; otherwise size limits, duplicate checks, retention policy, allow lists, rate limits, deposits, or pruning |
+| Request transport or optional request registry | Empty, duplicate, huge, malformed, misbound, or high-volume request spam | Transport-specific admission policy, memo size limits, request hashes, payment/invoice binding, replay checks, authentication, rate limits, minimum payments, deposits, pruning, or gas/fees only when documented as sufficient |
 | License registry | Tree capacity exhaustion or bogus leaves | Issuer allow list, insertion fees, staking, duplicate policy, explicit tree-full behavior |
 | Proof verification | Expensive invalid proofs | Charge gas before verification, cap proof size, use efficient verifier, rate-limit at relayers or frontends |
 | Roots | Stale or unaccepted roots | Contract root acceptance check, bounded root history, SP freshness rule, finality policy |
@@ -215,19 +216,21 @@ Citadel does not by itself guarantee:
 | Privacy | LP/SP collusion on `attr_data` or metadata | Selective disclosure, coarse attributes, timing mitigation, avoid direct issuance when unlinkability matters |
 | Proof helpers | Metadata leakage or attempted proof mutation | Do not reveal `lsk`; double-key authorization binds exact public tuple; local proving for sensitive cases |
 
-## 8. Gas And Contract Spam Analysis
+## 8. Gas, Contract Spam, And Request-Transport Analysis
 
 Gas consumption helps because attackers must pay for transactions, proof verification, and state writes. However, gas does not automatically solve spam for Citadel because:
 
 - the license tree has finite capacity and can be filled by a well-funded or subsidized actor if insertion is permissionless;
 - some chains underprice long-term state growth relative to one-time gas;
-- request spam imposes off-chain LP scanning and indexer costs that may not be paid to the LP;
 - gas prices vary over time and may become cheap enough for griefing;
 - a deployment may subsidize users or use relayers, weakening the deterrent;
-- exact duplicate rejection does not stop distinct encrypted garbage payloads;
 - proof verification gas prices the caller's transaction, but does not protect SPs from off-chain verification attempts or cookie spam.
 
-Therefore, gas can be accepted as the deployment's spam-control policy only if the deployment explicitly says so and its economics match the expected threat. Otherwise, the protocol should include explicit controls such as insertion fees, maximum blob sizes, pruning, allow-listed issuers, deposits, rate limits, or application-level request admission.
+Removing request storage from the base contract eliminates the base protocol's persistent request-storage spam vector and removes the need for every LP to scan a canonical contract request queue. It does not eliminate request abuse. The selected request transport can still be spammed, especially if it accepts unauthenticated messages, large memos, cheap payment metadata, public request references, or subsidized submissions.
+
+For payment-memo request transport, the LP should define minimum payment thresholds, invoice matching, memo size limits, request hash or reference rules, finality requirements, replay checks, and refund or failure behavior. For off-chain or in-person transport, the LP should define authentication, rate limits, queue limits, retention, and abuse handling.
+
+Gas can be accepted as the deployment's spam-control policy only for the contract resources it actually prices, and only if the deployment explicitly says so and its economics match the expected threat. License insertion, proof verification, optional request availability extensions, payment-memo scanning, and off-chain request intake each need their own admission analysis.
 
 ## 9. Proof Obligations For Upcoming Security Work
 
@@ -272,9 +275,10 @@ Before claiming security for a deployment, reviewers should check:
 - all points are subgroup-checked and identity-rejected where required;
 - scalar range checks are correct if `F_c` and `F_s` differ;
 - Merkle tree arity, depth, empty leaves, and path order are identical across contract, circuit, and clients;
-- request and license encryption uses context-bound AEAD associated data;
-- request and license blob sizes are bounded;
-- registry insertion policy addresses spam and tree capacity;
+- request-object encryption, when used, and license encryption use context-bound AEAD associated data;
+- request payload, payment memo, request reference, and license blob sizes are bounded by the selected transports;
+- license registry insertion policy addresses spam and tree capacity;
+- request transports define replay handling, payment binding, finality, retention, and abuse controls;
 - SP profiles reject arbitrary challenge values unless unlimited reuse is intended;
 - cookie verification includes policy ID, cookie mode, root freshness, issuer trust, and replay rules;
 - expiration and revocation are either enforced or explicitly not supported;
