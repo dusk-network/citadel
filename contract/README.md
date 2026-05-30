@@ -24,7 +24,7 @@ cargo build --target wasm32-unknown-unknown --release
 Finally, execute the tests:
 
 ```
-CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 cargo test --release --test license_contract
+cargo test --release --test license_contract
 ```
 
 The build script first tries to download the Dusk trusted setup and verify its SHA-256 hash. If the download is unavailable it generates local setup material so tests can run, but those generated keys are not deployment-ready.
