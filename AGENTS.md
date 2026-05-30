@@ -10,10 +10,11 @@ This repository is academic/prototype code and has not had exhaustive security r
 
 - `docs/specs.md` is the normative protocol reference. Read it before changing protocol semantics.
 - Important spec sections:
-  - [§2 Core Concepts](docs/specs.md#2-core-concepts): parties, identifiers, secrets, data objects, lifecycle.
-  - [§4 Deployment And Encoding Requirements](docs/specs.md#4-deployment-and-encoding-requirements): deployment metadata, `deployment_id`, domain separation, canonical encodings.
+  - [§2 Parties, Identifiers, And Secrets](docs/specs.md#2-parties-identifiers-and-secrets): parties, identifiers, field/group notation, and core secrets.
+  - [§3 Deployment Profile And Domain Separation](docs/specs.md#3-deployment-profile-and-domain-separation), [§4 Canonical Encoding And Validation](docs/specs.md#4-canonical-encoding-and-validation): deployment metadata, `deployment_id`, domain separation, and canonical encodings.
   - [§5 Cryptographic Building Blocks](docs/specs.md#5-cryptographic-building-blocks): Jubjub/Phoenix keys, Poseidon domains, stealth addresses, Schnorr, commitments, AEAD/KDF, Merkle tree.
   - [§6 Data Objects](docs/specs.md#6-data-objects): Request, License, Session, base cookie, selective-disclosure cookie formats.
+  - [§7 Contract State, Registry Policy, And Interfaces](docs/specs.md#7-contract-state-registry-policy-and-interfaces): request registry, license registry, metadata, root policy, and contract interfaces.
   - [§8 Protocol Flow](docs/specs.md#8-protocol-flow): end-to-end issuance, proof, contract, and SP verification flow.
   - [§9 License Circuit](docs/specs.md#9-license-circuit): license circuit public inputs, private witnesses, and enforced statements.
   - [§10 Challenge And Reuse Semantics](docs/specs.md#10-challenge-and-reuse-semantics), [§11 Attributes And Disclosure](docs/specs.md#11-attributes-and-disclosure), [§12 Revocation, Expiration, And Replay](docs/specs.md#12-revocation-expiration-and-replay): challenge/nullifier semantics, attributes, selective disclosure, revocation, expiration, replay.
@@ -37,18 +38,21 @@ This repository is academic/prototype code and has not had exhaustive security r
 ## Code organization
 
 - Root `Cargo.toml`: Rust workspace with members `core` and `contract`.
-- `docs/specs.md`: protocol specification and security/conformance reference.
+- `docs/specs.md`: normative protocol specification.
+- `docs/security.md`: threat model, security goals, residual risks, and proof obligations.
 - `core/` (`zk-citadel` crate): off-chain protocol API, data objects, helpers, and ZK circuit code.
   - `core/src/assets/`: protocol objects exchanged by participants:
     - `request.rs`: encrypted user-to-LP license requests.
     - `license.rs`: LP-issued encrypted licenses and direct/request issuance paths.
-    - `session.rs`: on-chain session parsing and base cookie verification.
-  - `core/src/helpers.rs`: Merkle arity, public input indices, deployment metadata, domain tags, and canonical hash/KDF helpers.
+    - `session.rs`: on-chain session parsing, base cookie policy checks, and attribute-opening verification.
+  - `core/src/helpers.rs`: Merkle arity, public input indices, deployment metadata, domain tags, policy/challenge helpers, and canonical hash/KDF helpers.
+  - `core/src/signatures.rs`: Citadel-specific LP license and double-key session authorization Schnorr transcripts.
   - `core/src/zk/`: `LicenseCircuit` and reusable `use_license` gadgets. This is behind the `zk` feature.
   - `core/tests/citadel.rs`: end-to-end protocol test for request issuance, direct issuance, proving, verification, and cookie/session checks.
+  - `core/tests/assets.rs`: focused protocol object, session parsing, and cookie policy tests.
   - `core/benches/license_circuit.rs`: circuit benchmark.
 - `contract/` (`license-contract` crate): Dusk contract for license registry and session registry.
-  - `contract/src/state.rs`: contract state and methods: `issue_license`, `get_licenses`, `get_merkle_opening`, `use_license`, `get_session`, `get_metadata`, `get_info`.
+  - `contract/src/state.rs`: contract state and methods: `insert_request`, `get_requests`, `get_request`, `issue_license`, `get_licenses`, `get_license`, `get_merkle_opening`, `use_license`, `get_session`, `get_metadata`, `get_current_root`, `get_accepted_roots`, `get_state_info`, `get_info`.
   - `contract/src/license_types.rs`: rkyv-serializable call/return types and public-input constants.
   - `contract/src/collection.rs`: simple in-memory map abstraction for contract state.
   - `contract/build.rs`: downloads or generates PlonK setup material and writes `target/prover` and `target/verifier` used by tests and contract build.
@@ -66,7 +70,7 @@ rustup target add wasm32-unknown-unknown
 cd contract && cargo build --target wasm32-unknown-unknown --release
 cd ..
 cargo test --release --features zk
-cargo test --release --no-default-features --features zk
+cargo doc --workspace --no-deps --features zk
 cargo bench --no-run --features zk
 ```
 
@@ -75,7 +79,6 @@ Core-only checks:
 ```sh
 cd core
 cargo test --release --features zk
-cargo test --release --no-default-features --features zk
 cargo bench --features zk
 ```
 
@@ -85,11 +88,12 @@ Contract flow:
 cargo build --release                     # creates target/prover and target/verifier
 cd contract
 cargo build --target wasm32-unknown-unknown --release
-cargo test --release --features zk
+cargo test --release --test license_contract
 ```
 
 Notes:
-- Contract tests include `target/prover`, `target/verifier`, and the wasm artifact, so run the contract flow before `contract` VM tests.
+- Contract tests include `target/prover`, `target/verifier`, and the wasm artifact, so run the contract flow before `contract` VM tests. The contract crate does not define a `zk` feature; do not pass `--features zk` to `cargo test` from `contract/`.
+- ZK tests should run in release mode with default features so `dusk-plonk/std` remains enabled. Avoid adding the slow non-default-feature ZK test path to routine docs or CI unless a specific no-std regression needs investigation.
 - `contract/build.rs` first tries to download the trusted setup from `https://nodes.dusk.network/trusted-setup` and verify its SHA-256 hash. If download fails it generates local setup material and warns that this is unsafe for real use. Do not present fallback-generated keys as deployment-ready.
 - `target/` artifacts are generated and ignored. Do not commit proving/verifier keys or wasm build outputs unless the repository policy changes.
 
@@ -99,7 +103,7 @@ Notes:
 - Keep constants in `core/src/helpers.rs`, `core/src/zk/*`, `contract/src/license_types.rs`, and `contract/src/state.rs` synchronized, especially public input length/order, Merkle depth/arity, root history size, deployment metadata, and domain derivations.
 - The current contract uses `DEPTH = 16`, `ROOT_HISTORY_SIZE = 8`, `PUBLIC_INPUTS_LEN = 8`, and default deployment metadata with zero `deployment_id`, zero `chain_id`, zero `contract_id`, and protocol version one.
 - When touching circuit shape, public inputs, domain preimages, Merkle parameters, or proof verification, regenerate/check `target/prover` and `target/verifier`, rebuild the wasm contract, and run the VM tests.
-- When touching cookies or SP verification, remember that the generic `Session::verify` only checks openings; issuer trust, attribute semantics, challenge acceptance, replay, expiration, and revocation are profile-level SP checks.
+- When touching cookies or SP verification, remember that `Session::verify` checks the selected `SessionPolicy`, cookie envelope, session openings, optional exact root, optional exact `attr_data`, and optional attribute opening. Replay/binding, revocation freshness, richer attribute semantics, issuer trust lists beyond the selected key, and rate limits remain SP profile responsibilities.
 - Preserve `#![deny(missing_docs)]` expectations in `core` and keep public APIs documented.
 - Preserve the MPL-2.0 license header style used by existing Rust files when adding new Rust source files.
 - Prefer structured serialization/deserialization APIs already in use (`rkyv`, `dusk-bytes`, canonical `from_bytes`/point checks) over hand-rolled byte parsing. When byte parsing is unavoidable, validate lengths and canonical encodings explicitly.

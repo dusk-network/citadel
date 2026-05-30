@@ -10,13 +10,35 @@
   </p>
 </div>
 
-This repository contains the implementation of Citadel, a protocol that integrates a self-sovereign identity system into the Dusk blockchain. Our implementation is based on the original idea from this [paper](https://arxiv.org/pdf/2301.09378).
+This repository contains the implementation of Citadel, a Dusk-oriented self-sovereign identity prototype. A user requests an encrypted license from a License Provider, proves on-chain in zero knowledge that a registered license exists, and discloses a session cookie to a Service Provider that applies its own policy.
+
+The protocol reference is [`docs/specs.md`](docs/specs.md). The threat model and residual risks are documented in [`docs/security.md`](docs/security.md). Our implementation is based on the original idea from this [paper](https://arxiv.org/pdf/2301.09378).
 
 This repository is structured as follows:
 
-- :computer: [**Core**](core): the core Citadel protocol implementation, containing all the involved data types, the protocol workflows, and the license circuit.
-- :pencil: [**License Contract**](contract): The license contract, along with all the required code to test and deploy it.
-- :scroll: [**Docs**](docs): A folder where you can find the documentation concerning our Citadel specific implementation.
+- :computer: [**Core**](core): protocol objects, request/license/session workflows, domain-separated helpers, Citadel Schnorr transcripts, and the license circuit.
+- :pencil: [**License Contract**](contract): request registry, license registry, Merkle root history, proof verification, session registry, and deployment metadata.
+- :scroll: [**Docs**](docs): the normative protocol specification and threat model for this prototype.
+
+## Development
+
+Use the Rust toolchain from [`rust-toolchain.toml`](rust-toolchain.toml). From the repository root:
+
+```sh
+cargo build --release
+rustup target add wasm32-unknown-unknown
+cd contract && cargo build --target wasm32-unknown-unknown --release
+cd ..
+cargo test --release --features zk
+cargo doc --workspace --no-deps --features zk
+```
+
+Contract VM tests need the generated `target/prover`, `target/verifier`, and wasm artifact:
+
+```sh
+cd contract
+cargo test --release --test license_contract
+```
 
 **DISCLAIMER**: the code in this repository **has not gone through an exhaustive security analysis**, so it is not intended to be used in a production environment, only for academic purposes.
 
