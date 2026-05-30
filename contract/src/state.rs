@@ -18,9 +18,9 @@ pub mod license_contract {
         collection::Map,
         error::Error,
         license_types::{
-            ContractInfo, DeploymentMetadata, InsertRequestArg, IssueLicenseArg, LicenseOpening,
-            LicenseSession, LicenseSessionId, LicenseTree, MAX_LICENSE_BLOB_SIZE,
-            MAX_REQUEST_BLOB_SIZE, PI_ROOT, PUBLIC_INPUTS_LEN, UseLicenseArg,
+            ContractInfo, DeploymentMetadata, IssueLicenseArg, LicenseOpening, LicenseSession,
+            LicenseSessionId, LicenseTree, MAX_LICENSE_BLOB_SIZE, PI_ROOT, PUBLIC_INPUTS_LEN,
+            UseLicenseArg,
         },
         verifier_data_license_circuit,
     };
@@ -35,12 +35,6 @@ pub mod license_contract {
     const CITADEL_LICENSE_HASH_V1_TAG: u64 = 0x04;
 
     #[derive(Debug, Clone, PartialEq)]
-    struct RequestEntry {
-        pub block_height: u64,
-        pub request: Vec<u8>,
-    }
-
-    #[derive(Debug, Clone, PartialEq)]
     struct LicenseEntry {
         pub block_height: u64,
         pub license: Vec<u8>,
@@ -49,8 +43,6 @@ pub mod license_contract {
     #[derive(Debug, Clone)]
     pub struct LicenseContractState {
         sessions: Map<LicenseSessionId, LicenseSession>,
-        requests: Map<u64, RequestEntry>,
-        request_payloads: Map<Vec<u8>, ()>,
         licenses: Map<u64, LicenseEntry>,
         license_hashes: Map<BlsScalar, ()>,
         accepted_roots: Vec<BlsScalar>,
@@ -61,8 +53,6 @@ pub mod license_contract {
         pub const fn new() -> Self {
             Self {
                 sessions: Map::new(),
-                requests: Map::new(),
-                request_payloads: Map::new(),
                 licenses: Map::new(),
                 license_hashes: Map::new(),
                 accepted_roots: Vec::new(),
@@ -73,52 +63,6 @@ pub mod license_contract {
         #[allow(dead_code)]
         fn identifier() -> &'static [u8; 7] {
             b"license"
-        }
-
-        /// Inserts an encrypted request into the collection of requests.
-        /// Method intended to be called by the user.
-        pub fn insert_request(&mut self, arg: InsertRequestArg) {
-            if arg.request.is_empty() {
-                panic!("Request cannot be empty");
-            }
-            if arg.request.len() > MAX_REQUEST_BLOB_SIZE {
-                panic!("Request exceeds maximum size");
-            }
-            if self.request_payloads.get(&arg.request).is_some() {
-                panic!("Request already inserted");
-            }
-
-            let position = self.requests.len() as u64;
-            let block_height = block_height();
-            self.request_payloads.insert(arg.request.clone(), ());
-            self.requests.insert(
-                position,
-                RequestEntry {
-                    block_height,
-                    request: arg.request,
-                },
-            );
-        }
-
-        /// Returns requests for a given range of block-heights.
-        /// Method intended to be called by License Providers.
-        #[contract(feeds = "(u64, Vec<u8>)")]
-        pub fn get_requests(&mut self, block_heights: Range<u64>) {
-            for (pos, request) in self
-                .requests
-                .entries_filter(|(_, re)| block_heights.contains(&re.block_height))
-                .map(|(pos, re)| (*pos, re.request.clone()))
-            {
-                feed((pos, request));
-            }
-        }
-
-        /// Returns a request at a given request position.
-        /// Method intended to be called by wallets, License Providers, and clients.
-        pub fn get_request(&self, position: u64) -> Option<Vec<u8>> {
-            self.requests
-                .get(&position)
-                .map(|entry| entry.request.clone())
         }
 
         /// Inserts a license into the collection of licenses.
@@ -283,7 +227,6 @@ pub mod license_contract {
                 merkle_depth: DEPTH as u32,
                 root_history_size: ROOT_HISTORY_SIZE as u32,
                 public_inputs_len: PUBLIC_INPUTS_LEN as u32,
-                max_request_blob_size: MAX_REQUEST_BLOB_SIZE as u32,
                 max_license_blob_size: MAX_LICENSE_BLOB_SIZE as u32,
             }
         }
@@ -301,7 +244,6 @@ pub mod license_contract {
         /// Named state summary for wallets, LPs, SPs, and web clients.
         pub fn get_state_info(&self) -> ContractInfo {
             ContractInfo {
-                requests: self.requests.len() as u32,
                 licenses: self.licenses.len() as u32,
                 tree_len: self.tree.len() as u32,
                 sessions: self.sessions.len() as u32,

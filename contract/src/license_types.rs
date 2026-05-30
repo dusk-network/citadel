@@ -11,8 +11,6 @@ use rkyv::{Archive, Deserialize, Serialize};
 
 use dusk_bls12_381::BlsScalar;
 
-/// Maximum encrypted request blob size accepted by the contract.
-pub const MAX_REQUEST_BLOB_SIZE: usize = 4096;
 /// Maximum encrypted license blob size accepted by the contract.
 pub const MAX_LICENSE_BLOB_SIZE: usize = 4096;
 /// Number of public inputs expected by the license-use verifier.
@@ -29,14 +27,6 @@ pub type LicenseTree<const H: usize> = poseidon_merkle::Tree<(), H>;
 /// Contract Merkle opening type for the configured Merkle height.
 #[allow(dead_code)]
 pub type LicenseOpening<const H: usize> = poseidon_merkle::Opening<(), H>;
-
-/// Insert Request Argument.
-#[derive(Debug, Clone, PartialEq, Archive, Serialize, Deserialize)]
-#[archive_attr(derive(CheckBytes))]
-pub struct InsertRequestArg {
-    /// Versioned encrypted request blob.
-    pub request: Vec<u8>,
-}
 
 /// Issue License Argument.
 #[derive(Debug, Clone, PartialEq, Archive, Serialize, Deserialize)]
@@ -114,8 +104,6 @@ pub struct DeploymentMetadata {
     pub root_history_size: u32,
     /// Number of public inputs required by the verifier.
     pub public_inputs_len: u32,
-    /// Maximum encrypted request blob size.
-    pub max_request_blob_size: u32,
     /// Maximum encrypted license blob size.
     pub max_license_blob_size: u32,
 }
@@ -124,8 +112,6 @@ pub struct DeploymentMetadata {
 #[derive(Debug, Clone, Copy, PartialEq, Archive, Serialize, Deserialize)]
 #[archive_attr(derive(CheckBytes))]
 pub struct ContractInfo {
-    /// Number of stored request blobs.
-    pub requests: u32,
     /// Number of stored license blobs.
     pub licenses: u32,
     /// Number of populated license-tree leaves.
