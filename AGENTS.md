@@ -14,7 +14,7 @@ This repository is academic/prototype code and has not had exhaustive security r
   - [§3 Deployment Profile And Domain Separation](docs/specs.md#3-deployment-profile-and-domain-separation), [§4 Canonical Encoding And Validation](docs/specs.md#4-canonical-encoding-and-validation): deployment metadata, `deployment_id`, domain separation, and canonical encodings.
   - [§5 Cryptographic Building Blocks](docs/specs.md#5-cryptographic-building-blocks): Jubjub/Phoenix keys, Poseidon domains, stealth addresses, Schnorr, commitments, AEAD/KDF, Merkle tree.
   - [§6 Data Objects](docs/specs.md#6-data-objects): Request, License, Session, base cookie, selective-disclosure cookie formats.
-  - [§7 Contract State, Registry Policy, And Interfaces](docs/specs.md#7-contract-state-registry-policy-and-interfaces): request registry, license registry, metadata, root policy, and contract interfaces.
+  - [§7 Contract State, Registry Policy, And Interfaces](docs/specs.md#7-contract-state-registry-policy-and-interfaces): request transport, license registry, metadata, root policy, and contract interfaces.
   - [§8 Protocol Flow](docs/specs.md#8-protocol-flow): end-to-end issuance, proof, contract, and SP verification flow.
   - [§9 License Circuit](docs/specs.md#9-license-circuit): license circuit public inputs, private witnesses, and enforced statements.
   - [§10 Challenge And Reuse Semantics](docs/specs.md#10-challenge-and-reuse-semantics), [§11 Attributes And Disclosure](docs/specs.md#11-attributes-and-disclosure), [§12 Revocation, Expiration, And Replay](docs/specs.md#12-revocation-expiration-and-replay): challenge/nullifier semantics, attributes, selective disclosure, revocation, expiration, replay.
@@ -52,7 +52,7 @@ This repository is academic/prototype code and has not had exhaustive security r
   - `core/tests/assets.rs`: focused protocol object, session parsing, and cookie policy tests.
   - `core/benches/license_circuit.rs`: circuit benchmark.
 - `contract/` (`license-contract` crate): Dusk contract for license registry and session registry.
-  - `contract/src/state.rs`: contract state and methods: `insert_request`, `get_requests`, `get_request`, `issue_license`, `get_licenses`, `get_license`, `get_merkle_opening`, `use_license`, `get_session`, `get_metadata`, `get_current_root`, `get_accepted_roots`, `get_state_info`, `get_info`.
+  - `contract/src/state.rs`: contract state and methods: `issue_license`, `get_licenses`, `get_license`, `get_merkle_opening`, `use_license`, `get_session`, `get_metadata`, `get_current_root`, `get_accepted_roots`, `get_state_info`, `get_info`.
   - `contract/src/license_types.rs`: rkyv-serializable call/return types and public-input constants.
   - `contract/src/collection.rs`: simple in-memory map abstraction for contract state.
   - `contract/build.rs`: downloads or generates PlonK setup material and writes `target/prover` and `target/verifier` used by tests and contract build.

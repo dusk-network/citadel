@@ -17,7 +17,7 @@ The protocol reference is [`docs/specs.md`](docs/specs.md). The threat model and
 This repository is structured as follows:
 
 - :computer: [**Core**](core): protocol objects, request/license/session workflows, domain-separated helpers, Citadel Schnorr transcripts, and the license circuit.
-- :pencil: [**License Contract**](contract): request registry, license registry, Merkle root history, proof verification, session registry, and deployment metadata.
+- :pencil: [**License Contract**](contract): license registry, Merkle root history, proof verification, session registry, and deployment metadata.
 - :scroll: [**Docs**](docs): the normative protocol specification and threat model for this prototype.
 
 ## Development
