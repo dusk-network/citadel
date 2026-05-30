@@ -19,7 +19,8 @@ pub(crate) mod license_types;
 mod state;
 
 pub use license_types::{
-    DeploymentMetadata, IssueLicenseArg, LicenseSession, LicenseSessionId, UseLicenseArg,
+    ContractInfo, DeploymentMetadata, InsertRequestArg, IssueLicenseArg, LicenseSession,
+    LicenseSessionId, UseLicenseArg,
 };
 
 const VD_LICENSE_CIRCUIT: &[u8] = include_bytes!("../../target/verifier");

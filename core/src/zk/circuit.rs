@@ -13,8 +13,8 @@ pub const CAPACITY: usize = 16;
 /// The depth of the n-ary Merkle tree
 pub const DEPTH: usize = 16;
 
-/// A standard license circuit that simply uses the [`use_license`]
-/// gadget with no additional operations
+/// A standard license circuit that simply uses the
+/// [`use_license`](gadgets::use_license) gadget with no additional operations.
 #[derive(Default, Debug)]
 pub struct LicenseCircuit {
     gp: gadgets::GadgetParameters<DEPTH>,
@@ -22,8 +22,8 @@ pub struct LicenseCircuit {
 }
 
 impl LicenseCircuit {
-    /// A method to create a new [`LicenseCircuit`] from some [`GadgetParameters`]
-    /// and a [`SessionCookie`]
+    /// A method to create a new [`LicenseCircuit`] from some
+    /// [`GadgetParameters`](gadgets::GadgetParameters) and a [`SessionCookie`].
     pub fn new(gp: &gadgets::GadgetParameters<DEPTH>, sc: &SessionCookie) -> Self {
         Self { gp: *gp, sc: *sc }
     }

@@ -18,17 +18,23 @@ pub mod license_contract {
         collection::Map,
         error::Error,
         license_types::{
-            DeploymentMetadata, IssueLicenseArg, LicenseOpening, LicenseSession, LicenseSessionId,
-            LicenseTree, PI_ROOT, PUBLIC_INPUTS_LEN, UseLicenseArg,
+            ContractInfo, DeploymentMetadata, InsertRequestArg, IssueLicenseArg, LicenseOpening,
+            LicenseSession, LicenseSessionId, LicenseTree, MAX_LICENSE_BLOB_SIZE,
+            MAX_REQUEST_BLOB_SIZE, PI_ROOT, PUBLIC_INPUTS_LEN, UseLicenseArg,
         },
         verifier_data_license_circuit,
     };
 
+    include!(concat!(env!("OUT_DIR"), "/metadata_hashes.rs"));
+
+    const MERKLE_ARITY: usize = 4;
     const DEPTH: usize = 16; // the depth of LicenseCircuit's Merkle tree
     const ROOT_HISTORY_SIZE: usize = 8;
+    const CITADEL_CONTEXT_V1_TAG: BlsScalar = BlsScalar::zero();
+    const DEFAULT_DEPLOYMENT_ID: BlsScalar = BlsScalar::zero();
+    const CITADEL_LICENSE_HASH_V1_TAG: u64 = 0x04;
 
-    #[allow(dead_code)]
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq)]
     struct RequestEntry {
         pub block_height: u64,
         pub request: Vec<u8>,
@@ -43,6 +49,8 @@ pub mod license_contract {
     #[derive(Debug, Clone)]
     pub struct LicenseContractState {
         sessions: Map<LicenseSessionId, LicenseSession>,
+        requests: Map<u64, RequestEntry>,
+        request_payloads: Map<Vec<u8>, ()>,
         licenses: Map<u64, LicenseEntry>,
         license_hashes: Map<BlsScalar, ()>,
         accepted_roots: Vec<BlsScalar>,
@@ -53,6 +61,8 @@ pub mod license_contract {
         pub const fn new() -> Self {
             Self {
                 sessions: Map::new(),
+                requests: Map::new(),
+                request_payloads: Map::new(),
                 licenses: Map::new(),
                 license_hashes: Map::new(),
                 accepted_roots: Vec::new(),
@@ -65,9 +75,61 @@ pub mod license_contract {
             b"license"
         }
 
+        /// Inserts an encrypted request into the collection of requests.
+        /// Method intended to be called by the user.
+        pub fn insert_request(&mut self, arg: InsertRequestArg) {
+            if arg.request.is_empty() {
+                panic!("Request cannot be empty");
+            }
+            if arg.request.len() > MAX_REQUEST_BLOB_SIZE {
+                panic!("Request exceeds maximum size");
+            }
+            if self.request_payloads.get(&arg.request).is_some() {
+                panic!("Request already inserted");
+            }
+
+            let position = self.requests.len() as u64;
+            let block_height = block_height();
+            self.request_payloads.insert(arg.request.clone(), ());
+            self.requests.insert(
+                position,
+                RequestEntry {
+                    block_height,
+                    request: arg.request,
+                },
+            );
+        }
+
+        /// Returns requests for a given range of block-heights.
+        /// Method intended to be called by License Providers.
+        #[contract(feeds = "(u64, Vec<u8>)")]
+        pub fn get_requests(&mut self, block_heights: Range<u64>) {
+            for (pos, request) in self
+                .requests
+                .entries_filter(|(_, re)| block_heights.contains(&re.block_height))
+                .map(|(pos, re)| (*pos, re.request.clone()))
+            {
+                feed((pos, request));
+            }
+        }
+
+        /// Returns a request at a given request position.
+        /// Method intended to be called by wallets, License Providers, and clients.
+        pub fn get_request(&self, position: u64) -> Option<Vec<u8>> {
+            self.requests
+                .get(&position)
+                .map(|entry| entry.request.clone())
+        }
+
         /// Inserts a license into the collection of licenses.
         /// Method intended to be called by the License Provider.
         pub fn issue_license(&mut self, arg: IssueLicenseArg) {
+            if arg.license.is_empty() {
+                panic!("License cannot be empty");
+            }
+            if arg.license.len() > MAX_LICENSE_BLOB_SIZE {
+                panic!("License exceeds maximum size");
+            }
             if self.tree.len() >= self.tree.capacity() {
                 panic!("License tree is full");
             }
@@ -110,6 +172,14 @@ pub mod license_contract {
             }
         }
 
+        /// Returns a license at a given license tree position.
+        /// Method intended to be called by wallets and clients.
+        pub fn get_license(&self, position: u64) -> Option<Vec<u8>> {
+            self.licenses
+                .get(&position)
+                .map(|entry| entry.license.clone())
+        }
+
         /// Returns merkle opening for a given position in the merkle tree of
         /// license hashes. Returns none if the given position slot in the tree is
         /// empty. Method intended to be called by the user.
@@ -133,7 +203,7 @@ pub mod license_contract {
                 use_license_arg.proof,
                 use_license_arg.public_inputs.clone(),
             )
-            .expect("Provided proof verification should succeed!");
+            .unwrap_or_else(|_| panic!("Proof verification failed"));
 
             // after a successful proof verification we can add a session to a
             // shared list of sessions
@@ -155,9 +225,6 @@ pub mod license_contract {
             self.sessions.get(&session_id).cloned()
         }
 
-        /// Method needed for inserting payloads into blockchain
-        pub fn request_license(&self) {}
-
         fn assert_proof(
             verifier_data: &[u8],
             proof: Vec<u8>,
@@ -174,12 +241,14 @@ pub mod license_contract {
                 panic!("Invalid license public key");
             }
 
+            // The base contract is deployed with the prototype deployment ID
+            // fixed to zero, matching `DEFAULT_DEPLOYMENT` in the core crate.
             let ctx = Hash::digest(
                 Domain::Other,
                 &[
-                    BlsScalar::zero(),
-                    BlsScalar::zero(),
-                    BlsScalar::from(0x04u64),
+                    CITADEL_CONTEXT_V1_TAG,
+                    DEFAULT_DEPLOYMENT_ID,
+                    BlsScalar::from(CITADEL_LICENSE_HASH_V1_TAG),
                 ],
             )[0];
 
@@ -197,6 +266,10 @@ pub mod license_contract {
             self.accepted_roots.iter().any(|accepted| accepted == &root)
         }
 
+        fn current_root(&self) -> BlsScalar {
+            self.tree.root().hash
+        }
+
         /// Deployment metadata needed by wallets and service providers.
         pub fn get_metadata(&self) -> DeploymentMetadata {
             DeploymentMetadata {
@@ -204,9 +277,36 @@ pub mod license_contract {
                 protocol_version: BlsScalar::one(),
                 chain_id: BlsScalar::zero(),
                 contract_id: BlsScalar::zero(),
+                verifier_key_hash: VERIFIER_KEY_HASH,
+                circuit_hash: CIRCUIT_HASH,
+                merkle_arity: MERKLE_ARITY as u32,
                 merkle_depth: DEPTH as u32,
                 root_history_size: ROOT_HISTORY_SIZE as u32,
                 public_inputs_len: PUBLIC_INPUTS_LEN as u32,
+                max_request_blob_size: MAX_REQUEST_BLOB_SIZE as u32,
+                max_license_blob_size: MAX_LICENSE_BLOB_SIZE as u32,
+            }
+        }
+
+        /// Current Merkle root of the license tree.
+        pub fn get_current_root(&self) -> BlsScalar {
+            self.current_root()
+        }
+
+        /// Accepted Merkle roots under the contract root-history policy.
+        pub fn get_accepted_roots(&self) -> Vec<BlsScalar> {
+            self.accepted_roots.clone()
+        }
+
+        /// Named state summary for wallets, LPs, SPs, and web clients.
+        pub fn get_state_info(&self) -> ContractInfo {
+            ContractInfo {
+                requests: self.requests.len() as u32,
+                licenses: self.licenses.len() as u32,
+                tree_len: self.tree.len() as u32,
+                sessions: self.sessions.len() as u32,
+                accepted_roots: self.accepted_roots.len() as u32,
+                current_root: self.current_root(),
             }
         }
 

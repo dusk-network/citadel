@@ -14,7 +14,7 @@ use poseidon_merkle::{Item, Tree};
 use rand_core::OsRng;
 
 use zk_citadel::{
-    License, LicenseOrigin, Request, Session, SessionCookie, circuit, gadgets,
+    License, LicenseOrigin, Request, Session, SessionCookie, SessionPolicy, circuit, gadgets,
     helpers::{DEFAULT_DEPLOYMENT, license_hash},
 };
 
@@ -104,24 +104,32 @@ fn test_full_citadel() {
     // Finally, the SP can verify a session, related by the session_id
     let session = Session::from(&public_inputs).expect("Session parsed correctly.");
     assert_eq!(session.session_id, sc.session_id);
-    session.verify(sc).expect("Session verified correctly.");
+    let policy = SessionPolicy::new(sc.policy_id, sc.pk_sp, sc.pk_lp, sc.c);
+    session
+        .verify(sc, &policy)
+        .expect("Session verified correctly.");
 
     // We also test setting a false session cookie
     let sc_false = SessionCookie {
+        version: sc.version,
         deployment_id: sc.deployment_id,
+        cookie_mode: sc.cookie_mode,
+        policy_id: sc.policy_id,
         pk_sp: sc.pk_sp,
-        r: sc.r,
+        r_session: sc.r_session,
         session_id: sc.session_id,
         pk_lp: sc.pk_lp,
         attr_data: JubJubScalar::from(1234u64),
+        attr_opening: sc.attr_opening,
         c: sc.c,
         s_0: sc.s_0,
         s_1: sc.s_1,
         s_2: sc.s_2,
+        binding_data: sc.binding_data,
     };
 
     // So, this should be an error
-    assert!(session.verify(sc_false).is_err());
+    assert!(session.verify(sc_false, &policy).is_err());
 
     // A license issued from a public key should also work
     let lic_from_pk = License::new(
@@ -168,5 +176,8 @@ fn test_full_citadel() {
 
     let session = Session::from(&public_inputs).expect("Session parsed correctly.");
     assert_eq!(session.session_id, sc.session_id);
-    session.verify(sc).expect("Session verified correctly.");
+    let policy = SessionPolicy::new(sc.policy_id, sc.pk_sp, sc.pk_lp, sc.c);
+    session
+        .verify(sc, &policy)
+        .expect("Session verified correctly.");
 }

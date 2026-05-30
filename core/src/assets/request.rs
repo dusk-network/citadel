@@ -19,11 +19,18 @@ use rkyv::{Archive, Deserialize, Serialize};
 
 use dusk_plonk::prelude::*;
 
-use crate::helpers::{DEFAULT_DEPLOYMENT, Deployment, license_key};
+use crate::helpers::{
+    DEFAULT_DEPLOYMENT, Deployment, OBJECT_VERSION_V1, license_key, request_encryption_salt,
+    request_id,
+};
 
 const DEPLOYMENT_CONTEXT_SIZE: usize = BlsScalar::SIZE;
-pub(crate) const REQ_PLAINTEXT_SIZE: usize =
-    StealthAddress::SIZE + JubJubAffine::SIZE + DEPLOYMENT_CONTEXT_SIZE + PublicKey::SIZE;
+const OBJECT_VERSION_SIZE: usize = BlsScalar::SIZE;
+pub(crate) const REQ_PLAINTEXT_SIZE: usize = StealthAddress::SIZE
+    + JubJubAffine::SIZE
+    + OBJECT_VERSION_SIZE
+    + DEPLOYMENT_CONTEXT_SIZE
+    + PublicKey::SIZE;
 const REQ_ENCRYPTION_SIZE: usize = REQ_PLAINTEXT_SIZE + ENCRYPTION_EXTRA_SIZE;
 
 /// The struct defining a Citadel request, a set of information that
@@ -36,6 +43,8 @@ const REQ_ENCRYPTION_SIZE: usize = REQ_PLAINTEXT_SIZE + ENCRYPTION_EXTRA_SIZE;
 )]
 #[derive(Debug)]
 pub struct Request {
+    /// Object version.
+    pub version: BlsScalar,
     /// Compact deployment identifier.
     pub deployment_id: BlsScalar,
     /// The stealth address for the request
@@ -45,7 +54,7 @@ pub struct Request {
 }
 
 impl Request {
-    /// Method to create a new [`Request`] given ther user keys and the public key of LP
+    /// Method to create a new [`Request`] given the user keys and the public key of LP.
     pub fn new<R: RngCore + CryptoRng>(
         sk_user: &SecretKey,
         pk_user: &PublicKey,
@@ -78,16 +87,33 @@ impl Request {
 
         let mut plaintext = lsa.to_bytes().to_vec();
         plaintext.append(&mut k_lic.to_bytes().to_vec());
+        plaintext.append(&mut OBJECT_VERSION_V1.to_bytes().to_vec());
         plaintext.append(&mut deployment.id.to_bytes().to_vec());
         plaintext.append(&mut pk_lp.to_bytes().to_vec());
 
-        let salt = rsa.note_pk().to_bytes();
+        let salt = request_encryption_salt(deployment, OBJECT_VERSION_V1, &rsa, pk_lp);
         let enc = encrypt(&k_dh, &salt, &plaintext, rng)?;
 
         Ok(Self {
+            version: OBJECT_VERSION_V1,
             deployment_id: deployment.id,
             rsa,
             enc,
         })
+    }
+
+    /// Computes the request ID defined by the protocol.
+    pub fn id(&self) -> BlsScalar {
+        request_id(
+            Deployment::new(
+                self.deployment_id,
+                self.version,
+                BlsScalar::zero(),
+                BlsScalar::zero(),
+            ),
+            self.version,
+            &self.rsa,
+            &self.enc,
+        )
     }
 }

@@ -1,188 +1,93 @@
 # Citadel Protocol Specification
 
-**Updated:** 26 May 2026. 
+**Updated:** 30 May 2026.  
+**Status:** Draft.  
 
-**Status:** Draft.
+Citadel lets a user obtain an encrypted license from a License Provider (LP), prove on-chain that a registered license exists without revealing which license it is, and then disclose a session cookie to a Service Provider (SP). The protocol deliberately separates cryptographic validity from service authorization. The contract verifies the zero-knowledge proof and records a session. The SP decides whether that session satisfies its own service policy.
 
-Citadel lets a user obtain an encrypted license from a License Provider (LP),
-prove on-chain that the license exists without revealing it, and then disclose a
-session cookie to a Service Provider (SP). The protocol deliberately separates
-cryptographic validity from service authorization: the contract verifies the
-zero-knowledge proof and records a session, while each SP decides whether that
-session satisfies its own policy.
+This document is normative for the base Citadel protocol shape. SP choices such as accepted issuers, attribute predicates, challenge format, replay handling, revocation, expiration, account binding, and rate limits are policy-profile inputs, not universal protocol constants.
 
-This document is normative for the Citadel protocol shape. SP choices such as
-accepted issuers, attribute predicates, challenge format, replay handling,
-revocation, expiration, and rate limits are policy profile inputs, not universal
-protocol constants.
+The words MUST, MUST NOT, REQUIRED, SHOULD, SHOULD NOT, RECOMMENDED, MAY, and OPTIONAL are to be interpreted as described in RFC 2119 and RFC 8174 when, and only when, they appear in uppercase.
 
-The terms MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are to be interpreted as
-described in RFC 2119 and RFC 8174 when, and only when, they appear in
-uppercase.
-
-## 1. Scope
+## 1. Scope And Design Boundary
 
 Citadel provides the following base guarantees:
 
-- A user can prove possession of a license secret key without revealing it.
-- A user can prove that the hidden license public key is registered in the
-  contract's license tree under an accepted Merkle root.
-- An LP signature binds the issued attributes to the license public key.
-- Public session data does not reveal the user wallet key, license public key,
-  LP key, SP key, attributes, challenge, signature, or Merkle path.
-- The same hidden license cannot create two accepted sessions for the same
-  SP-accepted challenge value.
-- An SP can verify that a cookie opens the public on-chain session values.
+- A user can prove possession of the license secret key corresponding to a hidden license public key.
+- A user can prove that the hidden license public key is registered in the contract's license tree under an accepted Merkle root.
+- An LP signature binds the issued attribute digest or scalar to the hidden license public key.
+- Public session data does not reveal the user wallet key, license public key, LP key, SP key, attributes, challenge, LP signature, session authorization signature, or Merkle path.
+- For a fixed hidden license and a fixed SP-accepted challenge value, the contract accepts at most one session.
+- An SP can verify that a disclosed cookie opens the public on-chain session values and then apply its own policy.
 
-Citadel does not, by itself, grant service access. The SP must still check
-issuer trust, attributes, challenge acceptance, replay rules, root freshness,
-revocation, expiration, account binding, and rate limits.
+Citadel does **not** grant service access by itself. The SP MUST still check issuer trust, attribute semantics, challenge acceptance, root freshness, revocation, expiration, replay rules, account binding, channel binding, and rate limits required by its own policy profile.
 
 Citadel also does not automatically provide:
 
 - replay protection for a disclosed cookie;
 - revocation or current-validity checks beyond membership in an accepted root;
-- issuer-verifier unlinkability when attributes are unique or the LP and SP
-  collude;
+- issuer-verifier unlinkability when attributes are unique, when timing or network metadata is identifying, or when the LP and SP collude;
+- availability protection for request discovery, registry storage, or SP service endpoints;
 - authorization for every service that accepts Citadel proofs.
 
-## 2. Core Concepts
+The standalone [threat model](security.md) defines adversaries, assets, security goals, residual risks, and proof obligations. The protocol specification keeps only the normative mechanics needed for interoperable implementations.
+
+## 2. Parties, Identifiers, And Secrets
 
 ### 2.1 Parties
 
-- User: controls a wallet key pair, requests licenses, owns license secret keys,
-  opens sessions, and sends cookies to SPs.
-- License Provider (LP): evaluates requests, defines signed attributes, signs
-  licenses, and publishes encrypted licenses.
-- Service Provider (SP): publishes an authorization policy, verifies cookies,
-  and grants or denies service.
-- Contract: stores issued license commitments, maintains accepted Merkle roots,
-  verifies license-use proofs, rejects duplicate session IDs, and stores public
-  session records.
-- Validators: execute the contract and verify proofs according to the deployed
-  verifier key.
+- **User:** controls a wallet key pair, requests licenses, owns license secret keys, opens sessions, and sends cookies to SPs.
+- **License Provider (LP):** evaluates requests, defines signed attributes, signs licenses, and publishes encrypted licenses.
+- **Service Provider (SP):** publishes a policy profile, verifies cookies, and grants or denies service.
+- **Contract:** stores encrypted request and license blobs, stores issued license commitments, maintains accepted Merkle roots, verifies license-use proofs, rejects duplicate session IDs, and stores public session records.
+- **Validators:** execute the contract and verify proofs according to the deployed verifier key.
+- **Optional proof helper:** may help generate a proof, but MUST NOT receive the user's license secret key.
 
-The LP and SP MAY be the same legal or operational entity, but the protocol
-treats them as separate roles. If they are the same entity, privacy guarantees
-against issuer-verifier correlation are weaker.
+The LP and SP MAY be the same legal or operational entity, but the protocol treats them as separate roles. If they are the same entity, privacy against issuer-verifier correlation is weaker and depends heavily on the selected attribute-disclosure profile.
 
-### 2.2 Identifiers And Secrets
+### 2.2 Field And Group Notation
+
+Citadel uses a proof-system field and a prime-order subgroup of Jubjub. Implementations MUST be explicit about field boundaries.
+
+- `F_c`: the field used by the circuit and Poseidon arithmetic.
+- `F_s`: the scalar field used for Jubjub subgroup scalar multiplication.
+- `J`: the prime-order Jubjub subgroup used for Phoenix-style keys, stealth addresses, Schnorr signatures, and Pedersen commitments.
+- `G` and `G'`: independent fixed generators of `J`.
+
+If an implementation uses the same concrete field representation for `F_c` and `F_s`, it MAY expose a single scalar type. If `F_c` and `F_s` differ, the deployment profile MUST define canonical encodings and range checks for every scalar represented in the circuit. Values used as Pedersen coefficients, Schnorr scalars, secret keys, stealth scalars, and blinding factors are elements of `F_s`; values used as public inputs and Poseidon state elements are elements of `F_c`.
+
+The discrete logarithm of `G'` with respect to `G` MUST be unknown. The generator set MUST be fixed by the deployment and included in the audited circuit definition.
+
+### 2.3 Core Identifiers
 
 The following names are used throughout the specification:
 
 - `pk = (A, B)`: Phoenix-style public key.
-- `pk_user`, `pk_lp`, `pk_sp`: role-specific Phoenix public keys for the user,
-  LP, and SP.
+- `pk_user`, `pk_lp`, `pk_sp`: role-specific Phoenix public keys for the user, LP, and SP.
 - `sk = (a, b)`: matching Phoenix-style secret key.
-- `lsa`: license stealth address. This is the public destination where an LP
-  issues an encrypted license.
+- `lsa`: license stealth address.
+- `rsa`: request stealth address.
 - `lsk`: one-time license secret key derived by the user for `lsa`.
-- `lpk = lsk * G`: one-time license public key, equal to the public key carried
-  by `lsa`.
-- `lpk_p = lsk * G'`: secondary license public key used only for nullification
-  and double-key authorization.
+- `lpk = lsk * G`: one-time license public key, equal to the public key carried by `lsa`.
+- `lpk_p = lsk * G'`: secondary license public key used only for nullification and double-key authorization.
 - `pk_lp.A`: LP signing point used to verify the license signature.
-- `pk_sp.A`: SP service point that a cookie is bound to.
-- `attr_data`: canonical scalar or field digest representing the attributes the
-  LP signed.
+- `pk_sp.A`: SP service point to which a cookie is bound.
+- `schema_id`: versioned identifier for the signed attribute schema.
+- `policy_id`: versioned identifier for an SP authorization profile.
+- `attr_data`: canonical scalar or field digest representing the LP-signed attributes. It MUST be schema-scoped.
 - `c`: SP policy challenge value. It controls nullification and reuse.
 - `root`: accepted Merkle root of the license registry.
 - `session_id`: public nullifier derived from `lpk_p` and `c`.
-- `session_hash`: public commitment tying a session cookie to `pk_sp.A` and
-  fresh session randomness.
+- `session_hash`: public commitment tying a session cookie to `pk_sp.A` and fresh session randomness.
 - `com_0`: commitment to `pk_lp.A`.
 - `com_1`: Pedersen commitment to `attr_data`.
 - `com_2`: Pedersen commitment to `c`.
 
-The circuit receives `lpk` and `lpk_p` as private witness points. It does not
-receive `lsk` and does not compute either point from `lsk`; instead it verifies
-a double-key Schnorr authorization proving knowledge of the same hidden scalar
-for both points.
+The circuit receives `lpk` and `lpk_p` as private witness points. It does not receive `lsk` and does not compute either point from `lsk`. Instead, it verifies a double-key Schnorr authorization proving knowledge of the same hidden scalar for both points.
 
-### 2.3 Data Objects
+## 3. Deployment Profile And Domain Separation
 
-Citadel uses four main data objects:
-
-- Request: encrypted message from a user to an LP asking for issuance to a
-  license stealth address.
-- License: encrypted LP-signed asset published to the user and registered in
-  the license tree as `license_hash`.
-- Session: public on-chain record created after a successful license-use proof.
-- Cookie: off-chain disclosure from the user to the SP that opens selected
-  public session commitments.
-
-### 2.4 Lifecycle
-
-The normal request-based flow is:
-
-1. The user creates `lsa`, derives `lsk`, and sends an encrypted request to the
-   LP.
-2. The LP decrypts the request, evaluates its own issuance policy, signs
-   `attr_data` for `lpk`, publishes an encrypted license, and registers
-   `license_hash` in the contract tree.
-3. The user finds the license, decrypts it, verifies the LP signature, and
-   obtains a Merkle opening for `license_hash`.
-4. The SP publishes or communicates a policy profile, including accepted LPs,
-   attributes, challenge rules, and replay rules.
-5. The user creates a license-use proof for that policy challenge `c` and
-   submits it to the contract.
-6. The contract verifies the proof, checks `root`, rejects duplicate
-   `session_id` values, and stores the public session.
-7. The user sends the SP a base or selective-disclosure cookie.
-8. The SP fetches the on-chain session, verifies the cookie openings, and then
-   applies its policy.
-
-## 3. Threat Model
-
-### 3.1 Assets
-
-- User wallet secret keys and derived license secret keys.
-- LP signing keys and issuance policy decisions.
-- SP service access decisions.
-- License attributes and eligibility claims.
-- Session cookies and commitment openings.
-- Merkle tree state, roots, and openings.
-- Contract verifier key and circuit definition.
-- Privacy of which issued license was used in a session.
-- Availability of the license registry and session registry.
-
-### 3.2 Adversaries
-
-- Passive chain observer: sees license blobs, license hashes, roots, public
-  session inputs, and timing.
-- Network observer: sees off-chain communication unless the channel is
-  authenticated and confidential.
-- Malicious user: tries to forge, reuse, transfer, replay, or overuse access.
-- Malicious LP: signs false attributes, issues outside policy, spams the
-  registry, or correlates issuance records with later disclosures.
-- Malicious SP: accepts weak challenges, tracks users, leaks cookies, or skips
-  required policy checks.
-- LP/SP collusion: combines issuance records, attribute uniqueness, cookie
-  disclosures, and service metadata to deanonymize users.
-- State spammer: attempts to fill the Merkle tree, store bogus licenses, or
-  force expensive proof verification.
-- Key-compromise adversary: obtains user, LP, SP, or service-channel keys.
-
-### 3.3 Trust Assumptions
-
-- The LP is trusted only for the correctness of attributes it signs. An SP MUST
-  decide which LP public keys it trusts.
-- The SP is trusted by the user with any attributes or openings disclosed in the
-  selected service profile.
-- The contract verifier key, circuit definition, domain constants, Merkle depth,
-  and root-acceptance rules are correct for the deployment.
-- Poseidon, Schnorr, Pedersen commitments, DHKE, AEAD encryption, and PlonK are
-  implemented correctly and with valid parameters.
-- Randomness for stealth addresses, signatures, commitments, encryption, and
-  session creation is generated by a CSPRNG.
-- All externally supplied encodings are validated canonically before use.
-- Wallets and SPs read contract state from an authenticated source and apply the
-  deployment's finality or reorganization policy before relying on a root or
-  session.
-
-## 4. Deployment And Encoding Requirements
-
-### 4.1 Deployment Parameters
+### 3.1 Deployment Profile
 
 Each Citadel deployment MUST define:
 
@@ -190,44 +95,78 @@ Each Citadel deployment MUST define:
 - chain ID;
 - contract ID;
 - compact deployment ID;
-- verifier key and circuit hash;
+- proof system and verifier key;
+- circuit hash and public-input order;
 - generator set;
-- Poseidon domain constants;
-- compact hash context derivation;
+- Poseidon parameters and domain constants;
+- compact hash-context derivation;
 - Merkle tree parameters;
 - root acceptance policy;
+- request insertion, retention, duplicate, size-limit, fee, and spam-control policy;
 - license issuance access policy;
+- duplicate `license_hash` policy;
 - tree-full behavior;
 - supported attribute schemas;
 - supported SP policy profiles, if any are published by the deployment;
-- chain-finality requirements for wallets and SPs;
-- upgrade and deprecation rules for protocol, circuit, domain, and parameter
-  changes.
+- finality or reorganization policy for wallets, LPs, and SPs;
+- upgrade and deprecation rules for protocol, circuit, domain, generator, and parameter changes.
 
-The contract MUST expose enough metadata for wallets and SPs to verify that they
-are using the intended verifier key, tree parameters, and root policy.
+The contract MUST expose enough metadata for wallets and SPs to verify that they are using the intended verifier key, tree parameters, domain context, root policy, and protocol version. New clients SHOULD prefer named metadata fields over positional tuple returns.
 
-For circuit efficiency, deployment metadata is represented in protocol objects
-by one field element, `deployment_id`. The deployment profile defines how this
-identifier is assigned or derived from the protocol version, chain ID, contract
-ID, verifier key, and other deployment parameters. Domain separation metadata is
-then compressed into one field element per logical hash domain:
+### 3.2 Compact Deployment Context
+
+For circuit efficiency, deployment metadata is represented inside protocol objects by one field element, `deployment_id`. The deployment profile defines how this identifier is assigned or derived from the protocol version, chain ID, contract ID, verifier key, circuit hash, generator set, domain constants, and Merkle parameters.
+
+Domain separation metadata is compressed into one field element per logical hash domain:
 
 `ctx_D = PoseidonOther(CITADEL_CONTEXT_V1, deployment_id, domain_id_D)`
 
-where `domain_id_D` is the fixed identifier for domain `D`. Circuit hash
-preimages MUST use `ctx_D` as their first element instead of absorbing
-`domain_id_D`, version, chain, or contract values separately. The uncompressed
-deployment metadata remains part of the deployment metadata, but the compact
-`deployment_id` is the value carried by requests, licenses, session cookies, and
-the circuit context.
+where `domain_id_D` is the fixed identifier for domain `D`. Circuit hash preimages MUST use `ctx_D` as their first element instead of absorbing the uncompressed version, chain, contract, and domain values separately.
 
-Any change to public input order, hash preimages, domain constants, generator
-set, Merkle parameters, signature messages, KDF inputs, or verifier key defines
-a new protocol or circuit version. Implementations MUST NOT silently mix data
-from different versions.
+The uncompressed deployment metadata remains part of the deployment profile. The compact `deployment_id` is the value carried by requests, licenses, session cookies, and circuit context.
 
-### 4.2 Canonical Encoding
+Any change to public-input order, hash preimages, signature transcripts, KDF inputs, domain constants, generator set, Merkle parameters, circuit constraints, proof-system parameters, or verifier key defines a new protocol or circuit version. Implementations MUST NOT silently mix data from different versions.
+
+### 3.3 Domain-Separated Hashes
+
+Poseidon is used for values that must be reproduced inside the circuit. Every Poseidon use MUST be domain-separated.
+
+This specification writes a domain-separated hash as:
+
+`H[DOMAIN](x_0, ..., x_n)`
+
+For domains used inside the base circuit, this means:
+
+`H(ctx_DOMAIN, x_0, ..., x_n)`
+
+Merkle internal nodes are the exception: they use the fixed Poseidon `MERKLE4` domain for exactly four children.
+
+When a scalar output is required from points, field elements, or byte strings, canonical encodings are mapped into field elements before hashing:
+
+`H_SCALAR[DOMAIN](...)`
+
+Required base domains:
+
+- `CITADEL_CONTEXT_V1`
+- `CITADEL_STEALTH_DERIVE_V1`
+- `CITADEL_REQUEST_KEY_V1`
+- `CITADEL_LICENSE_KEY_V1`
+- `CITADEL_LICENSE_HASH_V1`
+- `CITADEL_LICENSE_SIG_MSG_V1`
+- `CITADEL_LICENSE_SIG_CHALLENGE_V1`
+- `CITADEL_SESSION_HASH_V1`
+- `CITADEL_SESSION_AUTH_V1`
+- `CITADEL_SESSION_SIG_CHALLENGE_V1`
+- `CITADEL_SESSION_ID_V1`
+- `CITADEL_LP_COMMITMENT_V1`
+- `CITADEL_ATTR_DATA_V1`
+- `CITADEL_REQUEST_ID_V1`
+- `CITADEL_POLICY_ID_V1`
+- `CITADEL_POLICY_CHALLENGE_V1`
+
+A deployment MAY define additional domains for new circuits, transports, or SP policy profiles. It MUST NOT reuse the same domain for different semantic objects.
+
+## 4. Canonical Encoding And Validation
 
 Every externally supplied value MUST be validated before cryptographic use.
 
@@ -237,160 +176,118 @@ For Jubjub points, implementations MUST:
 - reject decoding failures;
 - check that the point is on the curve;
 - check that the point is in the prime-order subgroup;
-- reject the identity point unless a specific protocol field explicitly allows
-  it;
-- compare trust-list entries using canonical encodings.
+- reject the identity point unless a specific protocol field explicitly allows it;
+- compare trust-list entries using canonical encodings;
+- define a single canonical coordinate order for hash preimages and public input serialization.
 
 For scalar field elements, implementations MUST:
 
-- require canonical field encoding;
+- require canonical scalar or field encoding;
 - reject out-of-range values;
 - reject ambiguous byte encodings;
-- define a deterministic byte-to-field mapping for hashes of structured data.
+- define deterministic byte-to-field and hash-to-field mappings;
+- range-check `F_s` scalars represented inside an `F_c` circuit when the two fields differ.
 
 For structured data, implementations MUST:
 
 - use versioned canonical serialization;
 - avoid ad hoc concatenation without lengths or type tags;
-- bind the `deployment_id` and schema ID where relevant.
+- bind the `deployment_id`, schema ID, policy ID, and cookie mode where relevant;
+- enforce maximum payload sizes for contract-stored request and license blobs;
+- reject unknown critical fields unless the object version explicitly permits forward-compatible extension.
 
-These validation rules apply to requests, licenses, public inputs, cookies, LP
-keys, SP keys, Merkle openings, signatures, and off-chain predicate proof
-inputs.
+The same validation rules apply to requests, licenses, public inputs, cookies, LP keys, SP keys, Merkle openings, signatures, and off-chain predicate proof inputs.
+
+The circuit MUST constrain private witness points used as group elements, including `lpk`, `lpk_p`, and `pk_lp.A`, to be valid non-identity points in the intended subgroup or use complete audited group gadgets that enforce the equivalent relation. Off-chain verifiers MUST validate all disclosed points independently.
 
 ## 5. Cryptographic Building Blocks
 
-### 5.1 Groups And Fields
-
-Citadel uses:
-
-- BLS12-381 for PlonK and scalar-field arithmetic.
-- Jubjub's prime-order subgroup for Phoenix-style keys, stealth addresses,
-  Schnorr signatures, and Pedersen commitments.
-
-Let `F` be the scalar field used by the circuit. Let `J` be the prime-order
-Jubjub subgroup. Let `G` and `G'` be independent fixed generators of `J`.
-
-The discrete logarithm of `G'` with respect to `G` MUST be unknown. The
-generators MUST be fixed by the deployment and included in the audited circuit
-definition. The same generator set MUST be used by wallets, LPs, SPs, and the
-contract verifier.
-
-### 5.2 Phoenix-Style Keys
+### 5.1 Phoenix-Style Keys
 
 Each party uses:
 
-- Secret key: `sk = (a, b)` where `a, b in F`.
+- Secret key: `sk = (a, b)` where `a, b in F_s`.
 - Public key: `pk = (A, B)` where `A = aG` and `B = bG`.
 
-The `A` component is used for DHKE and signing where specified. The `B`
-component is used in stealth-address derivation. Public keys MUST be canonical
-Jubjub points and MUST pass the validation rules in Section 4.2.
+The `A` component is used for DHKE and signing where specified. The `B` component is used in stealth-address derivation. Secret scalars SHOULD be sampled uniformly from nonzero elements of `F_s`. Public keys MUST be canonical Jubjub points and MUST pass the validation rules in Section 4.
 
-Role-specific keys are written as `sk_user`, `pk_user`, `sk_lp`, `pk_lp`,
-`sk_sp`, and `pk_sp`. Public-key names always refer to full Phoenix public
-keys. When a formula needs the signing, service, or DHKE point, it names the
-component explicitly, for example `pk_lp.A`, `pk_sp.A`, or `pk_user.A`.
-Profiles MUST state whether an issuer or service is identified by a full
-Phoenix public key, by its `A` component, or by another deployment identifier,
-and all comparisons MUST use canonical encodings.
+Role-specific keys are written as `sk_user`, `pk_user`, `sk_lp`, `pk_lp`, `sk_sp`, and `pk_sp`. Public-key names refer to full Phoenix public keys unless a formula names a component explicitly, for example `pk_lp.A`, `pk_sp.A`, or `pk_user.A`.
 
-### 5.3 Domain-Separated Hashes
+SP profiles MUST state whether an issuer or service is identified by a full Phoenix public key, by its `A` component, or by another deployment identifier. All comparisons MUST use canonical encodings.
 
-Poseidon is used for values that must be reproduced inside the circuit. Every
-Poseidon use MUST be domain-separated. The deployment MUST publish fixed field
-constants for every domain tag used by the circuit and by off-chain
-verification.
+### 5.2 Stealth Addresses
 
-This specification writes a domain-separated hash as:
-
-`H[DOMAIN](x_0, ..., x_n)`
-
-For domains that are used inside the base circuit, this notation means:
-
-`H(ctx_DOMAIN, x_0, ..., x_n)`
-
-where `ctx_DOMAIN` is the compact context scalar defined in section 4.1.
-Merkle internal nodes are the exception: they use the fixed Poseidon
-`Merkle4` domain for exactly four children.
-
-When a scalar output is required from a point or byte string, the canonical
-encoding is mapped to field elements before hashing:
-
-`H_SCALAR[DOMAIN](...)`
-
-Required domains:
-
-- `CITADEL_CONTEXT_V1`
-- `CITADEL_STEALTH_DERIVE_V1`
-- `CITADEL_REQUEST_KEY_V1`
-- `CITADEL_LICENSE_KEY_V1`
-- `CITADEL_LICENSE_HASH_V1`
-- `CITADEL_LICENSE_SIG_MSG_V1`
-- `CITADEL_SESSION_HASH_V1`
-- `CITADEL_SESSION_AUTH_V1`
-- `CITADEL_SESSION_ID_V1`
-- `CITADEL_LP_COMMITMENT_V1`
-- `CITADEL_ATTR_DATA_V1`
-- `CITADEL_REQUEST_ID_V1`
-- `CITADEL_POLICY_CHALLENGE_V1`
-
-A deployment MAY define additional domains for new circuits or SP policy
-profiles. It MUST NOT reuse the same domain for different semantic objects.
-
-### 5.4 Stealth Addresses
-
-A Citadel stealth address contains a one-time public key and a sender public
-nonce:
+A Citadel stealth address contains a one-time public key and a sender public nonce:
 
 `sa = (opk, R)`
 
 where:
 
-- `r <- F` is fresh sender randomness;
+- `r <- F_s` is fresh sender randomness;
 - `R = rG`;
-- `k = r * pk_recipient.A`;
-- `opk = H_SCALAR[CITADEL_STEALTH_DERIVE_V1](k) * G + pk_recipient.B`.
+- `K = r * pk_recipient.A`;
+- `opk = H_SCALAR[CITADEL_STEALTH_DERIVE_V1](K) * G + pk_recipient.B`.
 
-The recipient detects ownership by computing `k = sk_recipient.a * R` and
-checking that:
+The recipient detects ownership by computing `K = sk_recipient.a * R` and checking:
 
-`opk = H_SCALAR[CITADEL_STEALTH_DERIVE_V1](k) * G + pk_recipient.B`
+`opk = H_SCALAR[CITADEL_STEALTH_DERIVE_V1](K) * G + pk_recipient.B`
 
 The recipient's one-time secret key is:
 
-`nsk = H_SCALAR[CITADEL_STEALTH_DERIVE_V1](k) + sk_recipient.b`
+`nsk = H_SCALAR[CITADEL_STEALTH_DERIVE_V1](K) + sk_recipient.b`
 
-For a license stealth address `lsa`, Citadel names the one-time public key
-`lpk`. For a request stealth address `rsa`, Citadel names it `rpk`. Phoenix
-terminology for this field is intentionally avoided here.
+For a license stealth address `lsa`, Citadel names the one-time public key `lpk`. For a request stealth address `rsa`, Citadel names it `rpk`.
 
-Fresh `r` MUST be used for every stealth address. Reusing stealth randomness or
-one-time secrets can link licenses and can break privacy.
+Fresh `r` MUST be used for every stealth address. Reusing stealth randomness or one-time secrets can link objects and can break privacy. If the derived one-time secret or one-time public key is invalid under the deployment's key rules, the sender MUST resample.
 
-### 5.5 Signatures
+### 5.3 Schnorr Signatures
 
-Citadel uses Jubjub Schnorr signatures:
+Citadel uses Jubjub Schnorr signatures in two roles:
 
 - single-key Schnorr for LP license signatures;
-- double-key Schnorr for proving license-secret possession while binding both
-  `lpk` and `lpk_p`.
+- double-key Schnorr for proving license-secret possession while binding both `lpk` and `lpk_p`.
 
-Schnorr challenge hashes MUST be domain-separated by protocol purpose and MUST
-include canonical encodings of the public key, nonce points, message, and
-protocol version. LP signing keys SHOULD NOT be reused for unrelated protocols
-unless all signing contexts are strongly domain-separated.
+Schnorr signing nonces MUST be generated with a CSPRNG or by deterministic nonce derivation that is domain-separated and binds the signing secret, public key, message, and protocol context. A signing nonce MUST NOT be reused with the same signing key.
 
-Schnorr signing nonces MUST be generated with a CSPRNG or by a deterministic
-nonce derivation that is domain-separated and binds the signing secret, public
-key, message, and protocol context. A signing nonce MUST NOT be reused with the
-same signing key.
+#### 5.3.1 LP License Signature
 
-The double-key Schnorr statement MUST prove knowledge of one scalar `x` such
-that `lpk = xG` and `lpk_p = xG'`. Verification MUST bind both public keys, all
-nonce points, the message, and the signature domain.
+For LP signing key `a`, public key `A = aG`, and message `m`, a license signature is:
 
-### 5.6 Commitments
+1. sample or derive nonce `n <- F_s`;
+2. compute `R = nG`;
+3. compute `e = H_SCALAR[CITADEL_LICENSE_SIG_CHALLENGE_V1](A, R, m)`;
+4. compute `z = n + e * a`;
+5. output `sig = (R, z)`.
+
+Verification checks:
+
+`zG == R + eA`
+
+The signed license message is:
+
+`msg_lic = H[CITADEL_LICENSE_SIG_MSG_V1](lpk.u, lpk.v, attr_data)`
+
+`attr_data` MUST already be schema-scoped. If raw attributes cannot be represented as a schema-scoped scalar, they MUST be committed through the attribute digest construction in Section 11.
+
+#### 5.3.2 Double-Key Session Authorization Signature
+
+For license secret `x = lsk`, public keys `P = xG = lpk` and `P' = xG' = lpk_p`, and message `m`, a double-key signature is:
+
+1. sample or derive nonce `n <- F_s`;
+2. compute `R = nG` and `R' = nG'`;
+3. compute `e = H_SCALAR[CITADEL_SESSION_SIG_CHALLENGE_V1](P, P', R, R', m)`;
+4. compute `z = n + e * x`;
+5. output `sig = (R, R', z)`.
+
+Verification checks both equations:
+
+`zG  == R  + eP`
+
+`zG' == R' + eP'`
+
+The double-key statement proves knowledge of the same scalar for `G` and `G'`. The transcript MUST bind both public keys, both nonce points, the message, and the deployment-specific signature domain.
+
+### 5.4 Commitments
 
 Citadel uses:
 
@@ -404,43 +301,31 @@ Citadel uses:
 
   `com_2 = c * G + s_2 * G'`
 
-`s_0`, `s_1`, and `s_2` MUST be fresh random field elements for every session.
-`attr_data` and `c` MUST be canonical field elements. If natural attribute data
-is not a single field element, it MUST first be converted into a canonical field
-digest as described in Section 11.1.
+`s_0`, `s_1`, and `s_2` MUST be fresh random scalar values for every session. `attr_data` and `c` MUST be canonical scalar values. If natural attribute data is not a single schema-scoped scalar, it MUST first be converted into a canonical field digest as described in Section 11.
 
-`com_1` and `com_2` MUST be serialized as canonical Jubjub points. Verifiers
-MUST reject malformed commitment points and MUST reject identity commitments
-unless the deployment explicitly allows them for a specific field.
+`com_1` and `com_2` MUST be serialized as canonical Jubjub points. Verifiers MUST reject malformed commitment points and MUST reject identity commitments unless the deployment explicitly allows them for a specific field.
 
-### 5.7 Encryption And KDF
+### 5.5 Encryption And KDF
 
-Encrypted request and license payloads MUST use authenticated encryption. The
-concrete AEAD MAY be supplied by the deployment, but it MUST provide
-confidentiality, integrity, nonce misuse resistance appropriate to the chosen
-mode, explicit failure on tampering, and unambiguous serialization.
+Encrypted request and license payloads MUST use authenticated encryption. The concrete AEAD MAY be supplied by the deployment, but it MUST provide confidentiality, integrity, explicit failure on tampering, unambiguous serialization, and nonce-misuse resistance appropriate to the chosen mode.
 
 Every encryption key MUST be derived with a domain-separated KDF that includes:
 
 - `deployment_id`;
 - message type;
 - sender-visible and recipient-visible public context;
-- the DH shared point or license key material;
+- the DH shared point or other approved secret input;
 - a salt or nonce value.
 
-The AEAD associated data MUST include all visible fields that identify the
-payload context, including at least `deployment_id`, message type, and the
-visible stealth address. Implementations MAY use Phoenix AES helpers if they
-satisfy these requirements.
+The AEAD associated data MUST include all visible fields that identify the payload context, including at least `deployment_id`, object version, message type, visible stealth address, and any declared schema or policy identifier.
 
-AEAD nonces or salts MUST be unique for a given encryption key unless the chosen
-AEAD is explicitly nonce-misuse-resistant. Even with a nonce-misuse-resistant
-AEAD, implementations SHOULD still keep nonces unique.
+AEAD nonces or salts MUST be unique for a given encryption key unless the chosen AEAD is explicitly nonce-misuse-resistant. Even with a nonce-misuse-resistant AEAD, implementations SHOULD still keep nonces unique.
 
-Decryption failure MUST be treated as authentication failure. Callers MUST NOT
-use unauthenticated plaintext.
+Decryption failure MUST be treated as authentication failure. Callers MUST NOT use unauthenticated plaintext.
 
-### 5.8 Merkle Tree
+License encryption key material sent inside a request MUST NOT be the license secret key and MUST NOT allow recovery of the license secret key. It MAY be derived deterministically from `lsk` through a one-way KDF with a license-encryption domain, or it MAY be generated independently and stored by the user. The LP may learn the license encryption key material, but must not learn `lsk`.
+
+### 5.6 Merkle Tree
 
 The license registry is a fixed-parameter Merkle tree over license leaves.
 
@@ -449,35 +334,32 @@ Deployment parameters:
 - `MERKLE_ARITY`: tree arity. For this circuit version it MUST be `4`.
 - `MERKLE_DEPTH`: tree depth.
 - `EMPTY_LEAF`: empty leaf value.
-- `ROOT_HISTORY_SIZE`: number of previous roots accepted by the contract, if
-  any.
+- `ROOT_HISTORY_SIZE`: number of previous roots accepted by the contract, if any.
 
-The contract, circuit, wallets, LPs, and SPs MUST use the same tree parameters.
-The contract MUST reject license-use proofs whose public `root` is not accepted
-under the deployment's root policy.
+The contract, circuit, wallets, LPs, and SPs MUST use the same tree parameters. The contract MUST reject license-use proofs whose public `root` is not accepted under the deployment's root policy.
 
-Accepted roots MUST come from authenticated contract state, not from
-user-provided claims.
+Accepted roots MUST come from authenticated contract state, not from user-provided claims.
 
-The license leaf value is `license_hash`. The leaf hash may absorb any
-deployment/domain context and license fields required by `license_hash`; this
-does not change the Merkle tree arity.
+The license leaf value is:
+
+`license_hash = H[CITADEL_LICENSE_HASH_V1](lpk.u, lpk.v)`
 
 Internal nodes are computed with the fixed Poseidon 4-ary Merkle domain:
 
 `parent = Poseidon[MERKLE4](child_0, child_1, child_2, child_3)`
 
-Child order is part of the Merkle opening. Empty child slots use the deployment
-`EMPTY_LEAF` / empty-subtree values.
+Child order is part of the Merkle opening. Empty child slots use the deployment `EMPTY_LEAF` and empty-subtree values.
 
 The recommended root policy is:
 
 - accept the current root;
-- optionally accept a bounded history of previous roots to tolerate proving and
-  transaction latency.
+- optionally accept a bounded history of previous roots to tolerate proving and transaction latency.
 
-An SP MAY impose a stricter freshness rule than the contract, for example
-requiring the root to be no older than `N` blocks.
+An SP MAY impose a stricter freshness rule than the contract, for example requiring the root to be no older than `N` blocks or produced after a policy-specific epoch boundary.
+
+### 5.7 Proof System
+
+The base circuit is verified by the deployed PlonK verifier key. The verifier key, circuit hash, public input order, proof-system parameters, and any setup assumptions MUST be part of the deployment profile and MUST be available to wallets and SPs through authenticated deployment metadata.
 
 ## 6. Data Objects
 
@@ -487,32 +369,28 @@ A request asks an LP to issue a license to a user-owned license stealth address.
 
 Fields:
 
+- `version`
 - `deployment_id`
 - `rsa`: request stealth address addressed to the LP
-- `enc`: AEAD encryption of `lsa || k_lic || request_context`
+- `enc`: AEAD encryption of `lsa || k_lic_enc || request_context`
 
 Where:
 
 - `lsa` is the license stealth address where the license will be issued.
-- `k_lic` is license encryption key material derived by the user.
-- `request_context` includes `deployment_id`, intended LP key, and any
-  LP-required application metadata.
+- `k_lic_enc` is license encryption key material known to the user and disclosed to the LP only inside the encrypted request.
+- `request_context` includes `deployment_id`, intended LP key or LP identifier, object version, requested schema or policy information, and any LP-required application metadata.
 
 The request ID is:
 
-`request_id = H[CITADEL_REQUEST_ID_V1](rsa, enc)`
+`request_id = H[CITADEL_REQUEST_ID_V1](version, deployment_id, rsa, enc)`
 
-LPs MUST maintain a replay policy for request IDs and license stealth
-addresses. They MUST NOT issue duplicate licenses for the same `lsa` unless
-duplicate issuance is an explicit application requirement.
+LPs MUST maintain a replay policy for request IDs and license stealth addresses. They MUST NOT issue duplicate licenses for the same `lsa` unless duplicate issuance is an explicit application requirement.
 
-After decryption, the LP MUST check that `request_context` matches the visible
-request fields, intended LP key, `deployment_id`, and deployment profile. A
-mismatch invalidates the request.
+After decryption, the LP MUST check that `request_context` matches the visible request fields, intended LP key, `deployment_id`, and deployment profile. A mismatch invalidates the request.
 
-The protocol does not require requests to be stored by the contract. Requests
-MAY be transported through payloads, events, direct LP channels, or application
-infrastructure, as long as the cryptographic request format is preserved.
+The base deployment stores encrypted request blobs in the contract. The contract is not expected to decrypt or semantically validate requests, but it MUST provide a stable insertion and retrieval interface so LPs can discover requests from authenticated contract state.
+
+Request insertion policy is a deployment parameter. Gas consumption MAY be the primary spam control only if the deployment explicitly documents that gas and any additional insertion fees adequately price persistent storage, index growth, LP scanning burden, and state availability costs. Otherwise, deployments SHOULD add at least one of: maximum payload sizes, per-request fees, deposits, rate limits, allow lists, pruning/retention limits, or application-level admission controls. The contract SHOULD reject empty request payloads and exact duplicate request blobs unless the deployment profile explicitly allows them.
 
 ### 6.2 License
 
@@ -520,19 +398,16 @@ A license is an encrypted asset published by an LP.
 
 Fields:
 
+- `version`
 - `deployment_id`
-- `lsa` or visible `lpk` coordinates: license stealth address, or the license
-  public key coordinates needed to compute the registry leaf
+- `lsa` or visible `lpk` coordinates: license stealth address or visible license public key coordinates needed to compute the registry leaf
 - `enc`: AEAD encryption of `sig_lic || attr_data || license_context`
 
 Where:
 
 - `lpk = lsa.lpk` is the license public key.
-- `attr_data` is a canonical scalar or field digest representing the signed
-  license attributes.
-- `license_context` contains, or is authenticated by, the LP public key or
-  `pk_lp.A` signing point, schema ID, issuance metadata, and deployment context
-  needed by wallets to verify and interpret the license.
+- `attr_data` is a canonical scalar or field digest representing the signed license attributes.
+- `license_context` contains, or is authenticated by, the LP public key or `pk_lp.A` signing point, schema ID, issuance metadata, expiration or no-expiration marker, and deployment context needed by wallets to verify and interpret the license.
 - `sig_lic` is the LP signature over:
 
   `msg_lic = H[CITADEL_LICENSE_SIG_MSG_V1](lpk.u, lpk.v, attr_data)`
@@ -541,19 +416,13 @@ The registry leaf is:
 
 `license_hash = H[CITADEL_LICENSE_HASH_V1](lpk.u, lpk.v)`
 
-The contract MUST derive or verify `license_hash` from visible license public
-data, either from `lsa` when the license object is supplied to the contract or
-from explicit visible `lpk` coordinates in the issuance argument. It MUST NOT
-accept a caller-supplied hash that is inconsistent with the visible license
-public key.
+The contract MUST derive or verify `license_hash` from visible license public data, either from `lsa` when the license object is supplied to the contract or from explicit visible `lpk` coordinates in the issuance argument. It MUST NOT accept a caller-supplied hash that is inconsistent with the visible license public key.
 
-Issued license stealth addresses are public registry data. The privacy property
-is that a later session proof does not reveal which public license was used.
+Issued license stealth addresses are public registry data. The privacy property is that a later session proof does not reveal which public license was used.
 
 ### 6.3 Session
 
-A session is the public on-chain record created after a successful license-use
-proof.
+A session is the public on-chain record created after a successful license-use proof.
 
 The public input order is fixed:
 
@@ -566,97 +435,105 @@ The public input order is fixed:
 7. `com_2.y`
 8. `root`
 
-The contract stores the whole public input vector and keys the session by
-`session_id`. All implementations MUST preserve this order for this circuit
-version.
+The contract stores the whole public input vector and keys the session by `session_id`. All implementations MUST preserve this order for this circuit version.
 
-The public input vector does not carry `deployment_id` as a public input. It is
-a deployment constant used to derive the compact context scalars for the
-circuit's domain-separated hashes. A session record MUST be interpreted only
-together with the deployment metadata under which its proof was verified.
+The public input vector does not carry `deployment_id` as a public input. It is a deployment constant used to derive the compact context scalars for the circuit's domain-separated hashes. A session record MUST be interpreted only together with the deployment metadata under which its proof was verified.
 
 ### 6.4 Base Session Cookie
 
-The base disclosure cookie sent by the user to the SP contains:
+The base disclosure cookie sent by the user to the SP is a versioned envelope containing:
 
+- `version`
 - `deployment_id`
-- `pk_sp`
-- `r_session`
+- `cookie_mode = base`
+- `policy_id`
 - `session_id`
-- `pk_lp`
+- `pk_sp` or the SP identifier that resolves unambiguously to `pk_sp.A` under the policy
+- `r_session`
+- `pk_lp` or the issuer identifier required by the policy
 - `attr_data`
+- optional attribute opening data, such as disclosed attributes and `r_attr`, when `attr_data` is a digest and the base profile requires semantic verification without a separate proof
 - `c`
 - `s_0`
 - `s_1`
 - `s_2`
+- optional profile-defined account, channel, client-key, nonce, or request-binding data
 
-Here `pk_sp` and `pk_lp` are full Phoenix public keys. The base protocol binds
-the session to `pk_sp.A` and commits to `pk_lp.A`.
+Here `pk_sp` and `pk_lp` are full Phoenix public keys unless the selected profile identifies services or issuers by another canonical identifier. The base protocol binds the session to `pk_sp.A` and commits to `pk_lp.A`.
 
-The cookie reveals the openings needed by the SP. In the base mode, `attr_data`
-is disclosed to the SP.
+The base cookie reveals the openings needed by the SP. In the base mode, `attr_data` is disclosed to the SP. If `attr_data` is a digest, the SP cannot check the underlying attribute semantics unless the cookie also discloses a valid opening or the user provides a selective-disclosure proof.
 
-The base session cookie is a bearer credential. Anyone who obtains it can
-attempt to replay it to the SP. SPs MUST treat cookies as sensitive credentials
-and MUST define a replay policy before using Citadel for real service access.
+The base session cookie is a bearer credential unless the selected SP profile adds binding. Anyone who obtains it can attempt to replay it to the SP. SPs MUST treat cookies as sensitive credentials and MUST define a replay policy before using Citadel for real service access.
 
-The cookie or the surrounding authenticated request MUST identify the SP policy
-profile being used. The SP MUST NOT infer a policy profile from fields that
-could be valid under multiple profiles.
+The cookie or the surrounding authenticated request MUST identify the SP policy profile being used. The SP MUST NOT infer a policy profile from fields that could be valid under multiple profiles.
 
 ### 6.5 Selective-Disclosure Cookie
 
-In selective-disclosure mode, the user does not reveal the `com_1` opening
-directly. The cookie contains the same fields as the base cookie except
-`attr_data` and `s_1` MAY be omitted or replaced by disclosed attributes and an
-off-chain predicate proof, depending on the SP profile.
+In selective-disclosure mode, the user does not reveal the `com_1` opening directly. The cookie contains the same envelope fields as the base cookie, but `attr_data` and `s_1` MAY be omitted or replaced by disclosed attributes and an off-chain predicate proof, depending on the SP profile.
 
-The SP profile MUST define the public inputs and statement of the
-selective-disclosure proof.
+The SP profile MUST define the public inputs and statement of the selective-disclosure proof.
 
-Selective-disclosure cookies and proofs MUST be bound to `session_id`,
-`deployment_id`, policy ID, and the SP challenge or nonce when the profile uses
-one.
+Selective-disclosure cookies and proofs MUST be bound to `session_id`, `deployment_id`, `policy_id`, cookie mode, and the SP challenge or nonce when the profile uses one.
 
-## 7. Issuance And Registry Policy
+## 7. Contract State, Registry Policy, And Interfaces
 
-The license registry has finite capacity. Each deployment MUST define who may
-insert license leaves and how spam is controlled.
+### 7.1 Request Registry
+
+The request registry stores encrypted user-to-LP request blobs for LP discovery. Each deployment MUST define who may insert requests, how request storage spam is controlled, maximum payload size, duplicate handling, how long clients are expected to scan historical requests, and whether request data is retained in contract state, events, or another authenticated availability layer.
+
+Successful request insertion does not mean an LP has accepted, decrypted, or even seen the request. LPs MUST still enforce their own `request_id`, `lsa`, eligibility, payment, replay, issuance, and business policies after decryption.
+
+Gas is an economic deterrent, not a cryptographic invariant. Gas can be sufficient for a deployment only when it prices all relevant costs and when the deployment accepts that well-funded actors may still insert many requests. If request spam affects LP scanning, state size, user UX, or application availability, the deployment SHOULD add explicit non-gas controls.
+
+### 7.2 License Registry
+
+The license registry has finite capacity. Each deployment MUST define who may insert license leaves and how storage spam is controlled.
 
 Acceptable issuance policies include:
 
 - allow-listed LP callers;
-- permissionless insertion with fees high enough to price storage and proof
-  costs;
+- permissionless insertion with fees high enough to price storage, tree capacity, and proof costs;
 - staking or rate-limited issuer registration;
-- application-specific governance.
+- application-specific governance;
+- deployment-specific admission control.
 
-The contract MUST define behavior when the tree is full. It MUST NOT silently
-overwrite existing leaves. A deployment MAY rotate to a new tree or contract,
-but the migration and accepted-root policy MUST be explicit.
+The contract MUST define behavior when the tree is full. It MUST NOT silently overwrite existing leaves. A deployment MAY rotate to a new tree or contract, but the migration and accepted-root policy MUST be explicit.
 
-The contract or deployment profile MUST define duplicate `license_hash`
-handling. Duplicate leaves SHOULD be rejected unless renewal, migration, or
-another application rule explicitly requires them. If duplicates are allowed,
-they do not create independent nullification capacity because `session_id`
-depends on the hidden license key and challenge, not on the leaf position.
+The contract or deployment profile MUST define duplicate `license_hash` handling. Duplicate leaves SHOULD be rejected unless renewal, migration, or another application rule explicitly requires them. If duplicates are allowed, they do not create independent nullification capacity because `session_id` depends on the hidden license key and challenge, not on the leaf position.
 
-SP trust in LPs is separate from contract insertion permission. A license leaf
-being present in the registry proves registration, not that every SP trusts the
-issuer.
+SP trust in LPs is separate from contract insertion permission. A license leaf being present in the registry proves registration, not that every SP trusts the issuer.
+
+### 7.3 Base Contract Interface
+
+The base contract interface for wallets, LPs, SPs, and web clients SHOULD expose at least:
+
+- `insert_request`: store an encrypted request blob.
+- `get_requests`: stream stored requests by block-height range or indexed range.
+- `get_request`: fetch a request by request position.
+- `issue_license`: store an encrypted license blob and register its license leaf.
+- `get_licenses`: stream stored licenses by block-height range or indexed range.
+- `get_license`: fetch a license by license tree position.
+- `get_merkle_opening`: fetch the Merkle opening for a license tree position.
+- `use_license`: verify a license-use proof and store the resulting session.
+- `get_session`: fetch a session by `session_id`.
+- `get_metadata`: fetch deployment metadata.
+- `get_current_root` and `get_accepted_roots`: inspect root state.
+- `get_state_info`: fetch named request, license, tree, session, and root counters.
+
+Legacy or constrained clients MAY expose smaller compatibility queries, such as tuple-shaped `get_info`, but new clients SHOULD prefer named return types to avoid positional ambiguity.
 
 ## 8. Protocol Flow
 
 ### 8.1 User Requests A License
 
-The user creates a license destination and sends an encrypted request to the LP.
+The user creates a license destination and submits an encrypted request for LP discovery.
 
 1. Generate a fresh license stealth address for the user:
 
-   - sample `r_lic <- F`;
+   - sample `r_lic <- F_s`;
    - compute `R_lic = r_lic * G`;
-   - compute `k_user = r_lic * pk_user.A`;
-   - compute `lpk = H_SCALAR[CITADEL_STEALTH_DERIVE_V1](k_user) * G + pk_user.B`;
+   - compute `K_user = r_lic * pk_user.A`;
+   - compute `lpk = H_SCALAR[CITADEL_STEALTH_DERIVE_V1](K_user) * G + pk_user.B`;
    - set `lsa = (lpk, R_lic)`.
 
 2. Derive the license secret key:
@@ -665,58 +542,57 @@ The user creates a license destination and sends an encrypted request to the LP.
 
    The user MUST keep `lsk` secret.
 
-3. Derive license encryption key material:
+3. Derive or generate license encryption key material:
 
-   `k_lic = KDF[CITADEL_LICENSE_KEY_V1](lsk, lsa)`
+   `k_lic_enc = KDF[CITADEL_LICENSE_KEY_V1](lsk, lsa, deployment_id, salt_lic)`
+
+   The KDF output MUST NOT be usable as `lsk`, and disclosure of `k_lic_enc` MUST NOT reveal `lsk`.
 
 4. Generate a fresh request stealth address for the LP:
 
-   - sample `r_req <- F`;
+   - sample `r_req <- F_s`;
    - compute `R_req = r_req * G`;
-   - compute `k_req_point = r_req * pk_lp.A`;
-   - compute `rpk = H_SCALAR[CITADEL_STEALTH_DERIVE_V1](k_req_point) * G + pk_lp.B`;
+   - compute `K_req = r_req * pk_lp.A`;
+   - compute `rpk = H_SCALAR[CITADEL_STEALTH_DERIVE_V1](K_req) * G + pk_lp.B`;
    - set `rsa = (rpk, R_req)`.
 
 5. Derive a request encryption key:
 
-   `k_req = KDF[CITADEL_REQUEST_KEY_V1](k_req_point, rsa, pk_lp)`
+   `k_req = KDF[CITADEL_REQUEST_KEY_V1](K_req, rsa, pk_lp, deployment_id, salt_req)`
 
-6. Encrypt `lsa || k_lic || request_context` with AEAD under `k_req`.
+6. Encrypt `lsa || k_lic_enc || request_context` with AEAD under `k_req`, using associated data that includes the visible request fields.
 
-7. Publish or send `Request { deployment_id, rsa, enc }`.
+7. Submit `Request { version, deployment_id, rsa, enc }` through `insert_request`.
 
-The request transport is deployment-specific. If the request is public, it MUST
-not reveal the user's static key or license attributes.
+The request is public contract state. It MUST NOT reveal the user's static key, license secret key, or license attributes.
 
 ### 8.2 LP Processes A Request
 
-The LP scans request payloads or receives requests through an application
-channel.
+The LP scans contract request payloads with `get_requests`, optionally using `get_request` for direct lookup if it already knows a request position. Application channels MAY notify the LP that a request was inserted, but the LP MUST treat the contract request registry or the deployment's declared authenticated request transport as the canonical source.
 
 For each candidate request:
 
-1. Validate all encodings.
-2. Compute `k_req_point = sk_lp.a * R_req`.
+1. Validate all encodings and size limits.
+2. Compute `K_req = sk_lp.a * R_req`.
 3. Check ownership of the request stealth address:
 
-   `rpk == H_SCALAR[CITADEL_STEALTH_DERIVE_V1](k_req_point) * G + pk_lp.B`
+   `rpk == H_SCALAR[CITADEL_STEALTH_DERIVE_V1](K_req) * G + pk_lp.B`
 
 4. Derive `k_req` with `CITADEL_REQUEST_KEY_V1`.
 5. Attempt AEAD decryption. Failure means the request is not accepted.
-6. Recover `lsa`, `k_lic`, and request context.
+6. Recover `lsa`, `k_lic_enc`, and request context.
 7. Check the request replay policy.
-8. Evaluate any off-chain identity, payment, KYC, authorization, or business
-   requirements.
+8. Check that `deployment_id`, intended LP key, schema requests, and visible request fields match the decrypted context.
+9. Evaluate any off-chain identity, payment, KYC, authorization, or business requirements.
 
-The recovered `lsa` tells the LP where to issue the license. It does not reveal
-the user's static public key in the request path.
+The recovered `lsa` tells the LP where to issue the license. It does not reveal the user's static public key in the request path.
 
 ### 8.3 LP Issues A License
 
 If the request is accepted, the LP creates a license.
 
 1. Define the attribute schema and canonical attributes.
-2. Compute `attr_data` as specified by the schema. See Section 11.1.
+2. Compute schema-scoped `attr_data` as specified by the schema. See Section 11.
 3. Compute:
 
    `msg_lic = H[CITADEL_LICENSE_SIG_MSG_V1](lpk.u, lpk.v, attr_data)`
@@ -725,106 +601,89 @@ If the request is accepted, the LP creates a license.
 
    `sig_lic = SchnorrSign(sk_lp.a, msg_lic)`
 
-5. Encrypt `sig_lic || attr_data || license_context` under `k_lic` with AEAD.
+5. Encrypt `sig_lic || attr_data || license_context` under `k_lic_enc` with AEAD and context-bound associated data.
 
-6. Publish `License { deployment_id, lsa, enc }`.
+6. Publish `License { version, deployment_id, lsa, enc }`.
 
 7. Register the license with the contract:
 
    - the contract validates the visible license public key data;
    - the contract computes `license_hash`;
    - the contract checks issuance authorization or anti-spam policy;
+   - the contract checks duplicate-license policy;
    - the contract inserts `license_hash` into the next available tree slot;
    - the contract records the new root under its root policy;
-   - the contract stores or emits the encrypted license blob according to the
-     deployment.
+   - the contract stores the encrypted license blob for wallet discovery.
 
-The LP MUST NOT reuse the same license stealth address for independent licenses
-unless the application explicitly wants those licenses to be linkable.
+The LP MUST NOT reuse the same license stealth address for independent licenses unless the application explicitly wants those licenses to be linkable.
 
 ### 8.4 Direct Issuance
 
-A deployment MAY support direct issuance to a user's public key instead of a
-request. Direct issuance derives the license destination and encryption material
-using DHKE with the user's public key.
+A deployment MAY support direct issuance to a user's public key instead of a request. Direct issuance derives the license destination and encryption material using DHKE with the user's public key or another deployment-defined authenticated channel.
 
-Direct issuance is a lower-privacy mode. The LP can know the user's static
-public key or application identity when issuing the license. Wallets and SPs
-SHOULD treat direct-issued licenses differently if issuer-verifier
-unlinkability matters.
+Direct issuance is a lower-privacy mode. The LP can know the user's static public key or application identity when issuing the license. Wallets and SPs SHOULD treat direct-issued licenses differently if issuer-verifier unlinkability matters.
 
 ### 8.5 User Fetches A License
 
-The user scans published licenses.
+The user scans stored encrypted licenses with `get_licenses`, optionally using `get_license` for direct lookup if it already knows a license tree position.
 
 For each license:
 
-1. Validate encodings.
+1. Validate encodings and object version.
 2. Check whether `lsa` belongs to the user by deriving the stealth secret.
 3. Derive the applicable license decryption key.
 4. AEAD-decrypt the encrypted payload.
-5. Verify the LP signature over `msg_lic` using a trusted `pk_lp.A` signing
-   point identified by the license context, publication channel, or deployment
-   profile.
-6. Check that the decrypted `attr_data` matches the expected schema.
-7. Verify that the computed `license_hash` is registered under an accepted root.
-8. Record the license position, current accepted root, and Merkle opening.
+5. Identify the LP signing point from `license_context`, publication channel, or deployment profile.
+6. Verify the LP signature over `msg_lic` using a trusted `pk_lp.A` signing point.
+7. Check that the decrypted `attr_data` matches the expected schema and deployment profile.
+8. Verify that the computed `license_hash` is registered under an accepted root.
+9. Record the license position, current accepted root, and Merkle opening.
 
-The user SHOULD keep the newest valid license only if the application profile
-defines "newest wins". Otherwise, multiple licenses may be independently valid.
+The user SHOULD keep the newest valid license only if the application profile defines "newest wins". Otherwise, multiple licenses may be independently valid.
 
 ### 8.6 SP Publishes A Policy Profile
 
-Before the user opens a session, the SP MUST define the policy it will enforce.
-This profile is application-specific.
+Before the user opens a session, the SP MUST define the policy it will enforce. This profile is application-specific.
 
 At minimum, an SP profile MUST define:
 
+- `policy_id` and policy version;
 - accepted chain ID and contract ID;
-- accepted circuit version and verifier key hash;
-- accepted generator set, domain constants, and Merkle parameters, if they are
-  not implicit in the verifier key;
-- SP public service point `pk_sp.A` or service identifier that cookies must bind
-  to;
+- accepted `deployment_id`, circuit version, and verifier key hash;
+- accepted generator set, domain constants, and Merkle parameters, if they are not implicit in the verifier key;
+- SP public service point `pk_sp.A` or service identifier that cookies must bind to;
 - accepted LP public keys or `pk_lp.A` signing points;
 - accepted attribute schema IDs;
 - attribute predicates or exact required values;
 - challenge derivation and accepted `c` values;
-- whether a cookie is one-time, reusable, account-bound, channel-bound,
-  client-key-bound, or SP-nonce-bound;
+- whether a cookie is one-time, reusable, account-bound, channel-bound, client-key-bound, or SP-nonce-bound;
 - root freshness requirements, if stricter than the contract;
 - expiration and revocation requirements;
 - selective-disclosure proof requirements, if base disclosure is not used.
 
-The SP MAY choose any challenge and authorization policy that fits its service,
-but it MUST NOT accept arbitrary user-chosen `c` values if it relies on Citadel
-for single-use, rate-limited, epoch-limited, or event-limited access.
+The SP MAY choose any challenge and authorization policy that fits its service, but it MUST NOT accept arbitrary user-chosen `c` values if it relies on Citadel for single-use, rate-limited, epoch-limited, event-limited, account-bound, or nonce-bound access.
 
 Recommended challenge template:
 
-`c = H[CITADEL_POLICY_CHALLENGE_V1](sp_id, service_id, policy_id, epoch_or_event_id, sp_nonce)`
+`c = H[CITADEL_POLICY_CHALLENGE_V1](deployment_id, sp_id, service_id, policy_id, epoch_or_event_id, sp_nonce)`
 
-This template is a recommendation, not a universal requirement. The mandatory
-requirement is that the SP defines exactly which `c` values it accepts.
+This template is a recommendation, not a universal requirement. The mandatory requirement is that the SP defines exactly which `c` values it accepts and verifies the cookie opening for `com_2` against that rule.
 
 ### 8.7 User Opens An On-Chain Session
 
-To open a session, the user first performs local computations outside the
-circuit:
+To open a session, the user first performs local computations outside the circuit:
 
-- `lsk`: license secret key. This value MUST stay outside the circuit and MUST
-  NOT be shared with a proof helper.
+- `lsk`: license secret key. This value MUST stay outside the circuit and MUST NOT be shared with a proof helper.
 - `lpk = lsk * G`: license public key, equal to `lsa.lpk`.
 - `lpk_p = lsk * G'`: secondary license public key.
 
 The user prepares the remaining private witness values:
 
 - `sig_lic`: LP signature on `msg_lic`.
-- `pk_lp`: LP public key.
+- `pk_lp.A`: LP signing point.
 - `attr_data`: signed attribute scalar or digest.
 - `c`: SP policy challenge value.
-- `r_session`: fresh session randomness. It MUST NOT be reused with the same
-  `pk_sp.A`; reuse can make sessions linkable.
+- `r_session`: fresh session randomness. It MUST NOT be reused with the same `pk_sp.A`; reuse can make sessions linkable.
 - `s_0`, `s_1`, `s_2`: fresh commitment randomness.
 - Merkle opening for `license_hash`.
 
@@ -838,9 +697,7 @@ The user computes:
 - `session_auth = H[CITADEL_SESSION_AUTH_V1](session_id, session_hash, com_0, com_1.x, com_1.y, com_2.x, com_2.y, root)`
 - `sig_session_auth = DoubleSchnorrSign(lsk, session_auth)`
 
-The double-key signature authorizes the exact public session tuple. This
-prevents a proof helper from reusing a signature to submit a different
-challenge, root, or commitment tuple.
+The double-key signature authorizes the exact public session tuple. This prevents a proof helper from reusing a signature to submit a different challenge, root, or commitment tuple.
 
 The user generates a PlonK proof for the license circuit and submits:
 
@@ -851,77 +708,57 @@ The user generates a PlonK proof for the license circuit and submits:
 
 On `use_license`, the contract MUST:
 
-1. Validate public input length and canonical encodings.
+1. Validate public input length and canonical field encodings.
 2. Verify the PlonK proof with the deployment verifier key.
 3. Check that `root` is accepted under the deployment root policy.
 4. Reject if `session_id` already exists.
 5. Store the session under `session_id`.
 
-The duplicate-session check is the on-chain nullifier mechanism. It only
-prevents duplicate sessions for the same hidden license and the same accepted
-challenge value. It does not prevent repeated off-chain use of the same cookie.
+The duplicate-session check is the on-chain nullifier mechanism. It only prevents duplicate sessions for the same hidden license and the same accepted challenge value. It does not prevent repeated off-chain use of the same cookie.
 
 The duplicate check and session insertion MUST be atomic with proof acceptance.
 
-The contract MAY enforce additional deployment policy, but it does not need to
-know SP identity, LP identity, attributes, or challenge value in the base
-protocol.
+The contract MAY enforce additional deployment policy, but it does not need to know SP identity, LP identity, attributes, or challenge value in the base protocol.
 
 ### 8.9 User Requests Service Off-Chain
 
-The user opens an authenticated and confidential channel to the SP and sends the
-base session cookie or the selective-disclosure variant required by the SP
-profile.
+The user opens an authenticated and confidential channel to the SP and sends the base session cookie or the selective-disclosure variant required by the SP profile.
 
-The channel MUST authenticate the SP endpoint. The cookie MUST NOT be sent over
-an unauthenticated or plaintext channel.
+The channel MUST authenticate the SP endpoint. The cookie MUST NOT be sent over an unauthenticated or plaintext channel.
 
 ### 8.10 SP Verifies The Cookie
 
-The SP fetches the session by `session_id` from authenticated and sufficiently
-finalized contract state. It verifies that the session belongs to the expected
-deployment, contract, and circuit version.
+The SP fetches the session by `session_id` from authenticated and sufficiently finalized contract state. It verifies that the session belongs to the expected deployment, contract, and circuit version.
 
-The fetched session provides the public `session_id`, `session_hash`, `com_0`,
-`com_1`, `com_2`, and `root` values that the cookie must open.
+The fetched session provides the public `session_id`, `session_hash`, `com_0`, `com_1`, `com_2`, and `root` values that the cookie must open.
 
 For the base disclosure cookie, the SP MUST verify:
 
 1. The session exists.
-2. The fetched public input vector has the expected length and canonical
-   encodings, and `com_1` and `com_2` decode to valid non-identity Jubjub
-   points.
-3. The cookie `session_id` equals the fetched session ID.
-4. The cookie `deployment_id` matches the SP profile.
+2. The fetched public input vector has the expected length and canonical encodings, and `com_1` and `com_2` decode to valid non-identity Jubjub points.
+3. The cookie `deployment_id`, `version`, `cookie_mode`, and `policy_id` match the selected SP profile.
+4. The cookie `session_id` equals the fetched session ID.
 5. `pk_sp.A` equals the SP public service point for this profile.
 6. `H[CITADEL_SESSION_HASH_V1](pk_sp.A.u, pk_sp.A.v, r_session) == session.session_hash`.
 7. `H[CITADEL_LP_COMMITMENT_V1](pk_lp.A.u, pk_lp.A.v, s_0) == session.com_0`.
 8. `attr_data * G + s_1 * G' == session.com_1`.
 9. `c * G + s_2 * G' == session.com_2`.
-10. `pk_lp` or `pk_lp.A`, according to the profile identifier rule, is in the
-    SP's accepted issuer set for this policy.
-11. `attr_data` satisfies the SP's accepted schema and attribute policy. If
-    `attr_data` is a digest, the cookie must disclose the attributes and
-    blinding needed to open it, or the user must provide the
-    selective-disclosure proof required by the profile.
+10. `pk_lp` or `pk_lp.A`, according to the profile identifier rule, is in the SP's accepted issuer set for this policy.
+11. `attr_data` satisfies the SP's accepted schema and attribute policy. If `attr_data` is a digest, the cookie must disclose the attributes and blinding needed to open it, or the user must provide the selective-disclosure proof required by the profile.
 12. `c` exactly matches the SP's challenge policy.
 13. The session root satisfies the SP's freshness policy.
 14. Expiration and revocation requirements are satisfied.
-15. Cookie replay, account binding, channel binding, and rate-limit checks pass.
+15. Cookie replay, account binding, channel binding, client-key binding, and rate-limit checks pass.
 
 Only after all required checks pass MAY the SP grant service.
 
-The SP MUST record cookie or session consumption if service is intended to be
-one-time. For reusable service, the SP MUST define the reuse limits explicitly.
+The SP MUST record cookie, nonce, account, or session consumption if service is intended to be one-time. For reusable service, the SP MUST define reuse limits explicitly.
 
 ## 9. License Circuit
 
-The license circuit proves knowledge of private values satisfying the statements
-below.
+The license circuit proves knowledge of private values satisfying the statements below.
 
-`deployment_id`, generator choices, domain constants, and Merkle parameters are
-fixed deployment constants for this circuit version unless a future circuit
-version explicitly makes them public inputs.
+`deployment_id`, generator choices, domain constants, signature transcripts, and Merkle parameters are fixed deployment constants for this circuit version unless a future circuit version explicitly makes them public inputs.
 
 Public inputs:
 
@@ -948,78 +785,65 @@ Private witnesses:
 - `sig_session_auth`
 - Merkle opening
 
-`lpk` and `lpk_p` are private witness points. The circuit does not compute
-`lpk = lsk * G` or `lpk_p = lsk * G'`, and `lsk` is not a circuit witness. The
-relation between `lpk`, `lpk_p`, and the user's license secret is proved by the
-double-key Schnorr verification.
+`lpk` and `lpk_p` are private witness points. The circuit does not compute `lpk = lsk * G` or `lpk_p = lsk * G'`, and `lsk` is not a circuit witness. The relation between `lpk`, `lpk_p`, and the user's license secret is proved by the double-key Schnorr verification.
 
 The circuit enforces:
 
-1. The session ID is correctly derived:
+1. Private witness points used as public keys or commitments are valid non-identity points in the intended subgroup.
+
+2. The session ID is correctly derived:
 
    `session_id = H[CITADEL_SESSION_ID_V1](lpk_p.u, lpk_p.v, c)`
 
-2. The LP signature verifies:
+3. The LP signature verifies:
 
    - message is `msg_lic = H[CITADEL_LICENSE_SIG_MSG_V1](lpk.u, lpk.v, attr_data)`;
-   - `sig_lic` verifies under `pk_lp.A`.
+   - `sig_lic` verifies under `pk_lp.A` with the `CITADEL_LICENSE_SIG_CHALLENGE_V1` transcript.
 
-3. The user knows the license secret key corresponding to both private witness
-   points:
+4. The user knows the license secret key corresponding to both private witness points:
 
    - `session_auth = H[CITADEL_SESSION_AUTH_V1](session_id, session_hash, com_0, com_1.x, com_1.y, com_2.x, com_2.y, root)`;
-   - `sig_session_auth` is a valid double-key Schnorr signature over
-     `session_auth`;
-   - the public keys used by the double-key verification are `(lpk, lpk_p)`;
-   - the double-key statement proves knowledge of the same scalar for `G` and
-     `G'`.
+   - `sig_session_auth` is a valid double-key Schnorr signature over `session_auth` with the `CITADEL_SESSION_SIG_CHALLENGE_V1` transcript;
+   - the public keys used by double-key verification are `(lpk, lpk_p)`;
+   - the double-key statement proves knowledge of the same scalar for `G` and `G'`.
 
-4. The LP commitment opens:
+5. The LP commitment opens:
 
    `com_0 = H[CITADEL_LP_COMMITMENT_V1](pk_lp.A.u, pk_lp.A.v, s_0)`
 
-5. The attribute commitment opens:
+6. The attribute commitment opens:
 
    `com_1 = attr_data * G + s_1 * G'`
 
-6. The challenge commitment opens:
+7. The challenge commitment opens:
 
    `com_2 = c * G + s_2 * G'`
 
-7. The license leaf is in the license Merkle tree:
+8. The license leaf is in the license Merkle tree:
 
    - `license_hash = H[CITADEL_LICENSE_HASH_V1](lpk.u, lpk.v)`;
    - the private Merkle path opens `license_hash` under public `root`.
 
-The circuit does not prove that the SP trusts `pk_lp` or `pk_lp.A`, that
-attributes satisfy a service policy, that `session_hash` opens to the SP's
-configured `pk_sp.A`, that `c` is accepted by the SP, that the cookie was not
-replayed, or that a license has not been revoked unless those checks are added
-by a deployment-specific extension.
+The circuit does not prove that the SP trusts `pk_lp` or `pk_lp.A`, that attributes satisfy a service policy, that `session_hash` opens to the SP's configured `pk_sp.A`, that `c` is accepted by the SP, that the cookie was not replayed, or that a license has not been revoked unless those checks are added by a deployment-specific extension.
 
 ## 10. Challenge And Reuse Semantics
 
 The challenge `c` controls nullification.
 
-For a fixed license secret and a fixed `c`, `session_id` is deterministic. The
-contract rejects a second session with the same `session_id`.
+For a fixed license secret and a fixed `c`, `session_id` is deterministic. The contract rejects a second session with the same `session_id`.
 
-If the SP accepts arbitrary `c` values, a user can create many distinct sessions
-from the same license. This is not a cryptographic failure; it is an SP policy
-failure.
+If the SP accepts arbitrary `c` values, a user can create many distinct sessions from the same license. This is not a cryptographic failure; it is an SP policy failure.
 
 Common profiles:
 
-- Single-use forever: `c` is a fixed constant for the service policy.
-- Once per event: `c` is derived from event ID and policy ID.
-- Once per epoch: `c` is derived from epoch or date.
-- SP-nonce gated: `c` includes a fresh SP nonce and the SP records that nonce or
-  session as consumed.
-- Account-bound access: `c` or the SP's replay table binds the session to an
-  authenticated account or client key.
+- **Single-use forever:** `c` is a fixed constant for the service policy.
+- **Once per event:** `c` is derived from event ID and policy ID.
+- **Once per epoch:** `c` is derived from epoch or date.
+- **SP-nonce gated:** `c` includes a fresh SP nonce and the SP records that nonce or session as consumed.
+- **Account-bound access:** `c` or the SP's replay table binds the session to an authenticated account or client key.
+- **Channel-bound access:** the cookie is accepted only inside a channel whose binding data is checked by the SP profile.
 
-These are examples. SPs MAY define other profiles, but they MUST be exact and
-verifiable.
+These are examples. SPs MAY define other profiles, but they MUST be exact and verifiable.
 
 ## 11. Attributes And Disclosure
 
@@ -1036,43 +860,35 @@ Every supported attribute schema MUST define:
 - issuer scope;
 - service or policy scope, if applicable;
 - issuance time, expiration time, or explicit no-expiration marker;
+- revocation handle or explicit no-revocation marker, if applicable;
 - privacy mode: base disclosure or selective disclosure.
 
-For base disclosure, `attr_data` MAY be a directly encoded scalar if the schema
-fits in one field element. More commonly:
+`attr_data` MUST be schema-scoped. For base disclosure, `attr_data` MAY be a directly encoded scalar only if the schema, version, and semantics are unambiguous from that scalar and the SP profile. More commonly:
 
 `attr_data = H[CITADEL_ATTR_DATA_V1](schema_id, canonical_attributes, r_attr)`
 
 where `r_attr` is fresh attribute blinding randomness known to the user and LP.
 
-If `attr_data` is a digest, the SP cannot infer its semantics from the base
-cookie unless the user also discloses the attributes and `r_attr`, or provides a
-selective-disclosure proof.
+If `attr_data` is a digest, the SP cannot infer its semantics from the base cookie unless the user also discloses the attributes and `r_attr`, or provides a selective-disclosure proof.
 
-Because the LP knows the `attr_data` it signed, base disclosure of `attr_data`
-can be a stable correlation handle if the LP and SP collude. A profile that
-needs issuer-verifier unlinkability SHOULD use selective disclosure or another
-profile that does not reveal an LP-known value to the SP.
+Because the LP knows the `attr_data` it signed, base disclosure of `attr_data` can be a stable correlation handle if the LP and SP collude. A profile that needs issuer-verifier unlinkability SHOULD use selective disclosure or another profile that does not reveal an LP-known value to the SP.
 
-Attributes SHOULD include expiration or validity information unless the license
-is intentionally permanent.
+Attributes SHOULD include expiration or validity information unless the license is intentionally permanent.
 
 ### 11.2 Selective Disclosure
 
-Base disclosure reveals `attr_data` or the data needed to interpret it to the
-SP. For privacy-sensitive services, an SP SHOULD use a selective-disclosure
-profile.
+Base disclosure reveals `attr_data` or the data needed to interpret it to the SP. For privacy-sensitive services, an SP SHOULD use a selective-disclosure profile.
 
-A selective-disclosure profile defines an off-chain proof with public inputs
-such as:
+A selective-disclosure profile defines an off-chain proof with public inputs such as:
 
 - `com_1` from the on-chain session;
 - `session_id`;
 - `deployment_id`;
-- schema ID;
-- policy ID;
+- `schema_id`;
+- `policy_id`;
 - disclosed attributes, if any;
-- SP challenge or nonce, if needed.
+- SP challenge or nonce, if needed;
+- cookie mode and proof version.
 
 The private witnesses include:
 
@@ -1087,47 +903,32 @@ The proof MUST show:
 2. `com_1 = attr_data * G + s_1 * G'`.
 3. The attributes satisfy the SP's predicate.
 4. Any disclosed attributes are consistent with the hidden committed attributes.
-5. The proof is bound to the intended session, deployment, policy profile, and
-   SP challenge or nonce.
+5. The proof is bound to the intended session, deployment, policy profile, cookie mode, and SP challenge or nonce.
 
-LPs and SPs MUST agree on the schema and predicate circuit. A generic Citadel
-session verifier cannot infer selective-disclosure semantics without that
-profile.
+LPs and SPs MUST agree on the schema and predicate circuit. A generic Citadel session verifier cannot infer selective-disclosure semantics without that profile.
 
 ## 12. Revocation, Expiration, And Replay
 
 ### 12.1 Revocation And Current Validity
 
-The base registry is append-only membership. It proves that a license was
-registered under an accepted root. It does not prove that the license is still
-valid unless the deployment or SP profile adds such a rule.
+The base registry is append-only membership. It proves that a license was registered under an accepted root. It does not prove that the license is still valid unless the deployment or SP profile adds such a rule.
 
-Deployments and SPs MUST NOT claim revocation support unless they implement one
-of the following:
+Deployments and SPs MUST NOT claim revocation support unless they implement one of the following:
 
 - signed expiration or validity interval in `attr_data`, enforced by the SP;
-- SP-maintained deny list keyed by session, account, disclosed credential, or
-  other application identifier;
-- contract-maintained revocation or status accumulator with a circuit proof of
-  non-revocation;
+- SP-maintained deny list keyed by session, account, disclosed credential, or other application identifier;
+- contract-maintained revocation or status accumulator with a circuit proof of non-revocation;
 - epoch-specific roots with strict root freshness and migration rules.
 
-If revocation is security-critical, an SP-side deny list alone may be
-insufficient because base sessions hide the license key. The deployment SHOULD
-use a protocol-level status mechanism or attributes that reveal only the minimum
-identifier needed for revocation under the service's privacy model.
+If revocation is security-critical, an SP-side deny list alone may be insufficient because base sessions hide the license key. The deployment SHOULD use a protocol-level status mechanism or attributes that reveal only the minimum identifier needed for revocation under the service's privacy model.
 
-Old accepted roots can bypass revocation if the revocation design is not bound
-to root freshness. Root age and status checks MUST be designed together.
+Old accepted roots can bypass revocation if the revocation design is not bound to root freshness. Root age and status checks MUST be designed together.
 
-If expiration or revocation status is hidden inside an attribute digest and is
-neither disclosed nor proven in a selective-disclosure proof, the SP has not
-enforced expiration or revocation.
+If expiration or revocation status is hidden inside an attribute digest and is neither disclosed nor proven in a selective-disclosure proof, the SP has not enforced expiration or revocation.
 
 ### 12.2 Cookie Replay And Binding
 
-A base session cookie is a bearer credential. The on-chain nullifier prevents
-duplicate session creation, not duplicate service use.
+A base session cookie is a bearer credential. The on-chain nullifier prevents duplicate session creation, not duplicate service use.
 
 Each SP profile MUST define at least one of:
 
@@ -1141,15 +942,12 @@ Each SP profile MUST define at least one of:
 Recommended one-time profile:
 
 1. SP issues a fresh nonce and policy ID.
-2. User derives `c` from `deployment_id`, SP ID, service ID, policy ID, and
-   nonce.
+2. User derives `c` from `deployment_id`, SP ID, service ID, policy ID, and nonce.
 3. User opens a session and sends the cookie.
-4. SP verifies the cookie and atomically marks the nonce or `session_id`
-   consumed.
+4. SP verifies the cookie and atomically marks the nonce or `session_id` consumed.
 5. Future use of the same nonce or `session_id` is rejected.
 
-For long-lived sessions, the SP SHOULD bind access to an authenticated account
-or client-held key and set a clear expiration.
+For long-lived sessions, the SP SHOULD bind access to an authenticated account or client-held key and set a clear expiration.
 
 ## 13. Privacy Properties And Limits
 
@@ -1157,7 +955,8 @@ or client-held key and set a clear expiration.
 
 On-chain observers see:
 
-- encrypted license blobs, if published on-chain;
+- encrypted request blobs and request insertion timing;
+- encrypted license blobs;
 - license stealth addresses;
 - license hashes;
 - Merkle roots;
@@ -1174,63 +973,45 @@ They should not learn:
 - challenge value;
 - Merkle path.
 
-These privacy properties rely on fresh randomness, valid commitments, PlonK zero
-knowledge, and users not reusing stealth secrets.
+These privacy properties rely on fresh randomness, valid commitments, PlonK zero knowledge, domain separation, and users not reusing stealth secrets, commitment randomness, or session randomness.
 
 ### 13.2 LP And SP Knowledge
 
-The LP learns whatever the user discloses during license request review and the
-attributes it signs. In request-based issuance, the LP does not learn the user's
-static public key from the cryptographic request alone.
+The LP learns whatever the user discloses during license request review and the attributes it signs. In request-based issuance, the LP does not learn the user's static public key from the cryptographic request alone.
 
-The SP learns whatever is disclosed by the selected cookie mode and policy
-proof. In base mode, it learns `attr_data` or enough data to interpret it.
+The SP learns whatever is disclosed by the selected cookie mode and policy proof. In base mode, it learns `attr_data` or enough data to interpret it.
 
-If the LP also knows that same `attr_data`, the value itself can link issuance
-and service use under LP/SP collusion.
+If the LP also knows that same `attr_data`, the value itself can link issuance and service use under LP/SP collusion.
 
-If the LP and SP collude, unique attributes, request metadata, timing, payments,
-network metadata, or direct issuance can link issuance to service use. Citadel
-does not prevent correlation through non-cryptographic side channels.
+If the LP and SP collude, unique attributes, request metadata, timing, payments, network metadata, or direct issuance can link issuance to service use. Citadel does not prevent correlation through non-cryptographic side channels.
 
 ### 13.3 Proof Helpers
 
-A user MAY delegate proof generation to a proof helper without revealing `lsk`.
-The helper MUST NOT receive `lsk`; the user computes `sig_session_auth` locally
-and sends the helper only the resulting signature and the other proving inputs
-needed by the circuit.
+A user MAY delegate proof generation to a proof helper without revealing `lsk`. The helper MUST NOT receive `lsk`; the user computes `sig_session_auth` locally and sends the helper only the resulting signature and the other proving inputs needed by the circuit.
 
-The helper may still learn sensitive metadata, including which license leaf and
-LP are involved, unless additional blinding or local proving is used.
+The helper may still learn sensitive metadata, including which license leaf and LP are involved, unless additional blinding or local proving is used.
 
-Proof-helper delegation is an operational choice and must be evaluated under
-the user's privacy requirements.
+Proof-helper delegation is an operational choice and must be evaluated under the user's privacy requirements.
 
 ## 14. Security Assumptions
 
 Citadel relies on:
 
-- discrete-log hardness on Jubjub;
-- binding and hiding properties of Pedersen commitments with independent
-  generators;
-- collision resistance and circuit-appropriate security of Poseidon with proper
-  domain separation;
-- Schnorr signature unforgeability in the relevant random-oracle model;
-- PlonK soundness and zero-knowledge for the deployed circuit and verifier key;
-- correct PlonK setup or verifier-key generation according to the deployment's
-  proof-system assumptions;
+- discrete-log hardness in the selected Jubjub subgroup;
+- binding and hiding properties of Pedersen commitments with independent generators;
+- collision resistance and circuit-appropriate security of Poseidon with proper domain separation;
+- Schnorr signature unforgeability under the specified transcripts;
+- soundness and zero knowledge of the deployed PlonK circuit and verifier key;
+- correct PlonK setup or verifier-key generation according to the deployment's proof-system assumptions;
 - AEAD confidentiality and integrity;
 - correct DHKE and KDF use;
 - fresh randomness;
-- canonical encoding and point validation;
+- canonical encoding, scalar range checks, and point validation;
 - contract root anchoring;
-- authenticated and sufficiently finalized contract-state reads by wallets and
-  SPs;
-- SP enforcement of issuer, attribute, challenge, replay, revocation, and
-  service policy.
+- authenticated and sufficiently finalized contract-state reads by wallets, LPs, and SPs;
+- SP enforcement of issuer, attribute, challenge, replay, revocation, and service policy.
 
-If any of these assumptions does not hold, the affected security property does
-not hold.
+If any of these assumptions does not hold, the affected security property does not hold.
 
 ## 15. Conformance Checklist
 
@@ -1238,26 +1019,25 @@ A deployment conforms to this specification only if:
 
 - every Poseidon, KDF, and signature context is domain-separated;
 - every external point and scalar is canonically validated;
+- circuit witness points are constrained to valid non-identity subgroup points;
 - request and license encryption is authenticated and context-bound;
+- request insertion, retrieval, retention, duplicate handling, size limits, fees, and spam controls are explicit;
+- gas-only spam control, if used, is explicitly justified by deployment economics and operational cost assumptions;
 - license hashes are derived from visible license public key data;
 - issuance access and tree-capacity behavior are explicit;
 - duplicate `license_hash` handling is explicit;
-- Merkle roots in license-use proofs are checked against contract-accepted
-  roots;
-- wallets and SPs use authenticated contract state with the deployment's
-  finality policy;
+- Merkle roots in license-use proofs are checked against contract-accepted roots;
+- wallets, LPs, and SPs use authenticated contract state with the deployment's finality policy;
 - public input order is fixed and versioned;
-- the double-key session authorization signature binds the exact public input
-  tuple;
+- the double-key session authorization signature binds the exact public input tuple;
 - duplicate `session_id` values are rejected atomically;
 - SP profiles define exact challenge validation;
-- SPs verify that `pk_sp.A` in a cookie is their configured service point for
-  the selected policy;
+- cookies identify `policy_id` and cookie mode explicitly;
+- SPs verify that `pk_sp.A` in a cookie is their configured service point for the selected policy;
 - SPs treat cookies as bearer credentials unless they add binding;
-- selective-disclosure proofs are bound to the intended session, deployment,
-  policy, and SP challenge or nonce;
+- selective-disclosure proofs are bound to the intended session, deployment, policy, cookie mode, and SP challenge or nonce;
 - expiration and revocation are not claimed unless implemented by the profile;
-- attribute schemas are canonical and versioned;
+- attribute schemas are canonical, schema-scoped, and versioned;
 - direct issuance is marked as a lower-privacy mode.
 
 ## 16. Minimal Safe Deployment Guidance
@@ -1265,16 +1045,15 @@ A deployment conforms to this specification only if:
 For an academic or prototype deployment:
 
 - use request-based issuance;
+- expose contract-backed request discovery for LPs;
+- set maximum request and license blob sizes;
+- define request spam limits, fees, or a clear gas-only rationale;
 - allow-list LP issuers or require fees for registry insertion;
 - keep a bounded root history;
 - use base disclosure only for non-sensitive attributes;
-- use fixed or policy-derived challenges bound to deployment, SP, service, and
-  policy context, never arbitrary user challenges;
+- use fixed or policy-derived challenges bound to deployment, SP, service, and policy context, never arbitrary user challenges;
 - treat cookies as one-time unless the service is explicitly reusable;
 - include expiration in attributes;
-- document that protocol-level revocation is not available unless a status
-  extension is deployed.
+- document that protocol-level revocation is not available unless a status extension is deployed.
 
-For production deployments, Citadel should undergo implementation review,
-circuit review, verifier-key review, dependency review, and operational security
-review in addition to this protocol specification.
+For production deployments, Citadel should undergo implementation review, circuit review, verifier-key review, dependency review, deployment-parameter review, contract-state economics review, and operational security review in addition to this protocol specification.

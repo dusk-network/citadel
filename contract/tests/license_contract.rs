@@ -74,6 +74,14 @@ fn issue_arg(license: &License, license_blob: Vec<u8>) -> IssueLicenseArg {
     }
 }
 
+fn insert_request_arg(request: &Request) -> InsertRequestArg {
+    InsertRequestArg {
+        request: rkyv::to_bytes::<_, 4096>(request)
+            .expect("Request should serialize correctly")
+            .to_vec(),
+    }
+}
+
 fn initialize() -> Session {
     let vm = &mut VM::ephemeral().expect("Creating ephemeral VM should work");
     let mut session = vm.genesis_session(CHAIN_ID);
@@ -199,6 +207,108 @@ fn license_issue_get_merkle() {
 }
 
 #[test]
+fn request_insert_get_and_duplicate_rejection() {
+    let rng = &mut StdRng::seed_from_u64(0xcafe);
+    let mut session = initialize();
+
+    let sk_user = SecretKey::random(rng);
+    let pk_user = PublicKey::from(&sk_user);
+    let sk_lp = SecretKey::random(rng);
+    let pk_lp = PublicKey::from(&sk_lp);
+    let request = Request::new(&sk_user, &pk_user, &pk_lp, rng).unwrap();
+    let insert_arg = insert_request_arg(&request);
+    let request_blob = insert_arg.request.clone();
+
+    session
+        .call::<InsertRequestArg, ()>(
+            LICENSE_CONTRACT_ID,
+            "insert_request",
+            &insert_arg,
+            POINT_LIMIT,
+        )
+        .expect("Inserting request should succeed");
+
+    let stored_request = session
+        .call::<u64, Option<Vec<u8>>>(LICENSE_CONTRACT_ID, "get_request", &0, POINT_LIMIT)
+        .expect("Querying request by position should succeed")
+        .data;
+    assert_eq!(stored_request, Some(request_blob.clone()));
+
+    let (feeder, receiver) = mpsc::channel();
+    let bh_range = 0..10000u64;
+    session
+        .feeder_call::<Range<u64>, ()>(
+            LICENSE_CONTRACT_ID,
+            "get_requests",
+            &bh_range,
+            u64::MAX,
+            feeder,
+        )
+        .expect("Querying requests should succeed")
+        .data;
+
+    let requests: Vec<(u64, Vec<u8>)> = receiver
+        .iter()
+        .map(|bytes| rkyv::from_bytes(&bytes).expect("Should return requests"))
+        .collect();
+    assert_eq!(requests, vec![(0, request_blob.clone())]);
+
+    assert!(
+        session
+            .call::<InsertRequestArg, ()>(
+                LICENSE_CONTRACT_ID,
+                "insert_request",
+                &insert_arg,
+                POINT_LIMIT,
+            )
+            .is_err(),
+        "Duplicate request payload should be rejected"
+    );
+
+    assert!(
+        session
+            .call::<InsertRequestArg, ()>(
+                LICENSE_CONTRACT_ID,
+                "insert_request",
+                &InsertRequestArg { request: vec![] },
+                POINT_LIMIT,
+            )
+            .is_err(),
+        "Empty request payload should be rejected"
+    );
+
+    assert!(
+        session
+            .call::<InsertRequestArg, ()>(
+                LICENSE_CONTRACT_ID,
+                "insert_request",
+                &InsertRequestArg {
+                    request: vec![0; MAX_REQUEST_BLOB_SIZE + 1]
+                },
+                POINT_LIMIT,
+            )
+            .is_err(),
+        "Oversized request payload should be rejected"
+    );
+
+    let state_info = session
+        .call::<(), ContractInfo>(LICENSE_CONTRACT_ID, "get_state_info", &(), POINT_LIMIT)
+        .expect("Get state info should succeed")
+        .data;
+    assert_eq!(state_info.requests, 1);
+    assert_eq!(state_info.licenses, 0);
+    assert_eq!(state_info.tree_len, 0);
+    assert_eq!(state_info.sessions, 0);
+    assert_eq!(state_info.accepted_roots, 0);
+
+    let legacy_info = session
+        .call::<(), (u32, u32, u32)>(LICENSE_CONTRACT_ID, "get_info", &(), POINT_LIMIT)
+        .expect("Get info should succeed")
+        .data;
+    assert_eq!(legacy_info, (0, 0, 0));
+}
+
+#[test]
 fn multiple_licenses_issue_get_merkle() {
     let rng = &mut StdRng::seed_from_u64(0xcafe);
     let mut session = initialize();
@@ -282,15 +392,35 @@ fn metadata_and_info_track_state() {
     assert_eq!(metadata.protocol_version, BlsScalar::one());
     assert_eq!(metadata.chain_id, BlsScalar::zero());
     assert_eq!(metadata.contract_id, BlsScalar::zero());
+    assert_ne!(metadata.verifier_key_hash, BlsScalar::zero());
+    assert_ne!(metadata.circuit_hash, BlsScalar::zero());
+    assert_eq!(metadata.merkle_arity, 4);
     assert_eq!(metadata.merkle_depth, circuit::DEPTH as u32);
     assert_eq!(metadata.root_history_size, 8);
     assert_eq!(metadata.public_inputs_len, PUBLIC_INPUTS_LEN as u32);
+    assert_eq!(metadata.max_request_blob_size, MAX_REQUEST_BLOB_SIZE as u32);
+    assert_eq!(metadata.max_license_blob_size, MAX_LICENSE_BLOB_SIZE as u32);
 
     let initial_info = session
         .call::<(), (u32, u32, u32)>(LICENSE_CONTRACT_ID, "get_info", &(), POINT_LIMIT)
         .expect("Get info should succeed")
         .data;
     assert_eq!(initial_info, (0, 0, 0));
+
+    let initial_root = session
+        .call::<(), BlsScalar>(LICENSE_CONTRACT_ID, "get_current_root", &(), POINT_LIMIT)
+        .expect("Get current root should succeed")
+        .data;
+    let initial_state_info = session
+        .call::<(), ContractInfo>(LICENSE_CONTRACT_ID, "get_state_info", &(), POINT_LIMIT)
+        .expect("Get state info should succeed")
+        .data;
+    assert_eq!(initial_state_info.requests, 0);
+    assert_eq!(initial_state_info.licenses, 0);
+    assert_eq!(initial_state_info.tree_len, 0);
+    assert_eq!(initial_state_info.sessions, 0);
+    assert_eq!(initial_state_info.accepted_roots, 0);
+    assert_eq!(initial_state_info.current_root, initial_root);
 
     let empty_opening = session
         .call::<u64, Option<LicenseOpening>>(
@@ -312,7 +442,7 @@ fn metadata_and_info_track_state() {
     let license_blob = rkyv::to_bytes::<_, 4096>(&license)
         .expect("License should serialize correctly")
         .to_vec();
-    let issue_arg = issue_arg(&license, license_blob);
+    let issue_arg = issue_arg(&license, license_blob.clone());
 
     session
         .call::<IssueLicenseArg, ()>(
@@ -328,6 +458,33 @@ fn metadata_and_info_track_state() {
         .expect("Get info should succeed")
         .data;
     assert_eq!(issued_info, (1, 1, 0));
+
+    let stored_license = session
+        .call::<u64, Option<Vec<u8>>>(LICENSE_CONTRACT_ID, "get_license", &0, POINT_LIMIT)
+        .expect("Querying license by position should succeed")
+        .data;
+    assert_eq!(stored_license, Some(license_blob));
+
+    let accepted_roots = session
+        .call::<(), Vec<BlsScalar>>(LICENSE_CONTRACT_ID, "get_accepted_roots", &(), POINT_LIMIT)
+        .expect("Get accepted roots should succeed")
+        .data;
+    let current_root = session
+        .call::<(), BlsScalar>(LICENSE_CONTRACT_ID, "get_current_root", &(), POINT_LIMIT)
+        .expect("Get current root should succeed")
+        .data;
+    assert_eq!(accepted_roots, vec![current_root]);
+
+    let issued_state_info = session
+        .call::<(), ContractInfo>(LICENSE_CONTRACT_ID, "get_state_info", &(), POINT_LIMIT)
+        .expect("Get state info should succeed")
+        .data;
+    assert_eq!(issued_state_info.requests, 0);
+    assert_eq!(issued_state_info.licenses, 1);
+    assert_eq!(issued_state_info.tree_len, 1);
+    assert_eq!(issued_state_info.sessions, 0);
+    assert_eq!(issued_state_info.accepted_roots, 1);
+    assert_eq!(issued_state_info.current_root, current_root);
 
     let opening = session
         .call::<u64, Option<LicenseOpening>>(
@@ -345,6 +502,40 @@ fn metadata_and_info_track_state() {
 fn issue_license_rejects_invalid_and_duplicate_public_keys() {
     let rng = &mut StdRng::seed_from_u64(0xcafe);
     let mut session = initialize();
+
+    let empty_license_arg = IssueLicenseArg {
+        license: vec![],
+        lpk_u: BlsScalar::zero(),
+        lpk_v: BlsScalar::zero(),
+    };
+    assert!(
+        session
+            .call::<IssueLicenseArg, ()>(
+                LICENSE_CONTRACT_ID,
+                "issue_license",
+                &empty_license_arg,
+                POINT_LIMIT,
+            )
+            .is_err(),
+        "Empty license payload should be rejected"
+    );
+
+    let oversized_license_arg = IssueLicenseArg {
+        license: vec![0; MAX_LICENSE_BLOB_SIZE + 1],
+        lpk_u: BlsScalar::zero(),
+        lpk_v: BlsScalar::zero(),
+    };
+    assert!(
+        session
+            .call::<IssueLicenseArg, ()>(
+                LICENSE_CONTRACT_ID,
+                "issue_license",
+                &oversized_license_arg,
+                POINT_LIMIT,
+            )
+            .is_err(),
+        "Oversized license payload should be rejected"
+    );
 
     let invalid_issue_arg = IssueLicenseArg {
         license: vec![1, 2, 3],
@@ -600,12 +791,4 @@ fn use_license_get_session() {
             .is_err(),
         "A duplicate session_id should be rejected"
     );
-}
-
-#[test]
-fn test_request_license() {
-    let mut session = initialize();
-    session
-        .call::<(), ()>(LICENSE_CONTRACT_ID, "request_license", &(), POINT_LIMIT)
-        .expect("Request license should succeed");
 }

@@ -18,6 +18,26 @@ pub enum Error {
     WrongSessionId,
     /// The deployment metadata in the cookie does not match this verifier
     WrongDeployment,
+    /// The cookie object version does not match the selected policy
+    WrongCookieVersion,
+    /// The cookie mode does not match the selected policy
+    WrongCookieMode,
+    /// The policy ID in the cookie does not match the selected policy
+    WrongPolicyId,
+    /// The cookie SP key does not match the selected policy
+    WrongServiceProvider,
+    /// The cookie LP key does not match the selected policy
+    WrongLicenseProvider,
+    /// The disclosed challenge does not match the selected policy
+    WrongChallenge,
+    /// The disclosed attribute data does not match the selected policy
+    WrongAttributeData,
+    /// The session root does not satisfy the selected policy
+    WrongRoot,
+    /// A required digest-style attribute opening is missing
+    MissingAttributeOpening,
+    /// A supplied attribute opening does not match `attr_data`
+    WrongAttributeOpening,
     /// The commitment to the public key of the License Provider is incorrect
     WrongLicenseProviderComm,
     /// The commitment to the attribute data is incorrect
