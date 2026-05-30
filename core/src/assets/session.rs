@@ -107,16 +107,16 @@ impl Session {
             return Err(Error::WrongChallenge);
         }
 
-        if let Some(expected_attr_data) = policy.expected_attr_data {
-            if sc.attr_data != expected_attr_data {
-                return Err(Error::WrongAttributeData);
-            }
+        if let Some(expected_attr_data) = policy.expected_attr_data
+            && sc.attr_data != expected_attr_data
+        {
+            return Err(Error::WrongAttributeData);
         }
 
-        if let Some(expected_root) = policy.expected_root {
-            if self.root != expected_root {
-                return Err(Error::WrongRoot);
-            }
+        if let Some(expected_root) = policy.expected_root
+            && self.root != expected_root
+        {
+            return Err(Error::WrongRoot);
         }
 
         if policy.require_attribute_opening {

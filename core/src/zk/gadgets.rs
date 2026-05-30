@@ -149,12 +149,14 @@ pub fn use_license<const DEPTH: usize>(
     verify_session_auth_signature(
         composer,
         deployment,
-        sig_session_auth_z,
-        sig_session_auth_r,
-        sig_session_auth_r_p,
-        lpk,
-        lpk_p,
-        session_auth[0],
+        SessionAuthWitnesses {
+            z: sig_session_auth_z,
+            r: sig_session_auth_r,
+            r_p: sig_session_auth_r_p,
+            pk: lpk,
+            pk_p: lpk_p,
+            msg: session_auth[0],
+        },
     )?;
 
     // COMPUTE THE HASH OF THE LICENSE
@@ -195,15 +197,19 @@ fn verify_license_signature(
     Ok(())
 }
 
-fn verify_session_auth_signature(
-    composer: &mut Composer,
-    deployment: crate::helpers::Deployment,
+struct SessionAuthWitnesses {
     z: Witness,
     r: WitnessPoint,
     r_p: WitnessPoint,
     pk: WitnessPoint,
     pk_p: WitnessPoint,
     msg: Witness,
+}
+
+fn verify_session_auth_signature(
+    composer: &mut Composer,
+    deployment: crate::helpers::Deployment,
+    witnesses: SessionAuthWitnesses,
 ) -> Result<(), Error> {
     let ctx = composer.append_constant(deployment.context(CitadelDomain::SessionSigChallenge));
     let challenge = HashGadget::digest_truncated(
@@ -211,26 +217,26 @@ fn verify_session_auth_signature(
         Domain::Other,
         &[
             ctx,
-            *pk.x(),
-            *pk.y(),
-            *pk_p.x(),
-            *pk_p.y(),
-            *r.x(),
-            *r.y(),
-            *r_p.x(),
-            *r_p.y(),
-            msg,
+            *witnesses.pk.x(),
+            *witnesses.pk.y(),
+            *witnesses.pk_p.x(),
+            *witnesses.pk_p.y(),
+            *witnesses.r.x(),
+            *witnesses.r.y(),
+            *witnesses.r_p.x(),
+            *witnesses.r_p.y(),
+            witnesses.msg,
         ],
     )[0];
 
-    let lhs = composer.component_mul_generator(z, GENERATOR)?;
-    let challenge_pk = composer.component_mul_point(challenge, pk);
-    let rhs = composer.component_add_point(r, challenge_pk);
+    let lhs = composer.component_mul_generator(witnesses.z, GENERATOR)?;
+    let challenge_pk = composer.component_mul_point(challenge, witnesses.pk);
+    let rhs = composer.component_add_point(witnesses.r, challenge_pk);
     composer.assert_equal_point(lhs, rhs);
 
-    let lhs_prime = composer.component_mul_generator(z, GENERATOR_NUMS)?;
-    let challenge_pk_prime = composer.component_mul_point(challenge, pk_p);
-    let rhs_prime = composer.component_add_point(r_p, challenge_pk_prime);
+    let lhs_prime = composer.component_mul_generator(witnesses.z, GENERATOR_NUMS)?;
+    let challenge_pk_prime = composer.component_mul_point(challenge, witnesses.pk_p);
+    let rhs_prime = composer.component_add_point(witnesses.r_p, challenge_pk_prime);
     composer.assert_equal_point(lhs_prime, rhs_prime);
 
     Ok(())
@@ -275,8 +281,7 @@ fn assert_not_identity(composer: &mut Composer, point: WitnessPoint) {
     let y_minus_one2 = composer.gate_mul(Constraint::new().mult(1).a(y_minus_one).b(y_minus_one));
     let distance = composer.gate_add(Constraint::new().left(1).right(1).a(x2).b(y_minus_one2));
 
-    let inverse_value =
-        Option::<BlsScalar>::from(composer[distance].invert()).unwrap_or(BlsScalar::zero());
+    let inverse_value = composer[distance].invert().unwrap_or(BlsScalar::zero());
     let inverse = composer.append_witness(inverse_value);
     let non_zero = composer.gate_mul(Constraint::new().mult(1).a(distance).b(inverse));
     composer.assert_equal_constant(non_zero, BlsScalar::one(), None);
