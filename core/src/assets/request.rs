@@ -33,9 +33,8 @@ pub(crate) const REQ_PLAINTEXT_SIZE: usize = StealthAddress::SIZE
     + PublicKey::SIZE;
 const REQ_ENCRYPTION_SIZE: usize = REQ_PLAINTEXT_SIZE + ENCRYPTION_EXTRA_SIZE;
 
-/// The struct defining a Citadel request, a set of information that
-/// a user sends to the network to inform a LP that the user is
-/// requesting a license from them
+/// Transport-neutral encrypted request object delivered to an LP outside the
+/// base contract.
 #[cfg_attr(
     feature = "rkyv-impl",
     derive(Archive, Serialize, Deserialize),

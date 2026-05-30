@@ -33,7 +33,7 @@ const LIC_ENCRYPTION_SIZE: usize = LIC_PLAINTEXT_SIZE + ENCRYPTION_EXTRA_SIZE;
 
 /// Enumeration used to create new licenses
 pub enum LicenseOrigin {
-    /// From a [`Request`] sent on-chain
+    /// From a transport-neutral encrypted [`Request`] delivered to the LP.
     FromRequest(Box<Request>),
     /// From a [`PublicKey`] of a given user
     FromPublicKey(Box<PublicKey>),
