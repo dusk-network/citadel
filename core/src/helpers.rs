@@ -349,6 +349,25 @@ pub fn attr_data(
     )
 }
 
+/// Computes schema-scoped attribute data directly from canonical attributes.
+///
+/// Schemas with personal or user-specific attributes can use this helper when
+/// their canonical byte representation fits the deployment's chunking rule. The
+/// raw bytes are absorbed only into the local digest computation and are not
+/// stored in requests, licenses, sessions, or contract state by this crate.
+pub fn attr_data_from_canonical_attributes(
+    deployment: Deployment,
+    schema_id: BlsScalar,
+    canonical_attributes: &[u8],
+    r_attr: JubJubScalar,
+) -> JubJubScalar {
+    let mut tail = Vec::with_capacity(3 + canonical_attributes.len().div_ceil(31));
+    tail.push(schema_id);
+    push_bytes_as_fields(&mut tail, canonical_attributes);
+    tail.push(BlsScalar::from(r_attr));
+    hash_slice_truncated(CitadelDomain::AttrData, deployment, &tail)
+}
+
 /// Computes a policy identifier from deployment-defined policy fields.
 pub fn policy_id(
     deployment: Deployment,
@@ -453,6 +472,19 @@ pub fn license_key(
                 ],
             ),
     )
+}
+
+/// Returns whether a Phoenix public key is made of valid non-identity subgroup points.
+pub fn public_key_is_valid(pk: &PublicKey) -> bool {
+    public_key_point_is_valid(JubJubAffine::from(pk.A()))
+        && public_key_point_is_valid(JubJubAffine::from(pk.B()))
+}
+
+/// Returns whether a Phoenix public-key point is valid and non-identity.
+pub fn public_key_point_is_valid(point: JubJubAffine) -> bool {
+    bool::from(point.is_on_curve())
+        && bool::from(point.is_prime_order())
+        && point != JubJubAffine::identity()
 }
 
 fn push_stealth_address(tail: &mut Vec<BlsScalar>, sa: &StealthAddress) {

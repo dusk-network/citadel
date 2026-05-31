@@ -10,9 +10,9 @@ mod license;
 mod request;
 mod session;
 
-pub use license::{License, LicenseContext, LicenseOptions, LicenseOrigin};
+pub use license::{License, LicenseContext, LicenseOptions, LicenseOrigin, LicensePayload};
 pub use request::Request;
-pub use session::{AttributeOpening, Session, SessionCookie, SessionPolicy};
+pub use session::{AttributeOpening, IssuerIdentifier, Session, SessionCookie, SessionPolicy};
 
 #[cfg(feature = "zk")]
 pub(crate) use license::{LIC_PLAINTEXT_SIZE, decode_license_plaintext};
