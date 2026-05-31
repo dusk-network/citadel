@@ -371,8 +371,8 @@ pub fn validate_contract_info(info: &ContractInfo) -> Result<()> {
 }
 
 pub fn validate_metadata(metadata: &DeploymentMetadata) -> Result<()> {
-    // The wallet only targets the repository's prototype/default deployment
-    // profile. Rejecting mismatched metadata prevents silently mixing verifier
+    // The wallet only targets the repository's default deployment profile.
+    // Rejecting mismatched metadata prevents silently mixing verifier
     // keys, tree parameters, or public-input layouts.
     if metadata.deployment_id != DEFAULT_DEPLOYMENT.id
         || metadata.protocol_version != DEFAULT_DEPLOYMENT.version
