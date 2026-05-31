@@ -2,6 +2,11 @@
 members = [
     "core",
     "contract",
+    "wallet",
+]
+default-members = [
+    "core",
+    "contract",
 ]
 resolver = "2"
 
