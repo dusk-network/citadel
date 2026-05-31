@@ -10,7 +10,7 @@ mod license;
 mod request;
 mod session;
 
-pub use license::{License, LicenseContext, LicenseOrigin};
+pub use license::{License, LicenseContext, LicenseOptions, LicenseOrigin};
 pub use request::Request;
 pub use session::{AttributeOpening, Session, SessionCookie, SessionPolicy};
 

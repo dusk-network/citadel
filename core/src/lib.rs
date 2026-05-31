@@ -36,8 +36,8 @@ pub mod signatures;
 pub mod zk;
 
 pub use assets::{
-    AttributeOpening, License, LicenseContext, LicenseOrigin, Request, Session, SessionCookie,
-    SessionPolicy,
+    AttributeOpening, License, LicenseContext, LicenseOptions, LicenseOrigin, Request, Session,
+    SessionCookie, SessionPolicy,
 };
 pub use error::Error;
 pub use signatures::{LicenseSignature, SessionAuthSignature};

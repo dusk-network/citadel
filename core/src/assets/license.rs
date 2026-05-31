@@ -141,25 +141,47 @@ pub struct License {
     pub enc: [u8; LIC_ENCRYPTION_SIZE],
 }
 
+/// License construction parameters.
+///
+/// Callers that want the prototype defaults can pass [`LicenseOptions::default`],
+/// which uses `DEFAULT_DEPLOYMENT` and zero values for schema, issuance,
+/// expiration, and revocation context.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LicenseOptions {
+    /// Deployment profile for the license envelope and cryptographic domains.
+    pub deployment: Deployment,
+    /// Schema identifier for `attr_data`.
+    pub schema_id: BlsScalar,
+    /// Issuance metadata encoded by the deployment profile.
+    pub issued_at: BlsScalar,
+    /// Expiration value, or zero as the prototype no-expiration marker.
+    pub expires_at: BlsScalar,
+    /// Revocation handle, or zero as the prototype no-revocation marker.
+    pub revocation_id: BlsScalar,
+}
+
+impl Default for LicenseOptions {
+    fn default() -> Self {
+        Self {
+            deployment: DEFAULT_DEPLOYMENT,
+            schema_id: BlsScalar::zero(),
+            issued_at: BlsScalar::zero(),
+            expires_at: BlsScalar::zero(),
+            revocation_id: BlsScalar::zero(),
+        }
+    }
+}
+
 impl License {
-    /// Method to generate a new [`License`]
+    /// Method to generate a new [`License`] with explicit construction options.
     pub fn new<R: RngCore + CryptoRng>(
         attr_data: &JubJubScalar,
         sk_lp: &SecretKey,
         lo: &LicenseOrigin,
+        options: LicenseOptions,
         rng: &mut R,
     ) -> Result<Self, Error> {
-        Self::new_with_deployment(attr_data, sk_lp, lo, DEFAULT_DEPLOYMENT, rng)
-    }
-
-    /// Method to generate a new [`License`] bound to a deployment.
-    pub fn new_with_deployment<R: RngCore + CryptoRng>(
-        attr_data: &JubJubScalar,
-        sk_lp: &SecretKey,
-        lo: &LicenseOrigin,
-        deployment: Deployment,
-        rng: &mut R,
-    ) -> Result<Self, Error> {
+        let deployment = options.deployment;
         let (lsa, k_lic) = match lo {
             LicenseOrigin::FromRequest(req) => {
                 if req.version != OBJECT_VERSION_V1 {
@@ -229,7 +251,11 @@ impl License {
         let pk_lp = PublicKey::from(sk_lp);
         let pk_lp_a = JubJubAffine::from(pk_lp.A());
         let sig_lic = LicenseSignature::sign(rng, deployment, sk_lp.a(), pk_lp_a, message);
-        let context = LicenseContext::prototype(deployment, pk_lp);
+        let mut context = LicenseContext::prototype(deployment, pk_lp);
+        context.schema_id = options.schema_id;
+        context.issued_at = options.issued_at;
+        context.expires_at = options.expires_at;
+        context.revocation_id = options.revocation_id;
 
         let mut plaintext = sig_lic.to_bytes().to_vec();
         plaintext.append(&mut attr_data.to_bytes().to_vec());

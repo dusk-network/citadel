@@ -14,7 +14,8 @@ use poseidon_merkle::{Item, Tree};
 use rand_core::OsRng;
 
 use zk_citadel::{
-    License, LicenseOrigin, Request, Session, SessionCookie, SessionPolicy, circuit, gadgets,
+    License, LicenseOptions, LicenseOrigin, Request, Session, SessionCookie, SessionPolicy,
+    circuit, gadgets,
     helpers::{DEFAULT_DEPLOYMENT, license_hash},
 };
 
@@ -48,6 +49,7 @@ fn test_full_citadel() {
         &attr_data,
         &sk_lp,
         &LicenseOrigin::FromRequest(Box::new(req)),
+        LicenseOptions::default(),
         &mut OsRng,
     )
     .expect("License correctly computed from request.");
@@ -136,6 +138,7 @@ fn test_full_citadel() {
         &attr_data,
         &sk_lp,
         &LicenseOrigin::FromPublicKey(Box::new(pk)),
+        LicenseOptions::default(),
         &mut OsRng,
     )
     .expect("License correctly computed from public key.");

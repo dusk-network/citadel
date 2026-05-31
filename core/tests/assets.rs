@@ -10,8 +10,8 @@ use phoenix_core::{PublicKey, SecretKey};
 use rand_core::OsRng;
 
 use zk_citadel::{
-    AttributeOpening, Error as CitadelError, License, LicenseOrigin, Request, Session,
-    SessionCookie, SessionPolicy,
+    AttributeOpening, Error as CitadelError, License, LicenseOptions, LicenseOrigin, Request,
+    Session, SessionCookie, SessionPolicy,
     helpers::{
         COOKIE_MODE_BASE, DEFAULT_DEPLOYMENT, Deployment, OBJECT_VERSION_V1, PI_COM_1_X,
         PI_COM_1_Y, attr_data as compute_attr_data, lp_commitment, request_id, session_hash,
@@ -95,11 +95,14 @@ fn request_bound_license_enforces_deployment_and_intended_lp() {
         request_id(deployment, req.version, &req.rsa, &req.enc)
     );
 
-    let license = License::new_with_deployment(
+    let license = License::new(
         &attr_data,
         &sk_lp,
         &LicenseOrigin::FromRequest(Box::new(req)),
-        deployment,
+        LicenseOptions {
+            deployment,
+            ..LicenseOptions::default()
+        },
         &mut OsRng,
     )
     .expect("matching LP and deployment should issue from request");
@@ -110,11 +113,14 @@ fn request_bound_license_enforces_deployment_and_intended_lp() {
         Request::new_with_deployment(&sk_user, &pk_user, &pk_lp, deployment, &mut OsRng)
             .expect("request should be created");
     assert!(
-        License::new_with_deployment(
+        License::new(
             &attr_data,
             &sk_lp,
             &LicenseOrigin::FromRequest(Box::new(wrong_deployment_req)),
-            other_deployment,
+            LicenseOptions {
+                deployment: other_deployment,
+                ..LicenseOptions::default()
+            },
             &mut OsRng,
         )
         .is_err()
@@ -124,11 +130,14 @@ fn request_bound_license_enforces_deployment_and_intended_lp() {
         Request::new_with_deployment(&sk_user, &pk_user, &pk_lp, deployment, &mut OsRng)
             .expect("request should be created");
     assert!(
-        License::new_with_deployment(
+        License::new(
             &attr_data,
             &sk_other_lp,
             &LicenseOrigin::FromRequest(Box::new(wrong_lp_req)),
-            deployment,
+            LicenseOptions {
+                deployment,
+                ..LicenseOptions::default()
+            },
             &mut OsRng,
         )
         .is_err()
@@ -143,11 +152,14 @@ fn direct_license_carries_selected_deployment() {
     let attr_data = JubJubScalar::from(456u64);
     let deployment = test_deployment(9);
 
-    let license = License::new_with_deployment(
+    let license = License::new(
         &attr_data,
         &sk_lp,
         &LicenseOrigin::FromPublicKey(Box::new(pk_user)),
-        deployment,
+        LicenseOptions {
+            deployment,
+            ..LicenseOptions::default()
+        },
         &mut OsRng,
     )
     .expect("direct issuance should succeed");
