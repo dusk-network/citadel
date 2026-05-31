@@ -15,7 +15,7 @@ Citadel provides the following base guarantees:
 
 - A user can prove possession of the license secret key corresponding to a hidden license public key.
 - A user can prove that the hidden license public key is registered in the contract's license tree under an accepted Merkle root.
-- An LP signature binds the issued attribute digest or scalar to the hidden license public key.
+- An LP signature binds schema-scoped `attr_data` to the hidden license public key. For schemas that contain personal or user-specific data, `attr_data` is a digest of `canonical_attributes`, not the personal data itself.
 - Public session data does not reveal the user wallet key, license public key, LP key, SP key, attributes, challenge, LP signature, session authorization signature, or Merkle path.
 - For a fixed hidden license and a fixed SP-accepted challenge value, the contract accepts at most one session.
 - An SP can verify that a disclosed cookie opens the public on-chain session values and then apply its own policy.
@@ -74,7 +74,9 @@ The following names are used throughout the specification:
 - `pk_sp.A`: SP service point to which a cookie is bound.
 - `schema_id`: versioned identifier for the signed attribute schema.
 - `policy_id`: versioned identifier for an SP authorization profile.
-- `attr_data`: canonical scalar or field digest representing the LP-signed attributes. It MUST be schema-scoped.
+- `canonical_attributes`: schema-defined attribute values about the user or license holder, including any personal data, eligibility facts, validity fields, or revocation handles that a schema treats as attributes. `canonical_attributes` MUST NOT be written to blockchain-published data, contract state, contract events, payment memos, request-availability payloads, or contract-stored encrypted license blobs, whether plaintext or encrypted.
+- `attr_opening`: local or off-chain material needed to recompute `attr_data` from `canonical_attributes`, such as `r_attr` and any schema-defined salts or normalization metadata. `attr_opening` is not a base on-chain object.
+- `attr_data`: schema-scoped scalar digest or non-personal scalar value representing the LP-signed attributes. For schemas that contain personal or user-specific data, it MUST be computed from `canonical_attributes` through the digest construction in Section 11. It is the only attribute-derived value that may appear in blockchain-published protocol objects, and the public session stores only a commitment to it.
 - `c`: SP policy challenge value. It controls nullification and reuse.
 - `root`: accepted Merkle root of the license registry.
 - `session_id`: public nullifier derived from `lpk_p` and `c`.
@@ -267,7 +269,7 @@ The signed license message is:
 
 `msg_lic = H[CITADEL_LICENSE_SIG_MSG_V1](lpk.u, lpk.v, attr_data)`
 
-`attr_data` MUST already be schema-scoped. If raw attributes cannot be represented as a schema-scoped scalar, they MUST be committed through the attribute digest construction in Section 11.
+`attr_data` MUST already be schema-scoped. Raw personal or user-specific attributes MUST NOT be signed directly or placed in the license signature message; they MUST first be reduced to the attribute digest construction in Section 11. A directly encoded scalar is permitted only for a schema-defined non-personal value whose semantics are unambiguous under the schema and SP profile.
 
 #### 5.3.2 Double-Key Session Authorization Signature
 
@@ -301,7 +303,7 @@ Citadel uses:
 
   `com_2 = c * G + s_2 * G'`
 
-`s_0`, `s_1`, and `s_2` MUST be fresh random scalar values for every session. `attr_data` and `c` MUST be canonical scalar values. If natural attribute data is not a single schema-scoped scalar, it MUST first be converted into a canonical field digest as described in Section 11.
+`s_0`, `s_1`, and `s_2` MUST be fresh random scalar values for every session. `attr_data` and `c` MUST be canonical scalar values. If natural attribute data is not a non-personal schema-scoped scalar, and for every schema containing personal or user-specific data, it MUST first be converted into a canonical field digest as described in Section 11. Raw `canonical_attributes` never enter `com_1`, the base circuit, or contract state.
 
 `com_1` and `com_2` MUST be serialized as canonical Jubjub points. Verifiers MUST reject malformed commitment points and MUST reject identity commitments unless the deployment explicitly allows them for a specific field.
 
@@ -380,6 +382,8 @@ Where:
 - `k_lic_enc` is license encryption key material known to the user and disclosed to the LP only inside the encrypted request.
 - `request_context` includes `deployment_id`, intended LP key or LP identifier, object version, requested schema or policy information, any LP-required application metadata, and any transport binding required by the deployment profile. Transport binding MAY include an invoice ID, payment reference, transaction hash commitment, expected payment recipient, payment asset, payment amount, request expiry, or off-chain authorization data.
 
+If the request object, request reference, payment memo, or availability payload is stored on-chain or otherwise published as persistent online protocol data, it MUST NOT contain `canonical_attributes`, disclosed attribute values, or `attr_opening`, even inside encrypted fields. An LP that needs personal data to evaluate eligibility MUST collect or verify it through an off-chain process that is not republished as a contract-stored request or license object. The only attribute-derived value allowed in such blockchain-visible request material is a schema-scoped digest or commitment, such as `attr_data` or a hash binding supplied by the selected request profile.
+
 The request ID is:
 
 `request_id = H[CITADEL_REQUEST_ID_V1](version, deployment_id, rsa, enc)`
@@ -390,7 +394,7 @@ After decryption, the LP MUST check that `request_context` matches the visible r
 
 Request delivery is selected by the deployment or application profile. Acceptable transports include an authenticated off-chain channel, an in-person handoff such as a QR code, a payment transaction memo or equivalent transaction metadata field, or an optional authenticated availability layer. The base Citadel contract MUST NOT be assumed to store or make requests available. If a deployment adds a contract-backed request registry, it is an extension and MUST specify insertion authorization, retention, retrieval, payload size limits, duplicate handling, fees, and spam policy.
 
-If a request is carried in payment transaction metadata, the request payload MUST be encrypted unless public-address or public-request disclosure is an explicit application choice. The LP MUST verify payment finality, payment recipient, asset, amount, memo or payload size limits, and the binding between the payment or invoice and `request_id` or `lsa` before issuance. If the transaction metadata cannot fit the complete request, it MAY carry a request reference plus a cryptographic hash of the referenced request object. The referenced payload MUST be fetched from an authenticated source or verified against the hash before use.
+If a request is carried in payment transaction metadata, the request payload MUST be encrypted unless public-address or public-request disclosure is an explicit application choice. This exception permits disclosure of non-personal request-routing fields only; it does not permit `canonical_attributes`, disclosed attribute values, or `attr_opening` to be placed in blockchain-visible metadata. The LP MUST verify payment finality, payment recipient, asset, amount, memo or payload size limits, and the binding between the payment or invoice and `request_id` or `lsa` before issuance. If the transaction metadata cannot fit the complete request, it MAY carry a request reference plus a cryptographic hash of the referenced request object. The referenced payload MUST be fetched from an authenticated source or verified against the hash before use.
 
 If privacy is not required, the user MAY provide `lsa` and license encryption material through an authenticated channel, or MAY provide a static public address or direct-issuance target as specified in Section 8.4. Public-address issuance is a lower-privacy mode because the LP can associate the issued license with the disclosed address, account, payment, or in-person identity.
 
@@ -403,16 +407,19 @@ Fields:
 - `version`
 - `deployment_id`
 - `lsa` or visible `lpk` coordinates: license stealth address or visible license public key coordinates needed to compute the registry leaf
-- `enc`: AEAD encryption of `sig_lic || attr_data || license_context`
+- `enc`: AEAD encryption of `sig_lic || attr_data || pk_lp || license_context`
 
 Where:
 
 - `lpk = lsa.lpk` is the license public key.
-- `attr_data` is a canonical scalar or field digest representing the signed license attributes.
-- `license_context` contains, or is authenticated by, the LP public key or `pk_lp.A` signing point, schema ID, issuance metadata, expiration or no-expiration marker, and deployment context needed by wallets to verify and interpret the license.
+- `attr_data` is the schema-scoped value signed by the LP. For schemas that contain personal or user-specific data, it MUST be a digest of `canonical_attributes` as defined in Section 11.
+- `pk_lp` is the full Phoenix public key of the License Provider, encoded in the same canonical public-key or address format used by wallets and SP issuer-trust profiles. Its `A` component is the signing point used for `sig_lic` and the point committed by `com_0` in later sessions.
+- `license_context` contains schema ID, issuance metadata, expiration or no-expiration marker when that marker is not personal data, and deployment context needed by wallets to verify and interpret the license. User-specific validity or revocation fields that are personal data MUST be represented through `canonical_attributes` and `attr_data`, then disclosed or proven according to the selected SP profile.
 - `sig_lic` is the LP signature over:
 
   `msg_lic = H[CITADEL_LICENSE_SIG_MSG_V1](lpk.u, lpk.v, attr_data)`
+
+A contract-stored license payload MUST NOT contain `canonical_attributes`, disclosed attribute values, or `attr_opening`, whether plaintext or encrypted. The license payload gives the wallet the signed digest, LP full public key, and non-personal interpretation metadata; it does not provide an encrypted online backup of the user's personal data.
 
 The registry leaf is:
 
@@ -454,7 +461,7 @@ The base disclosure cookie sent by the user to the SP is a versioned envelope co
 - `r_session`
 - `pk_lp` or the issuer identifier required by the policy
 - `attr_data`
-- optional attribute opening data, such as disclosed attributes and `r_attr`, when `attr_data` is a digest and the base profile requires semantic verification without a separate proof
+- optional off-chain attribute opening data, such as disclosed attributes and `r_attr`, when `attr_data` is a digest and the base profile requires semantic verification without a separate proof
 - `c`
 - `s_0`
 - `s_1`
@@ -463,7 +470,7 @@ The base disclosure cookie sent by the user to the SP is a versioned envelope co
 
 Here `pk_sp` and `pk_lp` are full Phoenix public keys unless the selected profile identifies services or issuers by another canonical identifier. The base protocol binds the session to `pk_sp.A` and commits to `pk_lp.A`.
 
-The base cookie reveals the openings needed by the SP. In the base mode, `attr_data` is disclosed to the SP. If `attr_data` is a digest, the SP cannot check the underlying attribute semantics unless the cookie also discloses a valid opening or the user provides a selective-disclosure proof.
+The base cookie reveals the openings needed by the SP. In the base mode, `attr_data` is disclosed to the SP. If `attr_data` is a digest, the SP cannot check the underlying attribute semantics unless the user also discloses a valid opening over the off-chain service channel or provides a selective-disclosure proof. Cookies and attribute openings are off-chain service credentials; wallets and SPs MUST NOT submit them to the blockchain or publish them as persistent online protocol data.
 
 The base session cookie is a bearer credential unless the selected SP profile adds binding. Anyone who obtains it can attempt to replay it to the SP. SPs MUST treat cookies as sensitive credentials and MUST define a replay policy before using Citadel for real service access.
 
@@ -471,7 +478,7 @@ The cookie or the surrounding authenticated request MUST identify the SP policy 
 
 ### 6.5 Selective-Disclosure Cookie
 
-In selective-disclosure mode, the user does not reveal the `com_1` opening directly. The cookie contains the same envelope fields as the base cookie, but `attr_data` and `s_1` MAY be omitted or replaced by disclosed attributes and an off-chain predicate proof, depending on the SP profile.
+In selective-disclosure mode, the user does not reveal the `com_1` opening directly. The cookie contains the same envelope fields as the base cookie, but `attr_data` and `s_1` MAY be omitted or replaced by disclosed attributes and an off-chain predicate proof, depending on the SP profile. The proof uses `canonical_attributes` and `attr_opening` supplied by the user from local knowledge or a non-chain issuance workflow; they are not recovered from the contract-stored license payload.
 
 The SP profile MUST define the public inputs and statement of the selective-disclosure proof.
 
@@ -570,9 +577,9 @@ The user creates a license destination and delivers an issuance request to the L
    - a payment transaction memo or equivalent transaction metadata field;
    - an authenticated off-chain availability layer or optional contract-backed request extension.
 
-If the request is embedded in transaction metadata, the user MUST respect the transport's size and encoding limits. The user MUST NOT place `lsk` in the request or memo. The user SHOULD send an encrypted request object, or a request reference plus a hash, unless public-address or public-request disclosure is an explicit application choice.
+If the request is embedded in transaction metadata, the user MUST respect the transport's size and encoding limits. The user MUST NOT place `lsk`, `canonical_attributes`, disclosed attribute values, or `attr_opening` in the request or memo. The user SHOULD send an encrypted request object, or a request reference plus a hash, unless public-address or public-request disclosure is an explicit application choice for non-personal fields.
 
-The request is not base contract state by default. It MUST NOT reveal the user's static key, license secret key, or license attributes unless the user intentionally selects a public or direct-issuance mode.
+The request is not base contract state by default. It MUST NOT reveal the user's license secret key, `canonical_attributes`, disclosed attribute values, or `attr_opening`. Public or direct-issuance modes may intentionally reveal a static public key, account, payment, or routing context to the LP, but they do not permit personal data to be published on-chain or in contract-stored objects.
 
 ### 8.2 LP Processes A Request
 
@@ -599,7 +606,7 @@ The recovered `lsa` tells the LP where to issue the license. It does not reveal 
 
 If the request or direct-issuance input is accepted, the LP creates a license.
 
-1. Define the attribute schema and canonical attributes.
+1. Define the attribute schema and `canonical_attributes` from the accepted eligibility process. If the attributes contain personal or user-specific data, the LP MUST NOT place those values in any contract-stored request, license, event, memo, or persistent availability payload.
 2. Compute schema-scoped `attr_data` as specified by the schema. See Section 11.
 3. Compute:
 
@@ -609,7 +616,7 @@ If the request or direct-issuance input is accepted, the LP creates a license.
 
    `sig_lic = SchnorrSign(sk_lp.a, msg_lic)`
 
-5. Encrypt `sig_lic || attr_data || license_context` under `k_lic_enc` or the deployment-defined direct-issuance license encryption key with AEAD and context-bound associated data.
+5. Encrypt `sig_lic || attr_data || pk_lp || license_context` under `k_lic_enc` or the deployment-defined direct-issuance license encryption key with AEAD and context-bound associated data. The included `pk_lp` MUST be the full canonical Phoenix public key whose `A` component verifies `sig_lic`. The plaintext MUST NOT include `canonical_attributes`, disclosed attribute values, or `attr_opening`.
 
 6. Publish `License { version, deployment_id, lsa, enc }`.
 
@@ -643,11 +650,13 @@ For each license:
 2. Check whether `lsa` belongs to the user by deriving the stealth secret.
 3. Derive the applicable license decryption key.
 4. AEAD-decrypt the encrypted payload.
-5. Identify the LP signing point from `license_context`, publication channel, or deployment profile.
-6. Verify the LP signature over `msg_lic` using a trusted `pk_lp.A` signing point.
+5. Recover and validate the full `pk_lp` from the encrypted payload. Its canonical encoding MUST match the deployment's Phoenix public-key rules, and its `A` component is the LP signing point for this license.
+6. Verify the LP signature over `msg_lic` using `pk_lp.A`, and compare `pk_lp` or `pk_lp.A` against the wallet's trusted issuer configuration according to the selected issuer-identifier rule.
 7. Check that the decrypted `attr_data` matches the expected schema and deployment profile.
 8. Verify that the computed `license_hash` is registered under an accepted root.
-9. Record the license position, current accepted root, and Merkle opening.
+9. Record the license position, current accepted root, Merkle opening, `attr_data`, and full `pk_lp`.
+
+The contract-stored license payload does not contain `canonical_attributes` or `attr_opening`. A user can use a selective-disclosure profile only if the wallet or user already has the underlying personal data and opening material needed by that schema, for example from local entry, local storage, or a non-chain issuance workflow.
 
 The user SHOULD keep the newest valid license only if the application profile defines "newest wins". Otherwise, multiple licenses may be independently valid.
 
@@ -691,7 +700,7 @@ The user prepares the remaining private witness values:
 
 - `sig_lic`: LP signature on `msg_lic`.
 - `pk_lp.A`: LP signing point.
-- `attr_data`: signed attribute scalar or digest.
+- `attr_data`: signed schema-scoped attribute value. For schemas containing personal or user-specific data, this is a digest of `canonical_attributes`, not the raw attributes.
 - `c`: SP policy challenge value.
 - `r_session`: fresh session randomness. It MUST NOT be reused with the same `pk_sp.A`; reuse can make sessions linkable.
 - `s_0`, `s_1`, `s_2`: fresh commitment randomness.
@@ -754,7 +763,7 @@ For the base disclosure cookie, the SP MUST verify:
 8. `attr_data * G + s_1 * G' == session.com_1`.
 9. `c * G + s_2 * G' == session.com_2`.
 10. `pk_lp` or `pk_lp.A`, according to the profile identifier rule, is in the SP's accepted issuer set for this policy.
-11. `attr_data` satisfies the SP's accepted schema and attribute policy. If `attr_data` is a digest, the cookie must disclose the attributes and blinding needed to open it, or the user must provide the selective-disclosure proof required by the profile.
+11. `attr_data` satisfies the SP's accepted schema and attribute policy. If `attr_data` is a digest, the user must either disclose the required attributes and opening material over the off-chain service channel or provide the selective-disclosure proof required by the profile. The SP MUST NOT infer attribute semantics from the contract-stored license payload, because it contains only the digest and non-personal metadata.
 12. `c` exactly matches the SP's challenge policy.
 13. The session root satisfies the SP's freshness policy.
 14. Expiration and revocation requirements are satisfied.
@@ -794,6 +803,8 @@ Private witnesses:
 - `s_2`
 - `sig_session_auth`
 - Merkle opening
+
+`canonical_attributes` and `attr_opening` are not witnesses in the base license circuit. They are used only by off-chain base-cookie opening or by a separate selective-disclosure proof profile.
 
 `lpk` and `lpk_p` are private witness points. The circuit does not compute `lpk = lsk * G` or `lpk_p = lsk * G'`, and `lsk` is not a circuit witness. The relation between `lpk`, `lpk_p`, and the user's license secret is proved by the double-key Schnorr verification.
 
@@ -857,37 +868,45 @@ These are examples. SPs MAY define other profiles, but they MUST be exact and ve
 
 ## 11. Attributes And Disclosure
 
-### 11.1 Attribute Data
+### 11.1 Canonical Attributes, Openings, And `attr_data`
 
-`attr_data` is the value signed by the LP and committed in the session.
+`canonical_attributes` are the schema-defined attribute values about the user or license holder. They can include personal data, eligibility facts, validity intervals, revocation handles, or other claims that an LP evaluates and signs. Each schema defines the exact canonical serialization, normalization rules, field order, type tags, and byte-to-field or hash-to-field mapping for these values.
+
+`attr_data` is the value signed by the LP and committed in the on-chain session. For every schema that contains personal or user-specific data, `attr_data` MUST be a schema-scoped digest of `canonical_attributes`, not a direct encoding of the personal data:
+
+`attr_data = H[CITADEL_ATTR_DATA_V1](schema_id, canonical_attributes, r_attr)`
+
+where `r_attr` is fresh attribute blinding randomness or another schema-defined opening secret. If `canonical_attributes` are larger than the native Poseidon input capacity, the schema MUST define a canonical chunking, Merkleization, or prehashing rule before this digest is computed. The resulting `attr_data` MUST be represented as a canonical scalar or field element before it is signed, committed, or used in a circuit.
+
+The following privacy rule is normative for all conforming base deployments: `canonical_attributes`, disclosed attribute values, and `attr_opening` MUST NOT appear in blockchain-published data, contract state, contract events, payment memos, request-availability payloads, or contract-stored encrypted license blobs, whether plaintext or encrypted. The only attribute-derived values that may appear in those places are schema-scoped hashes, commitments, or digests such as `attr_data`; public sessions store only `com_1`, a Pedersen commitment to `attr_data`.
+
+This means the contract-stored encrypted license is not an encrypted online backup of the user's personal data. A license recipient can later use a selective-disclosure profile only if the recipient already knows the relevant `canonical_attributes` and has the opening material required by the schema, such as `r_attr`. Wallets SHOULD store `attr_opening` locally or derive it deterministically from local secrets and issuance context. They MUST NOT rely on recovering personal data from the contract-stored license payload.
 
 Every supported attribute schema MUST define:
 
 - schema ID and version;
-- canonical serialization;
-- byte-to-field or hash-to-field mapping;
+- canonical serialization and normalization rules for `canonical_attributes`;
+- byte-to-field, chunking, Merkleization, or hash-to-field mapping;
 - required and optional fields;
+- which fields are personal or user-specific;
 - issuer scope;
 - service or policy scope, if applicable;
 - issuance time, expiration time, or explicit no-expiration marker;
 - revocation handle or explicit no-revocation marker, if applicable;
+- how `r_attr` or equivalent opening material is generated, stored, and used;
 - privacy mode: base disclosure or selective disclosure.
 
-`attr_data` MUST be schema-scoped. For base disclosure, `attr_data` MAY be a directly encoded scalar only if the schema, version, and semantics are unambiguous from that scalar and the SP profile. More commonly:
+A directly encoded `attr_data` scalar is permitted only for non-personal, non-user-specific schema values whose semantics are unambiguous from the schema and SP profile, such as a coarse public license class. It MUST NOT be used for names, identifiers, dates of birth, addresses, contact data, biometric data, account identifiers, unique membership numbers, or other personal or linkable user-specific fields.
 
-`attr_data = H[CITADEL_ATTR_DATA_V1](schema_id, canonical_attributes, r_attr)`
-
-where `r_attr` is fresh attribute blinding randomness known to the user and LP.
-
-If `attr_data` is a digest, the SP cannot infer its semantics from the base cookie unless the user also discloses the attributes and `r_attr`, or provides a selective-disclosure proof.
+In base disclosure mode, `attr_data` is disclosed to the SP. If `attr_data` is a digest, the SP cannot check the underlying attribute semantics unless the user also discloses the necessary `canonical_attributes` and `attr_opening` over the off-chain service channel, or provides a selective-disclosure proof. Base disclosure of personal data is an intentional off-chain disclosure to that SP profile and MUST NOT be submitted to the blockchain.
 
 Because the LP knows the `attr_data` it signed, base disclosure of `attr_data` can be a stable correlation handle if the LP and SP collude. A profile that needs issuer-verifier unlinkability SHOULD use selective disclosure or another profile that does not reveal an LP-known value to the SP.
 
-Attributes SHOULD include expiration or validity information unless the license is intentionally permanent.
+Attributes SHOULD include expiration or validity information unless the license is intentionally permanent. If expiration or revocation fields are personal or user-specific, they follow the same digest-and-disclose/prove rule as other attributes.
 
 ### 11.2 Selective Disclosure
 
-Base disclosure reveals `attr_data` or the data needed to interpret it to the SP. For privacy-sensitive services, an SP SHOULD use a selective-disclosure profile.
+For privacy-sensitive services, an SP SHOULD use a selective-disclosure profile. In this mode, the SP learns only the disclosed attributes and predicate result defined by its profile; it does not learn `attr_data`, `s_1`, hidden attributes, or hidden opening material unless the profile explicitly discloses them.
 
 A selective-disclosure profile defines an off-chain proof with public inputs such as:
 
@@ -902,14 +921,14 @@ A selective-disclosure profile defines an off-chain proof with public inputs suc
 
 The private witnesses include:
 
-- hidden attributes;
-- `r_attr`;
+- hidden `canonical_attributes`;
+- `r_attr` or equivalent `attr_opening`;
 - `attr_data`;
 - `s_1`.
 
 The proof MUST show:
 
-1. `attr_data = H[CITADEL_ATTR_DATA_V1](schema_id, canonical_attributes, r_attr)`.
+1. `attr_data = H[CITADEL_ATTR_DATA_V1](schema_id, canonical_attributes, r_attr)`, or the schema-defined equivalent digest construction.
 2. `com_1 = attr_data * G + s_1 * G'`.
 3. The attributes satisfy the SP's predicate.
 4. Any disclosed attributes are consistent with the hidden committed attributes.
@@ -925,7 +944,7 @@ The base registry is append-only membership. It proves that a license was regist
 
 Deployments and SPs MUST NOT claim revocation support unless they implement one of the following:
 
-- signed expiration or validity interval in `attr_data`, enforced by the SP;
+- expiration or validity interval committed by `attr_data` and either disclosed or proven to the SP;
 - SP-maintained deny list keyed by session, account, disclosed credential, or other application identifier;
 - contract-maintained revocation or status accumulator with a circuit proof of non-revocation;
 - epoch-specific roots with strict root freshness and migration rules.
@@ -966,11 +985,11 @@ For long-lived sessions, the SP SHOULD bind access to an authenticated account o
 On-chain observers see:
 
 - request payloads, payment memos, transaction notes, or request references when the selected transport publishes them on-chain;
-- encrypted license blobs;
+- encrypted license blobs, which in a conforming deployment contain `attr_data`, `pk_lp`, signatures, and non-personal metadata, but not `canonical_attributes` or `attr_opening`;
 - license stealth addresses;
 - license hashes;
 - Merkle roots;
-- session public inputs;
+- session public inputs, including `com_1` as a commitment to `attr_data`;
 - transaction timing and fees.
 
 They should not learn:
@@ -979,7 +998,8 @@ They should not learn:
 - the user wallet public key;
 - the LP public key used in the proof;
 - the SP public key used in the session;
-- signed attributes;
+- signed personal attributes or `canonical_attributes`;
+- `attr_data` from session records, except if the user later discloses it off-chain or a nonconforming deployment publishes it;
 - challenge value;
 - Merkle path.
 
@@ -989,9 +1009,9 @@ These privacy properties rely on fresh randomness, valid commitments, PlonK zero
 
 The LP learns whatever the user discloses during license request review, payment processing, direct handoff, and the attributes it signs. In encrypted request-based issuance, the LP does not learn the user's static public key from the cryptographic request alone unless the request context, payment channel, network metadata, or business process reveals it.
 
-The SP learns whatever is disclosed by the selected cookie mode and policy proof. In base mode, it learns `attr_data` or enough data to interpret it.
+The SP learns whatever is disclosed by the selected cookie mode and policy proof. In base mode, it learns `attr_data` and, when required by the profile, any attributes and opening material the user intentionally discloses over the off-chain service channel. In selective-disclosure mode, it learns only the disclosed attributes and predicate results defined by the profile.
 
-If the LP also knows that same `attr_data`, the value itself can link issuance and service use under LP/SP collusion.
+If the LP also knows a disclosed `attr_data` value, that value itself can link issuance and service use under LP/SP collusion. Selective-disclosure profiles avoid revealing `attr_data` to the SP unless the profile deliberately makes it public.
 
 If the LP and SP collude, unique attributes, request metadata, payment memo metadata, timing, payments, network metadata, or direct issuance can link issuance to service use. Citadel does not prevent correlation through non-cryptographic side channels.
 
@@ -1031,6 +1051,8 @@ A deployment conforms to this specification only if:
 - every external point and scalar is canonically validated;
 - circuit witness points are constrained to valid non-identity subgroup points;
 - request-object encryption, when used, and license encryption are authenticated and context-bound;
+- contract-stored licenses include the full canonical `pk_lp`, and `pk_lp.A` matches the LP signature verification key;
+- blockchain-published requests, payment memos, availability payloads, contract events, and contract-stored encrypted license blobs do not contain `canonical_attributes`, disclosed attribute values, or `attr_opening`, whether plaintext or encrypted;
 - request transport, replay handling, payment binding, retention, duplicate handling, size limits, fees, and spam controls are explicit when request objects are used;
 - gas-only spam control, if used for license insertion or an optional request-availability extension, is explicitly justified by deployment economics and operational cost assumptions;
 - license hashes are derived from visible license public key data;
@@ -1047,7 +1069,7 @@ A deployment conforms to this specification only if:
 - SPs treat cookies as bearer credentials unless they add binding;
 - selective-disclosure proofs are bound to the intended session, deployment, policy, cookie mode, and SP challenge or nonce;
 - expiration and revocation are not claimed unless implemented by the profile;
-- attribute schemas are canonical, schema-scoped, and versioned;
+- attribute schemas are canonical, schema-scoped, versioned, and explicit about which fields are personal or user-specific;
 - direct issuance is marked as a lower-privacy mode.
 
 ## 16. Minimal Safe Deployment Guidance
@@ -1061,9 +1083,10 @@ For an academic or prototype deployment:
 - allow-list LP issuers or require fees for registry insertion;
 - keep a bounded root history;
 - use base disclosure only for non-sensitive attributes;
+- do not store encrypted personal data in request objects, payment memos, availability payloads, or license blobs that are written to the blockchain or otherwise published as persistent online protocol data;
 - use fixed or policy-derived challenges bound to deployment, SP, service, and policy context, never arbitrary user challenges;
 - treat cookies as one-time unless the service is explicitly reusable;
-- include expiration in attributes;
+- include expiration in attributes and require wallets to keep any `attr_opening` needed for later disclosure or selective-disclosure proofs;
 - document that protocol-level revocation is not available unless a status extension is deployed.
 
 For production deployments, Citadel should undergo implementation review, circuit review, verifier-key review, dependency review, deployment-parameter review, contract-state economics review, and operational security review in addition to this protocol specification.
