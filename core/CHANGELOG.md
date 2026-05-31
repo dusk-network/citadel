@@ -7,16 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-05-31
+
 ### Added
 
-- Add `circuit` module
-- Add `LicenseOrigin`
-- Add crate documentation
+- Add deployment metadata, domain-separated helper APIs, and named public input
+  indices for the base license-use circuit.
+- Add request-bound issuance helpers and license encryption key derivation for
+  request-based issuance.
+- Add `LicensePayload` and `License::open` for decrypting and validating
+  licenses with the full LP Phoenix public key.
+- Add session-cookie verification policy support for issuer matching by either
+  full LP public key or LP signing point.
+- Add helpers for schema-scoped attribute digests from canonical attributes.
 
 ### Changed
 
-- Refactor the crate [#98]
-- Update dependencies
+- Change the encrypted license payload to carry
+  `sig_lic || attr_data || pk_lp || license_context`.
+- Change license verification and circuit parameter generation to use `pk_lp.A`
+  from the decrypted full LP key.
+- Change session verification to validate disclosed SP and LP public keys before
+  cryptographic use.
+- Change the license-use circuit implementation to keep the public input order
+  fixed while using the updated license payload format.
+- Update dependencies for the current Dusk, Phoenix, Poseidon Merkle, and PlonK
+  crate versions.
+
+### Removed
+
+- Remove the old license-context issuer field in favor of the full LP key in the
+  encrypted license payload.
 
 ## [0.14.0] - 2024-08-14
 
@@ -194,7 +215,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#21]: https://github.com/dusk-network/citadel/issues/21
 
 <!-- VERSIONS -->
-[Unreleased]: https://github.com/dusk-network/citadel/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/dusk-network/citadel/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/dusk-network/citadel/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/dusk-network/citadel/compare/v0.12.0...v0.14.0
 [0.12.0]: https://github.com/dusk-network/citadel/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/dusk-network/citadel/compare/v0.10.0...v0.11.0
