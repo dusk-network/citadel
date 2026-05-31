@@ -46,6 +46,8 @@ pub enum Error {
     WrongChallengeComm,
     /// The result of the session hash is incorrect
     WrongSessionHash,
+    /// A public key in the cookie or selected policy is malformed
+    InvalidPublicKey,
 }
 
 impl fmt::Display for Error {

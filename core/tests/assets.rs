@@ -10,11 +10,12 @@ use phoenix_core::{PublicKey, SecretKey};
 use rand_core::OsRng;
 
 use zk_citadel::{
-    AttributeOpening, Error as CitadelError, License, LicenseOrigin, Request, Session,
-    SessionCookie, SessionPolicy,
+    AttributeOpening, Error as CitadelError, License, LicenseOptions, LicenseOrigin, Request,
+    Session, SessionCookie, SessionPolicy,
     helpers::{
         COOKIE_MODE_BASE, DEFAULT_DEPLOYMENT, Deployment, OBJECT_VERSION_V1, PI_COM_1_X,
-        PI_COM_1_Y, attr_data as compute_attr_data, lp_commitment, request_id, session_hash,
+        PI_COM_1_Y, attr_data as compute_attr_data, attr_data_from_canonical_attributes,
+        lp_commitment, request_id, session_hash,
     },
 };
 
@@ -95,11 +96,14 @@ fn request_bound_license_enforces_deployment_and_intended_lp() {
         request_id(deployment, req.version, &req.rsa, &req.enc)
     );
 
-    let license = License::new_with_deployment(
+    let license = License::new(
         &attr_data,
         &sk_lp,
         &LicenseOrigin::FromRequest(Box::new(req)),
-        deployment,
+        LicenseOptions {
+            deployment,
+            ..LicenseOptions::default()
+        },
         &mut OsRng,
     )
     .expect("matching LP and deployment should issue from request");
@@ -110,11 +114,14 @@ fn request_bound_license_enforces_deployment_and_intended_lp() {
         Request::new_with_deployment(&sk_user, &pk_user, &pk_lp, deployment, &mut OsRng)
             .expect("request should be created");
     assert!(
-        License::new_with_deployment(
+        License::new(
             &attr_data,
             &sk_lp,
             &LicenseOrigin::FromRequest(Box::new(wrong_deployment_req)),
-            other_deployment,
+            LicenseOptions {
+                deployment: other_deployment,
+                ..LicenseOptions::default()
+            },
             &mut OsRng,
         )
         .is_err()
@@ -124,11 +131,14 @@ fn request_bound_license_enforces_deployment_and_intended_lp() {
         Request::new_with_deployment(&sk_user, &pk_user, &pk_lp, deployment, &mut OsRng)
             .expect("request should be created");
     assert!(
-        License::new_with_deployment(
+        License::new(
             &attr_data,
             &sk_other_lp,
             &LicenseOrigin::FromRequest(Box::new(wrong_lp_req)),
-            deployment,
+            LicenseOptions {
+                deployment,
+                ..LicenseOptions::default()
+            },
             &mut OsRng,
         )
         .is_err()
@@ -143,16 +153,89 @@ fn direct_license_carries_selected_deployment() {
     let attr_data = JubJubScalar::from(456u64);
     let deployment = test_deployment(9);
 
-    let license = License::new_with_deployment(
+    let license = License::new(
         &attr_data,
         &sk_lp,
         &LicenseOrigin::FromPublicKey(Box::new(pk_user)),
-        deployment,
+        LicenseOptions {
+            deployment,
+            ..LicenseOptions::default()
+        },
         &mut OsRng,
     )
     .expect("direct issuance should succeed");
 
     assert_eq!(license.deployment_id, deployment.id);
+}
+
+#[test]
+fn license_payload_round_trip_carries_full_lp_key() {
+    let sk_user = SecretKey::random(&mut OsRng);
+    let pk_user = PublicKey::from(&sk_user);
+    let sk_lp = SecretKey::random(&mut OsRng);
+    let pk_lp = PublicKey::from(&sk_lp);
+    let attr_data = JubJubScalar::from(789u64);
+    let schema_id = BlsScalar::from(31u64);
+
+    let license = License::new(
+        &attr_data,
+        &sk_lp,
+        &LicenseOrigin::FromPublicKey(Box::new(pk_user)),
+        LicenseOptions {
+            schema_id,
+            issued_at: BlsScalar::from(32u64),
+            expires_at: BlsScalar::from(33u64),
+            revocation_id: BlsScalar::from(34u64),
+            ..LicenseOptions::default()
+        },
+        &mut OsRng,
+    )
+    .expect("direct issuance should succeed");
+
+    let payload = license
+        .open(&sk_user)
+        .expect("owner should decrypt license");
+    assert_eq!(payload.pk_lp, pk_lp);
+    assert_eq!(
+        JubJubAffine::from(payload.pk_lp.A()),
+        JubJubAffine::from(pk_lp.A())
+    );
+    assert_eq!(payload.attr_data, attr_data);
+    assert_eq!(payload.context.version, OBJECT_VERSION_V1);
+    assert_eq!(payload.context.deployment_id, DEFAULT_DEPLOYMENT.id);
+    assert_eq!(payload.context.schema_id, schema_id);
+    assert_eq!(payload.context.issued_at, BlsScalar::from(32u64));
+    assert_eq!(payload.context.expires_at, BlsScalar::from(33u64));
+    assert_eq!(payload.context.revocation_id, BlsScalar::from(34u64));
+}
+
+#[test]
+fn attr_data_from_canonical_attributes_is_stable_and_blinded() {
+    let schema_id = BlsScalar::from(51u64);
+    let canonical_attributes = b"name=redacted;tier=academic";
+    let r_attr = JubJubScalar::from(52u64);
+
+    let first = attr_data_from_canonical_attributes(
+        DEFAULT_DEPLOYMENT,
+        schema_id,
+        canonical_attributes,
+        r_attr,
+    );
+    let second = attr_data_from_canonical_attributes(
+        DEFAULT_DEPLOYMENT,
+        schema_id,
+        canonical_attributes,
+        r_attr,
+    );
+    let blinded = attr_data_from_canonical_attributes(
+        DEFAULT_DEPLOYMENT,
+        schema_id,
+        canonical_attributes,
+        JubJubScalar::from(53u64),
+    );
+
+    assert_eq!(first, second);
+    assert_ne!(first, blinded);
 }
 
 #[test]
@@ -193,6 +276,13 @@ fn session_verify_reports_each_cookie_opening_failure() {
     session
         .verify(sc, &policy)
         .expect("matching cookie should open the session");
+
+    let signing_point_policy = SessionPolicy::new(sc.policy_id, sc.pk_sp, sc.pk_lp, sc.c)
+        .with_issuer_signing_point(JubJubAffine::from(sc.pk_lp.A()));
+    assert!(signing_point_policy.issuer.signing_point.is_some());
+    session
+        .verify(sc, &signing_point_policy)
+        .expect("matching LP signing point should be accepted");
 
     let mut wrong_deployment = sc;
     wrong_deployment.deployment_id = BlsScalar::from(1u64);

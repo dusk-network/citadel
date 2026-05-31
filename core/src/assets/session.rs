@@ -11,7 +11,8 @@ use crate::error::Error;
 use crate::helpers::{
     COOKIE_MODE_BASE, DEFAULT_DEPLOYMENT, OBJECT_VERSION_V1, PI_COM_0, PI_COM_1_X, PI_COM_1_Y,
     PI_COM_2_X, PI_COM_2_Y, PI_ROOT, PI_SESSION_HASH, PI_SESSION_ID, PUBLIC_INPUTS_LEN,
-    attr_data as compute_attr_data, lp_commitment, session_hash,
+    attr_data as compute_attr_data, lp_commitment, public_key_is_valid, public_key_point_is_valid,
+    session_hash,
 };
 
 #[cfg(feature = "rkyv-impl")]
@@ -75,6 +76,9 @@ impl Session {
     /// Method that verifies a [`SessionCookie`], by checking if all the
     /// openings and explicit policy fields match the given [`Session`].
     pub fn verify(&self, sc: SessionCookie, policy: &SessionPolicy) -> Result<(), Error> {
+        validate_public_key(&sc.pk_sp)?;
+        validate_public_key(&policy.pk_sp)?;
+
         if sc.version != policy.cookie_version {
             return Err(Error::WrongCookieVersion);
         }
@@ -99,7 +103,7 @@ impl Session {
             return Err(Error::WrongServiceProvider);
         }
 
-        if sc.pk_lp != policy.pk_lp {
+        if !policy.issuer.matches(&sc.pk_lp)? {
             return Err(Error::WrongLicenseProvider);
         }
 
@@ -174,6 +178,53 @@ pub struct AttributeOpening {
     pub r_attr: JubJubScalar,
 }
 
+/// Issuer identifier rule used by a Service Provider policy.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct IssuerIdentifier {
+    /// Full canonical LP Phoenix public key, when the profile identifies issuers by full key.
+    pub full_public_key: Option<PublicKey>,
+    /// LP signing point `pk_lp.A`, when the profile identifies issuers by signing point.
+    pub signing_point: Option<JubJubAffine>,
+}
+
+impl IssuerIdentifier {
+    /// Creates an issuer identifier that trusts a full LP public key.
+    pub fn full_public_key(pk_lp: PublicKey) -> Self {
+        Self {
+            full_public_key: Some(pk_lp),
+            signing_point: None,
+        }
+    }
+
+    /// Creates an issuer identifier that trusts an LP signing point.
+    pub fn signing_point(pk_lp_a: JubJubAffine) -> Self {
+        Self {
+            full_public_key: None,
+            signing_point: Some(pk_lp_a),
+        }
+    }
+
+    fn matches(self, pk_lp: &PublicKey) -> Result<bool, Error> {
+        validate_public_key(pk_lp)?;
+
+        if let Some(expected) = self.full_public_key {
+            validate_public_key(&expected)?;
+            if expected == *pk_lp {
+                return Ok(true);
+            }
+        }
+
+        if let Some(expected_a) = self.signing_point {
+            validate_public_key_point(expected_a)?;
+            if JubJubAffine::from(pk_lp.A()) == expected_a {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
+    }
+}
+
 /// SP policy profile selected before verifying a base session cookie.
 #[derive(Debug, Clone, Copy)]
 pub struct SessionPolicy {
@@ -187,8 +238,8 @@ pub struct SessionPolicy {
     pub policy_id: BlsScalar,
     /// SP service key that the session hash must bind to.
     pub pk_sp: PublicKey,
-    /// Accepted issuer key for this prototype policy.
-    pub pk_lp: PublicKey,
+    /// Accepted issuer identifier for this policy.
+    pub issuer: IssuerIdentifier,
     /// Exact challenge accepted by this policy.
     pub challenge: JubJubScalar,
     /// Optional exact attribute-data value required by this policy.
@@ -213,12 +264,18 @@ impl SessionPolicy {
             cookie_mode: COOKIE_MODE_BASE,
             policy_id,
             pk_sp,
-            pk_lp,
+            issuer: IssuerIdentifier::full_public_key(pk_lp),
             challenge,
             expected_attr_data: None,
             expected_root: None,
             require_attribute_opening: false,
         }
+    }
+
+    /// Accepts an issuer by signing point instead of full Phoenix public key.
+    pub fn with_issuer_signing_point(mut self, pk_lp_a: JubJubAffine) -> Self {
+        self.issuer = IssuerIdentifier::signing_point(pk_lp_a);
+        self
     }
 
     /// Sets a non-default deployment for this policy.
@@ -248,14 +305,32 @@ impl SessionPolicy {
 
 fn checked_point(x: BlsScalar, y: BlsScalar) -> Result<JubJubExtended, Error> {
     let affine = JubJubAffine::from_raw_unchecked(x, y);
-    if !bool::from(affine.is_on_curve())
-        || !bool::from(affine.is_prime_order())
-        || affine == JubJubAffine::identity()
+    validate_commitment_point(affine)?;
+
+    Ok(JubJubExtended::from(affine))
+}
+
+fn validate_commitment_point(point: JubJubAffine) -> Result<(), Error> {
+    if !bool::from(point.is_on_curve())
+        || !bool::from(point.is_prime_order())
+        || point == JubJubAffine::identity()
     {
         return Err(Error::InvalidCommitment);
     }
 
-    Ok(JubJubExtended::from(affine))
+    Ok(())
+}
+
+fn validate_public_key(pk: &PublicKey) -> Result<(), Error> {
+    public_key_is_valid(pk)
+        .then_some(())
+        .ok_or(Error::InvalidPublicKey)
+}
+
+fn validate_public_key_point(point: JubJubAffine) -> Result<(), Error> {
+    public_key_point_is_valid(point)
+        .then_some(())
+        .ok_or(Error::InvalidPublicKey)
 }
 
 /// The struct defining a session cookie, a secret value

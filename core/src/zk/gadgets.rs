@@ -367,19 +367,20 @@ impl<const DEPTH: usize> GadgetParameters<DEPTH> {
             }
         };
 
-        let (sig_lic, attr_data, context) = decode_license_plaintext(&dec)?;
-        if context.version != lic.version
-            || context.deployment_id != lic.deployment_id
-            || context.issuer != *pk_lp
+        let payload = decode_license_plaintext(&dec)?;
+        if payload.context.version != lic.version
+            || payload.context.deployment_id != lic.deployment_id
+            || payload.pk_lp != *pk_lp
         {
             return Err(phoenix_core::Error::InvalidData);
         }
 
         let lpk = JubJubAffine::from(*lic.lsa.note_pk().as_ref());
         let lpk_p = JubJubAffine::from(GENERATOR_NUMS_EXTENDED * lsk.as_ref());
-        let pk_lp_a = JubJubAffine::from(*pk_lp.A());
-        let message = crate::helpers::license_sig_message(DEFAULT_DEPLOYMENT, lpk, attr_data);
-        if !sig_lic.verify(DEFAULT_DEPLOYMENT, pk_lp_a, message) {
+        let pk_lp_a = JubJubAffine::from(*payload.pk_lp.A());
+        let message =
+            crate::helpers::license_sig_message(DEFAULT_DEPLOYMENT, lpk, payload.attr_data);
+        if !payload.sig_lic.verify(DEFAULT_DEPLOYMENT, pk_lp_a, message) {
             return Err(phoenix_core::Error::InvalidData);
         }
 
@@ -394,7 +395,7 @@ impl<const DEPTH: usize> GadgetParameters<DEPTH> {
         let session_id = session_id(DEFAULT_DEPLOYMENT, lpk_p, *c);
 
         let com_0 = lp_commitment(DEFAULT_DEPLOYMENT, pk_lp_a, s_0);
-        let com_1 = (GENERATOR_EXTENDED * attr_data) + (GENERATOR_NUMS_EXTENDED * s_1);
+        let com_1 = (GENERATOR_EXTENDED * payload.attr_data) + (GENERATOR_NUMS_EXTENDED * s_1);
         let com_2 = (GENERATOR_EXTENDED * c) + (GENERATOR_NUMS_EXTENDED * s_2);
         let root = merkle_proof.root().hash;
         let auth = session_auth(
@@ -413,7 +414,7 @@ impl<const DEPTH: usize> GadgetParameters<DEPTH> {
             Self {
                 lpk,
                 lpk_p,
-                sig_lic,
+                sig_lic: payload.sig_lic,
 
                 com_0,
                 com_1,
@@ -431,8 +432,8 @@ impl<const DEPTH: usize> GadgetParameters<DEPTH> {
                 pk_sp: *pk_sp,
                 r_session,
                 session_id,
-                pk_lp: *pk_lp,
-                attr_data,
+                pk_lp: payload.pk_lp,
+                attr_data: payload.attr_data,
                 attr_opening: None,
                 c: *c,
                 s_0,

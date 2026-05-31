@@ -10,8 +10,8 @@ This document separates Citadel's threat model from the normative protocol speci
 
 Citadel has three cryptographic phases and one policy phase:
 
-1. **Request and issuance:** a user requests issuance to a license stealth address through a selected request transport, payment flow, or direct handoff; an LP issues an encrypted license and registers a license leaf.
-2. **License-use proof:** the user proves in zero knowledge that a hidden registered license exists, that the LP signed its attributes, and that the user knows the license secret key.
+1. **Request and issuance:** a user requests issuance to a license stealth address through a selected request transport, payment flow, or direct handoff; an LP issues an encrypted license containing the LP's full public key, `attr_data`, and a signature, and registers a license leaf. Conforming blockchain-published request and license objects do not contain personal `canonical_attributes`, even encrypted.
+2. **License-use proof:** the user proves in zero knowledge that a hidden registered license exists, that the LP signed schema-scoped `attr_data`, and that the user knows the license secret key.
 3. **Session recording:** the contract verifies the proof, checks root acceptance, rejects duplicate `session_id`, and stores public session values.
 4. **Service authorization:** the SP verifies the cookie opening and applies its own issuer, attribute, challenge, replay, revocation, expiration, and account policy.
 
@@ -25,10 +25,11 @@ Citadel protects or depends on the following assets:
 - one-time license secret keys `lsk`;
 - LP signing keys;
 - SP service keys and service-policy state;
-- signed attributes and eligibility claims;
-- attribute blinding randomness;
+- signed attribute digests and eligibility claims;
+- personal `canonical_attributes` held by the user or evaluated by the LP outside blockchain-published data;
+- attribute opening material such as `r_attr`;
 - encrypted request payloads, request transport metadata, and payment/request binding data;
-- encrypted license payloads and license metadata;
+- encrypted license payloads and license metadata, which should contain `attr_data`, full `pk_lp`, signatures, and non-personal metadata but not personal attributes;
 - session cookies and cookie openings;
 - Merkle tree state, accepted roots, and Merkle openings;
 - contract verifier key and circuit definition;
@@ -40,7 +41,7 @@ Citadel protects or depends on the following assets:
 
 ### 3.1 Passive Chain Observer
 
-Sees all public contract data, including encrypted license blobs, license stealth addresses, license hashes, roots, session public inputs, transaction timing, and fees. If the selected request transport publishes requests, request references, or payment memos on-chain, the observer also sees those payloads and their timing.
+Sees all public contract data, including encrypted license blobs, license stealth addresses, license hashes, roots, session public inputs, transaction timing, and fees. If the selected request transport publishes requests, request references, or payment memos on-chain, the observer also sees those payloads and their timing. In a conforming deployment, these blockchain-published objects may contain `attr_data` or commitments to it, but they must not contain personal `canonical_attributes` or attribute openings, whether plaintext or encrypted.
 
 Goals may include linking issuance to session use, identifying the LP or SP behind a session, inferring attributes or challenges, or tracking users across sessions.
 
@@ -64,7 +65,7 @@ Controls one or more wallets and may try to:
 
 ### 3.4 Malicious LP
 
-May sign false attributes, issue outside its policy, publish malformed or duplicate license data, spam the registry, correlate issuance metadata with later disclosures, leak issuance records, or collude with SPs.
+May sign false attributes, issue outside its policy, publish malformed or duplicate license data, spam the registry, correlate issuance metadata with later disclosures, leak issuance records, place personal data in nonconforming published payloads, or collude with SPs.
 
 A malicious LP cannot be prevented from signing arbitrary claims under its own key. SPs must decide which LP keys they trust and for which schemas.
 
@@ -76,7 +77,7 @@ Users must treat disclosed attributes and cookies as data intentionally revealed
 
 ### 3.6 LP/SP Collusion
 
-Combines issuance records, unique attributes, disclosed `attr_data`, request timing, payment memo metadata, service timing, payments, network metadata, account identifiers, and direct-issuance data to deanonymize users.
+Combines issuance records, unique attributes learned during issuance, disclosed `attr_data`, disclosed selective attributes, request timing, payment memo metadata, service timing, payments, network metadata, account identifiers, and direct-issuance data to deanonymize users.
 
 Citadel's on-chain zero knowledge does not prevent correlation through data intentionally disclosed to LPs or SPs or through external metadata.
 
@@ -88,7 +89,7 @@ Gas is an economic deterrent but not a cryptographic defense. Gas-only spam cont
 
 ### 3.8 Malicious Or Curious Proof Helper
 
-Receives proving inputs but not `lsk`. May learn metadata such as the license leaf, Merkle path, LP key, attributes, challenge, or intended service, depending on the delegated workflow.
+Receives proving inputs but not `lsk`. May learn metadata such as the license leaf, Merkle path, LP key, `attr_data`, challenge, or intended service, depending on the delegated workflow. A helper for a separate selective-disclosure proof may also learn disclosed or hidden attributes if the user chooses to delegate that proof.
 
 The helper may attempt to reuse `sig_session_auth` for a different session tuple, but the double-key session authorization signature binds the exact public inputs.
 
@@ -117,6 +118,7 @@ Citadel assumes:
 - wallets and services use fresh CSPRNG randomness or safe deterministic nonce derivation;
 - contract state is read from authenticated sources with the deployment's finality policy;
 - request transports and payment flows provide the authenticity, confidentiality, finality, and availability claimed by the selected deployment or LP profile;
+- wallets and LPs do not publish `canonical_attributes` or attribute openings to blockchain-visible requests, payment memos, events, or contract-stored encrypted license blobs;
 - SPs correctly enforce their own policy profiles;
 - LPs are trusted only for claims under keys that the SP explicitly accepts;
 - users understand that disclosed cookies are bearer credentials unless the SP profile adds binding.
@@ -165,7 +167,7 @@ This goal depends on collision resistance of the session-id hash and correct ato
 
 ### 5.7 On-Chain Privacy
 
-A passive chain observer should not learn the hidden license public key, LP key, SP key, attributes, challenge, signatures, or Merkle path from the public session record beyond what is leaked by timing, fees, root choice, and external metadata.
+A passive chain observer should not learn the hidden license public key, LP key, SP key, personal `canonical_attributes`, challenge, signatures, or Merkle path from the public session record beyond what is leaked by timing, fees, root choice, and external metadata. The public session contains a commitment to `attr_data`, not raw attributes or an encrypted copy of them.
 
 This relies on zero knowledge of the proof system, hiding of commitments, fresh session and commitment randomness, and non-reuse of stealth secrets.
 
@@ -177,7 +179,7 @@ This goal is conditional on the SP actually performing all required policy check
 
 ### 5.9 Request And License Confidentiality
 
-Encrypted request objects and license payloads should reveal no plaintext to unauthorized parties under the AEAD, KDF, DHKE, and stealth-address assumptions. Request metadata leakage is transport-dependent: payment memo timing, payload size, request references, network metadata, direct handoff context, and target LP processing behavior are not hidden by the base protocol. If a user intentionally uses public-address or public-request issuance, the disclosed fields are outside this confidentiality goal.
+Encrypted request objects and license payloads should reveal no plaintext to unauthorized parties under the AEAD, KDF, DHKE, and stealth-address assumptions. For personal data, the protocol imposes a stronger publication rule: `canonical_attributes` and attribute openings should not be placed in blockchain-published request or license objects at all, even encrypted. Request metadata leakage is transport-dependent: payment memo timing, payload size, request references, network metadata, direct handoff context, and target LP processing behavior are not hidden by the base protocol. If a user intentionally uses public-address or public-request issuance, the disclosed fields are outside this confidentiality goal.
 
 ### 5.10 Deployment Separation
 
@@ -191,13 +193,14 @@ Citadel does not by itself guarantee:
 - revocation, unless implemented by a status mechanism or SP profile;
 - current validity beyond root acceptance and disclosed/proven expiration rules;
 - cookie replay resistance;
-- resistance to LP/SP collusion through disclosed attributes or metadata;
+- resistance to LP/SP collusion through disclosed `attr_data`, disclosed attributes, issuance records, or metadata;
 - resistance to malicious LPs signing false claims;
 - resistance to voluntary sharing or sale of `lsk`;
 - availability of request delivery transports or license registry capacity;
 - privacy against network, payment, payment-memo, browser, account, or device fingerprinting;
 - policy safety when the SP accepts arbitrary user-chosen `c`;
-- protection after LP signing-key compromise unless the SP updates trust policy.
+- protection after LP signing-key compromise unless the SP updates trust policy;
+- privacy if a nonconforming wallet, LP, or deployment publishes personal `canonical_attributes` or attribute openings on-chain, even encrypted.
 
 ## 7. Attack Surface And Mitigations
 
@@ -211,9 +214,9 @@ Citadel does not by itself guarantee:
 | Signature transcripts | Cross-protocol signature replay | Dedicated signature challenge domains and deployment-bound messages |
 | Challenges | Unlimited sessions with arbitrary `c` | SP-defined exact challenge derivation and replay table |
 | Cookies | Bearer replay | One-time consumption, SP nonce, account binding, channel binding, client-key binding |
-| Attributes | Schema confusion or digest misinterpretation | Schema-scoped `attr_data`, explicit `policy_id`, canonical schemas, selective-disclosure proof profiles |
+| Attributes | Schema confusion, digest misinterpretation, or accidental publication of personal data | Schema-scoped `attr_data`, explicit `policy_id`, canonical schemas, selective-disclosure proof profiles, and a hard rule that `canonical_attributes` and attribute openings are never put in blockchain-published objects, plaintext or encrypted |
 | Revocation | Old roots or hidden status bypass revocation | Expiration in attributes, status accumulator, epoch roots, strict freshness, disclosed/proven revocation state |
-| Privacy | LP/SP collusion on `attr_data` or metadata | Selective disclosure, coarse attributes, timing mitigation, avoid direct issuance when unlinkability matters |
+| Privacy | LP/SP collusion on disclosed `attr_data`, selective attributes, or metadata | Selective disclosure that keeps `attr_data` hidden from the SP, coarse attributes, timing mitigation, avoid direct issuance when unlinkability matters |
 | Proof helpers | Metadata leakage or attempted proof mutation | Do not reveal `lsk`; double-key authorization binds exact public tuple; local proving for sensitive cases |
 
 ## 8. Gas, Contract Spam, And Request-Transport Analysis
@@ -254,7 +257,7 @@ Show that for any fixed `lsk` and `c`, all accepting proofs produce the same `se
 
 ### 9.5 On-Chain Zero Knowledge
 
-Show that public session values are simulatable without hidden license identity, LP key, attributes, challenge, signature, or path, assuming proof zero knowledge and hiding commitments.
+Show that public session values are simulatable without hidden license identity, LP key, `attr_data`, personal attributes, challenge, signature, or path, assuming proof zero knowledge and hiding commitments.
 
 ### 9.6 Cookie Opening Binding
 
@@ -276,6 +279,8 @@ Before claiming security for a deployment, reviewers should check:
 - scalar range checks are correct if `F_c` and `F_s` differ;
 - Merkle tree arity, depth, empty leaves, and path order are identical across contract, circuit, and clients;
 - request-object encryption, when used, and license encryption use context-bound AEAD associated data;
+- contract-stored license payloads include the full canonical `pk_lp` and use `pk_lp.A` consistently for signature verification and LP commitments;
+- blockchain-published requests, payment memos, availability payloads, contract events, and contract-stored encrypted license blobs contain no personal `canonical_attributes` or attribute openings, whether plaintext or encrypted;
 - request payload, payment memo, request reference, and license blob sizes are bounded by the selected transports;
 - license registry insertion policy addresses spam and tree capacity;
 - request transports define replay handling, payment binding, finality, retention, and abuse controls;

@@ -92,6 +92,9 @@ cargo test --release --test license_contract
 ```
 
 Notes:
+- Always run repository tests with `--release`. The PlonK prover path runs in
+  parallel and is much faster in release mode; debug-mode ZK tests can appear to
+  hang for a long time.
 - Contract tests include `target/prover`, `target/verifier`, and the wasm artifact, so run the contract flow before `contract` VM tests. The contract crate does not define a `zk` feature; do not pass `--features zk` to `cargo test` from `contract/`.
 - ZK tests should run in release mode with default features so `dusk-plonk/std` remains enabled. Avoid adding the slow non-default-feature ZK test path to routine docs or CI unless a specific no-std regression needs investigation.
 - `contract/build.rs` first tries to download the trusted setup from `https://nodes.dusk.network/trusted-setup` and verify its SHA-256 hash. If download fails it generates local setup material and warns that this is unsafe for real use. Do not present fallback-generated keys as deployment-ready.

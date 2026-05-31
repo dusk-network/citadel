@@ -21,14 +21,14 @@ use dusk_plonk::prelude::*;
 
 use crate::assets::{REQ_PLAINTEXT_SIZE, Request};
 use crate::helpers::{
-    DEFAULT_DEPLOYMENT, Deployment, OBJECT_VERSION_V1, license_encryption_salt,
-    license_sig_message, request_encryption_salt,
+    DEFAULT_DEPLOYMENT, Deployment, OBJECT_VERSION_V1, license_encryption_salt, license_key,
+    license_sig_message, public_key_is_valid, request_encryption_salt,
 };
 use crate::signatures::LicenseSignature;
 
 const LICENSE_CONTEXT_SIZE: usize = LicenseContext::SIZE;
 pub(crate) const LIC_PLAINTEXT_SIZE: usize =
-    LicenseSignature::SIZE + JubJubScalar::SIZE + LICENSE_CONTEXT_SIZE;
+    LicenseSignature::SIZE + JubJubScalar::SIZE + PublicKey::SIZE + LICENSE_CONTEXT_SIZE;
 const LIC_ENCRYPTION_SIZE: usize = LIC_PLAINTEXT_SIZE + ENCRYPTION_EXTRA_SIZE;
 
 /// Enumeration used to create new licenses
@@ -51,8 +51,6 @@ pub struct LicenseContext {
     pub version: BlsScalar,
     /// Compact deployment identifier authenticated by the encrypted payload.
     pub deployment_id: BlsScalar,
-    /// LP public key that issued and signed the license.
-    pub issuer: PublicKey,
     /// Schema identifier for `attr_data`.
     pub schema_id: BlsScalar,
     /// Issuance metadata encoded by the deployment profile.
@@ -65,14 +63,13 @@ pub struct LicenseContext {
 
 impl LicenseContext {
     /// Serialized size of [`LicenseContext`].
-    pub const SIZE: usize = (BlsScalar::SIZE * 6) + PublicKey::SIZE;
+    pub const SIZE: usize = BlsScalar::SIZE * 6;
 
-    /// Creates the default prototype context for the selected issuer.
-    pub fn prototype(deployment: Deployment, issuer: PublicKey) -> Self {
+    /// Creates the default prototype context for the selected deployment.
+    pub fn prototype(deployment: Deployment) -> Self {
         Self {
             version: OBJECT_VERSION_V1,
             deployment_id: deployment.id,
-            issuer,
             schema_id: BlsScalar::zero(),
             issued_at: BlsScalar::zero(),
             expires_at: BlsScalar::zero(),
@@ -85,8 +82,6 @@ impl LicenseContext {
         let mut offset = 0;
         write_scalar(&mut bytes, &mut offset, self.version);
         write_scalar(&mut bytes, &mut offset, self.deployment_id);
-        bytes[offset..offset + PublicKey::SIZE].copy_from_slice(&self.issuer.to_bytes());
-        offset += PublicKey::SIZE;
         write_scalar(&mut bytes, &mut offset, self.schema_id);
         write_scalar(&mut bytes, &mut offset, self.issued_at);
         write_scalar(&mut bytes, &mut offset, self.expires_at);
@@ -94,17 +89,10 @@ impl LicenseContext {
         bytes
     }
 
-    #[cfg(feature = "zk")]
     fn from_bytes(bytes: &[u8; Self::SIZE]) -> Result<Self, Error> {
         let mut offset = 0;
         let version = read_scalar(bytes, &mut offset)?;
         let deployment_id = read_scalar(bytes, &mut offset)?;
-
-        let mut issuer_bytes = [0u8; PublicKey::SIZE];
-        issuer_bytes.copy_from_slice(&bytes[offset..offset + PublicKey::SIZE]);
-        let issuer = PublicKey::from_bytes(&issuer_bytes)?;
-        offset += PublicKey::SIZE;
-
         let schema_id = read_scalar(bytes, &mut offset)?;
         let issued_at = read_scalar(bytes, &mut offset)?;
         let expires_at = read_scalar(bytes, &mut offset)?;
@@ -113,13 +101,25 @@ impl LicenseContext {
         Ok(Self {
             version,
             deployment_id,
-            issuer,
             schema_id,
             issued_at,
             expires_at,
             revocation_id,
         })
     }
+}
+
+/// Decrypted and authenticated Citadel license payload.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LicensePayload {
+    /// LP signature over `H(lpk.u, lpk.v, attr_data)`.
+    pub sig_lic: LicenseSignature,
+    /// Schema-scoped attribute digest or non-personal scalar signed by the LP.
+    pub attr_data: JubJubScalar,
+    /// Full canonical Phoenix public key of the License Provider.
+    pub pk_lp: PublicKey,
+    /// Non-personal license metadata authenticated by the payload.
+    pub context: LicenseContext,
 }
 
 /// The struct defining a Citadel license, an asset that represents
@@ -141,25 +141,47 @@ pub struct License {
     pub enc: [u8; LIC_ENCRYPTION_SIZE],
 }
 
+/// License construction parameters.
+///
+/// Callers that want the prototype defaults can pass [`LicenseOptions::default`],
+/// which uses `DEFAULT_DEPLOYMENT` and zero values for schema, issuance,
+/// expiration, and revocation context.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LicenseOptions {
+    /// Deployment profile for the license envelope and cryptographic domains.
+    pub deployment: Deployment,
+    /// Schema identifier for `attr_data`.
+    pub schema_id: BlsScalar,
+    /// Issuance metadata encoded by the deployment profile.
+    pub issued_at: BlsScalar,
+    /// Expiration value, or zero as the prototype no-expiration marker.
+    pub expires_at: BlsScalar,
+    /// Revocation handle, or zero as the prototype no-revocation marker.
+    pub revocation_id: BlsScalar,
+}
+
+impl Default for LicenseOptions {
+    fn default() -> Self {
+        Self {
+            deployment: DEFAULT_DEPLOYMENT,
+            schema_id: BlsScalar::zero(),
+            issued_at: BlsScalar::zero(),
+            expires_at: BlsScalar::zero(),
+            revocation_id: BlsScalar::zero(),
+        }
+    }
+}
+
 impl License {
-    /// Method to generate a new [`License`]
+    /// Method to generate a new [`License`] with explicit construction options.
     pub fn new<R: RngCore + CryptoRng>(
         attr_data: &JubJubScalar,
         sk_lp: &SecretKey,
         lo: &LicenseOrigin,
+        options: LicenseOptions,
         rng: &mut R,
     ) -> Result<Self, Error> {
-        Self::new_with_deployment(attr_data, sk_lp, lo, DEFAULT_DEPLOYMENT, rng)
-    }
-
-    /// Method to generate a new [`License`] bound to a deployment.
-    pub fn new_with_deployment<R: RngCore + CryptoRng>(
-        attr_data: &JubJubScalar,
-        sk_lp: &SecretKey,
-        lo: &LicenseOrigin,
-        deployment: Deployment,
-        rng: &mut R,
-    ) -> Result<Self, Error> {
+        let deployment = options.deployment;
         let (lsa, k_lic) = match lo {
             LicenseOrigin::FromRequest(req) => {
                 if req.version != OBJECT_VERSION_V1 {
@@ -229,10 +251,15 @@ impl License {
         let pk_lp = PublicKey::from(sk_lp);
         let pk_lp_a = JubJubAffine::from(pk_lp.A());
         let sig_lic = LicenseSignature::sign(rng, deployment, sk_lp.a(), pk_lp_a, message);
-        let context = LicenseContext::prototype(deployment, pk_lp);
+        let mut context = LicenseContext::prototype(deployment);
+        context.schema_id = options.schema_id;
+        context.issued_at = options.issued_at;
+        context.expires_at = options.expires_at;
+        context.revocation_id = options.revocation_id;
 
         let mut plaintext = sig_lic.to_bytes().to_vec();
         plaintext.append(&mut attr_data.to_bytes().to_vec());
+        plaintext.append(&mut pk_lp.to_bytes().to_vec());
         plaintext.append(&mut context.to_bytes().to_vec());
 
         let salt = license_encryption_salt(deployment, OBJECT_VERSION_V1, &lsa);
@@ -245,12 +272,52 @@ impl License {
             enc,
         })
     }
+
+    /// Decrypts, decodes, and verifies the license payload for an owning key.
+    pub fn open(&self, sk: &SecretKey) -> Result<LicensePayload, Error> {
+        if self.version != OBJECT_VERSION_V1 {
+            return Err(Error::InvalidData);
+        }
+
+        let deployment = Deployment::new(
+            self.deployment_id,
+            self.version,
+            BlsScalar::zero(),
+            BlsScalar::zero(),
+        );
+        let lpk = JubJubAffine::from(self.lsa.note_pk().as_ref());
+        let lsa_r = JubJubAffine::from(self.lsa.R());
+        let lsk = sk.gen_note_sk(&self.lsa);
+        let salt = license_encryption_salt(deployment, self.version, &self.lsa);
+        let direct_key = dhke(sk.a(), self.lsa.R());
+        let dec: [u8; LIC_PLAINTEXT_SIZE] = match decrypt(&direct_key, &salt, &self.enc) {
+            Ok(dec) => dec,
+            Err(_err) => {
+                let request_key = license_key(deployment, *lsk.as_ref(), lpk, lsa_r);
+                decrypt(&request_key, &salt, &self.enc)?
+            }
+        };
+
+        let payload = decode_license_plaintext(&dec)?;
+        if payload.context.version != self.version
+            || payload.context.deployment_id != self.deployment_id
+        {
+            return Err(Error::InvalidData);
+        }
+
+        let pk_lp_a = JubJubAffine::from(payload.pk_lp.A());
+        let message = license_sig_message(deployment, lpk, payload.attr_data);
+        if !payload.sig_lic.verify(deployment, pk_lp_a, message) {
+            return Err(Error::InvalidData);
+        }
+
+        Ok(payload)
+    }
 }
 
-#[cfg(feature = "zk")]
 pub(crate) fn decode_license_plaintext(
     bytes: &[u8; LIC_PLAINTEXT_SIZE],
-) -> Result<(LicenseSignature, JubJubScalar, LicenseContext), Error> {
+) -> Result<LicensePayload, Error> {
     let mut sig_lic_bytes = [0u8; LicenseSignature::SIZE];
     sig_lic_bytes.copy_from_slice(&bytes[..LicenseSignature::SIZE]);
     let sig_lic = LicenseSignature::from_bytes(&sig_lic_bytes)?;
@@ -262,11 +329,24 @@ pub(crate) fn decode_license_plaintext(
         .ok_or(Error::InvalidData)?;
     offset += JubJubScalar::SIZE;
 
+    let mut pk_lp_bytes = [0u8; PublicKey::SIZE];
+    pk_lp_bytes.copy_from_slice(&bytes[offset..offset + PublicKey::SIZE]);
+    let pk_lp = PublicKey::from_bytes(&pk_lp_bytes)?;
+    if !public_key_is_valid(&pk_lp) {
+        return Err(Error::InvalidData);
+    }
+    offset += PublicKey::SIZE;
+
     let mut context_bytes = [0u8; LicenseContext::SIZE];
     context_bytes.copy_from_slice(&bytes[offset..offset + LicenseContext::SIZE]);
     let context = LicenseContext::from_bytes(&context_bytes)?;
 
-    Ok((sig_lic, attr_data, context))
+    Ok(LicensePayload {
+        sig_lic,
+        attr_data,
+        pk_lp,
+        context,
+    })
 }
 
 fn write_scalar(bytes: &mut [u8], offset: &mut usize, scalar: BlsScalar) {
@@ -274,7 +354,6 @@ fn write_scalar(bytes: &mut [u8], offset: &mut usize, scalar: BlsScalar) {
     *offset += BlsScalar::SIZE;
 }
 
-#[cfg(feature = "zk")]
 fn read_scalar(bytes: &[u8], offset: &mut usize) -> Result<BlsScalar, Error> {
     let mut scalar_bytes = [0u8; BlsScalar::SIZE];
     scalar_bytes.copy_from_slice(&bytes[*offset..*offset + BlsScalar::SIZE]);

@@ -22,7 +22,7 @@ const CRS_17_HASH: &str = "6161605616b62356cf09fa28252c672ef53b2c8489ad5f81d87af
 const PROVER_PATH: &str = "../target/prover";
 const VERIFIER_PATH: &str = "../target/verifier";
 const CIRCUIT_MARKER_PATH: &str = "../target/license-circuit-build-id";
-const CIRCUIT_BUILD_ID: &str = "zk-citadel-license-circuit-v2";
+const CIRCUIT_BUILD_ID: &str = "zk-citadel-license-circuit";
 
 #[tokio::main]
 async fn main() {
@@ -102,8 +102,7 @@ fn write_circuit_marker() {
 fn write_metadata_hashes() {
     let verifier = fs::read(VERIFIER_PATH).expect("verifier key should exist after build");
     let verifier_key_hash = scalar_from_sha256(b"CITADEL_VERIFIER_KEY_HASH_V1", &verifier);
-    let circuit_hash =
-        scalar_from_sha256(b"CITADEL_CIRCUIT_HASH_V1", b"zk-citadel-license-circuit-v2");
+    let circuit_hash = scalar_from_sha256(b"CITADEL_CIRCUIT_HASH_V1", CIRCUIT_BUILD_ID.as_bytes());
 
     let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR should be set"));
     let generated = out_dir.join("metadata_hashes.rs");

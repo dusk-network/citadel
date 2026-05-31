@@ -10,7 +10,7 @@ use phoenix_core::{PublicKey, SecretKey};
 use poseidon_merkle::{Item, Tree};
 
 use zk_citadel::{
-    License, LicenseOrigin, SessionCookie, circuit, gadgets,
+    License, LicenseOptions, LicenseOrigin, SessionCookie, circuit, gadgets,
     helpers::{DEFAULT_DEPLOYMENT, license_hash},
 };
 
@@ -60,6 +60,7 @@ fn license_circuit_benchmark(crit: &mut Criterion) {
         &attr_data,
         &sk_lp,
         &LicenseOrigin::FromPublicKey(Box::new(pk)),
+        LicenseOptions::default(),
         &mut OsRng,
     )
     .expect("License correctly computed.");
