@@ -11,6 +11,16 @@ jobs:
     name: Code Analysis
     uses: dusk-network/.github/.github/workflows/code-analysis.yml@main
 
+  wallet_code_analysis:
+    name: Wallet Code Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dsherret/rust-toolchain-file@v1
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --check
+      - run: cargo clippy -p zk-citadel-wallet --all-targets -- -D warnings
+
   dusk_analyzer:
     name: Dusk Analyzer
     uses: dusk-network/.github/.github/workflows/dusk-analysis.yml@main
@@ -21,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
-      - run: cargo bench --no-run --features zk
+      - run: make bench BENCH_ARGS=--no-run
 
   test_std:
     name: Stable toolchain release tests
@@ -29,9 +39,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dsherret/rust-toolchain-file@v1
-      - run: cargo build --release --features zk
-      - run: rustup target add wasm32-unknown-unknown
-      - run: cd contract && cargo build --target wasm32-unknown-unknown --release
-      - run: cd core && cargo test --release --features zk
-      - run: cd contract && cargo test --release --test license_contract
+      - run: make test-core
+      - run: make test-contract
       - run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --features zk
