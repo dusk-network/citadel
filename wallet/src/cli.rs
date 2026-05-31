@@ -13,8 +13,10 @@ const DEFAULT_WALLET_DIR: &str = ".dusk/rusk-wallet";
 const DEFAULT_CONTRACT_WASM: &str = "target/wasm32-unknown-unknown/release/license_contract.wasm";
 const CONTRACT_WASM_ENV: &str = "CITADEL_CONTRACT_WASM";
 pub const DEFAULT_DEPLOY_GAS_LIMIT: u64 = 114_857_600;
-pub const DEFAULT_CALL_GAS_LIMIT: u64 = 2_000_000_000;
-pub const DEFAULT_GAS_PRICE: u64 = 2_000;
+pub const DEFAULT_ISSUE_LICENSE_GAS_LIMIT: u64 = 300_000_000;
+pub const DEFAULT_USE_LICENSE_GAS_LIMIT: u64 = 50_000_000;
+pub const DEFAULT_DEPLOY_GAS_PRICE: u64 = 2_000;
+pub const DEFAULT_CALL_GAS_PRICE: u64 = 1;
 
 #[derive(Debug, Parser)]
 #[command(name = "zk-citadel-wallet")]
@@ -108,7 +110,7 @@ pub struct DeployArgs {
     pub gas_limit: u64,
 
     /// Gas price in Lux.
-    #[arg(long, default_value_t = DEFAULT_GAS_PRICE)]
+    #[arg(long, default_value_t = DEFAULT_DEPLOY_GAS_PRICE)]
     pub gas_price: u64,
 }
 
@@ -137,11 +139,11 @@ pub struct IssueRequestLicenseArgs {
     pub attributes: String,
 
     /// Gas limit.
-    #[arg(long, default_value_t = DEFAULT_CALL_GAS_LIMIT)]
+    #[arg(long, default_value_t = DEFAULT_ISSUE_LICENSE_GAS_LIMIT)]
     pub gas_limit: u64,
 
     /// Gas price in Lux.
-    #[arg(long, default_value_t = DEFAULT_GAS_PRICE)]
+    #[arg(long, default_value_t = DEFAULT_CALL_GAS_PRICE)]
     pub gas_price: u64,
 }
 
@@ -156,11 +158,11 @@ pub struct IssueLicenseArgs {
     pub shielded_address: String,
 
     /// Gas limit.
-    #[arg(long, default_value_t = DEFAULT_CALL_GAS_LIMIT)]
+    #[arg(long, default_value_t = DEFAULT_ISSUE_LICENSE_GAS_LIMIT)]
     pub gas_limit: u64,
 
     /// Gas price in Lux.
-    #[arg(long, default_value_t = DEFAULT_GAS_PRICE)]
+    #[arg(long, default_value_t = DEFAULT_CALL_GAS_PRICE)]
     pub gas_price: u64,
 }
 
@@ -179,11 +181,11 @@ pub struct UseLicenseArgs {
     pub challenge: String,
 
     /// Gas limit.
-    #[arg(long, default_value_t = DEFAULT_CALL_GAS_LIMIT)]
+    #[arg(long, default_value_t = DEFAULT_USE_LICENSE_GAS_LIMIT)]
     pub gas_limit: u64,
 
     /// Gas price in Lux.
-    #[arg(long, default_value_t = DEFAULT_GAS_PRICE)]
+    #[arg(long, default_value_t = DEFAULT_CALL_GAS_PRICE)]
     pub gas_price: u64,
 }
 

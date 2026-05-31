@@ -34,8 +34,8 @@ use zeroize::Zeroizing;
 use crate::{
     citadel,
     cli::{
-        Cli, DEFAULT_CALL_GAS_LIMIT, DEFAULT_DEPLOY_GAS_LIMIT, DEFAULT_GAS_PRICE,
-        default_contract_wasm,
+        Cli, DEFAULT_CALL_GAS_PRICE, DEFAULT_DEPLOY_GAS_LIMIT, DEFAULT_DEPLOY_GAS_PRICE,
+        DEFAULT_ISSUE_LICENSE_GAS_LIMIT, DEFAULT_USE_LICENSE_GAS_LIMIT, default_contract_wasm,
     },
     dusk::{
         CitadelQuery, ContractDeploy, Dusk, IssueLicense, ReceiveLicense, RuskWallet,
@@ -1127,7 +1127,7 @@ async fn execute_action(
                     profile_idx: Some(PROFILE_IDX),
                     shielded: wallet_state.use_shielded,
                     gas_limit: DEFAULT_DEPLOY_GAS_LIMIT,
-                    gas_price: DEFAULT_GAS_PRICE,
+                    gas_price: DEFAULT_DEPLOY_GAS_PRICE,
                 })
                 .await?;
 
@@ -1180,8 +1180,8 @@ async fn execute_action(
                         contract_id,
                         profile_idx: Some(PROFILE_IDX),
                         shielded: wallet_state.use_shielded,
-                        gas_limit: DEFAULT_CALL_GAS_LIMIT,
-                        gas_price: DEFAULT_GAS_PRICE,
+                        gas_limit: DEFAULT_ISSUE_LICENSE_GAS_LIMIT,
+                        gas_price: DEFAULT_CALL_GAS_PRICE,
                     },
                     issue_arg,
                 )
@@ -1212,8 +1212,8 @@ async fn execute_action(
                         contract_id: wallet_state.active_contract()?.to_string(),
                         profile_idx: Some(PROFILE_IDX),
                         shielded: wallet_state.use_shielded,
-                        gas_limit: DEFAULT_CALL_GAS_LIMIT,
-                        gas_price: DEFAULT_GAS_PRICE,
+                        gas_limit: DEFAULT_ISSUE_LICENSE_GAS_LIMIT,
+                        gas_price: DEFAULT_CALL_GAS_PRICE,
                     },
                     issue_arg,
                 )
@@ -1291,8 +1291,8 @@ async fn execute_action(
                     challenge,
                     profile_idx: Some(PROFILE_IDX),
                     shielded: wallet_state.use_shielded,
-                    gas_limit: DEFAULT_CALL_GAS_LIMIT,
-                    gas_price: DEFAULT_GAS_PRICE,
+                    gas_limit: DEFAULT_USE_LICENSE_GAS_LIMIT,
+                    gas_price: DEFAULT_CALL_GAS_PRICE,
                 })
                 .await?;
             wallet_state.save(&cli.wallet_dir, storage_key)?;

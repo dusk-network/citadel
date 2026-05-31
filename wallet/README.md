@@ -136,6 +136,15 @@ zk-citadel-wallet \
 `use-license` prints the accepted `session_id`, prints a hex-encoded base
 `session_cookie`, and saves that cookie to the encrypted local cookie store.
 
+The default call gas limits are conservative caps for the prototype wallet:
+`issue-request-license` and `issue-license` default to `300000000`, while
+`use-license` defaults to `50000000`. Contract calls default to a gas price of
+`1` Lux, while deployment keeps the Dusk deployment minimum of `2000` Lux. At
+the default call gas price, failed `issue-license` and `use-license` execution
+is capped at roughly 0.3 DUSK and 0.05 DUSK respectively. Pass `--gas-limit`
+or `--gas-price` to tune the cap or inclusion price for a specific node or
+contract build.
+
 Inspect saved cookies, accepted sessions, and contract state:
 
 ```sh
