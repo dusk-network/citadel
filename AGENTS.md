@@ -37,7 +37,8 @@ This repository is academic/prototype code and has not had exhaustive security r
 
 ## Code organization
 
-- Root `Cargo.toml`: Rust workspace with members `core` and `contract`.
+- Root `Cargo.toml`: Rust workspace with members `core`, `contract`, and `wallet`. The workspace `default-members` are `core` and `contract`, so commands that must include the wallet should target `-p zk-citadel-wallet` explicitly or use the root `Makefile` target.
+- Root `Makefile`: preferred release-mode entry point for contract builds, contract/core tests, core benchmarks, and wallet runs.
 - `docs/specs.md`: normative protocol specification.
 - `docs/security.md`: threat model, security goals, residual risks, and proof obligations.
 - `core/` (`zk-citadel` crate): off-chain protocol API, data objects, helpers, and ZK circuit code.
@@ -57,48 +58,62 @@ This repository is academic/prototype code and has not had exhaustive security r
   - `contract/src/collection.rs`: simple in-memory map abstraction for contract state.
   - `contract/build.rs`: downloads or generates PlonK setup material and writes `target/prover` and `target/verifier` used by tests and contract build.
   - `contract/tests/license_contract.rs`: VM integration tests for issuing licenses, fetching Merkle openings, using licenses, and fetching sessions.
+- `wallet/` (`zk-citadel-wallet` crate): host-side CLI/TUI for wallet-backed Citadel development, deployment, issuance, proving, and query workflows.
+  - `wallet/src/main.rs`: command dispatch and CLI output.
+  - `wallet/src/cli.rs`: clap argument definitions, defaults, and environment-variable overrides.
+  - `wallet/src/tui.rs`: terminal UI for the same wallet workflows.
+  - `wallet/src/citadel.rs`: wallet-side Citadel protocol glue and contract rkyv payload mirrors.
+  - `wallet/src/state.rs`: encrypted local Citadel wallet state and saved session-cookie store.
+  - `wallet/src/dusk/`: integration with `rusk-wallet`, RUES read-only queries, and Dusk encoding helpers.
+  - `wallet/README.md`: crate README used for publication.
 
 ## Development commands
 
 Use the Rust toolchain from `rust-toolchain.toml` (`1.94`, edition 2024). `Cargo.lock` is intentionally ignored in this workspace.
 
-From the repository root:
+From the repository root, prefer the `Makefile`:
 
 ```sh
-cargo build --release
-rustup target add wasm32-unknown-unknown
-cd contract && cargo build --target wasm32-unknown-unknown --release
-cd ..
-cargo test --release --features zk
-cargo doc --workspace --no-deps --features zk
-cargo bench --no-run --features zk
+make contract
+make test-contract
+make test-core
+make bench
+make run-wallet
 ```
 
-Core-only checks:
+All Makefile build, test, benchmark, and wallet targets use release mode. ZK targets keep Cargo default features enabled while adding `zk`, so `dusk-plonk/std` remains enabled and PlonK can use its parallel `std`/rayon path.
+
+Target details:
 
 ```sh
-cd core
-cargo test --release --features zk
-cargo bench --features zk
+make contract                         # builds release artifacts and wasm
+make test-contract                    # runs make contract, then contract VM tests
+make test-core                        # core tests with zk enabled
+make bench                            # core benchmarks with zk enabled
+make bench BENCH_ARGS=--no-run        # compile benchmarks without running them
+make run-wallet WALLET_ARGS="--help"  # run the wallet in release mode
 ```
 
-Contract flow:
+Documentation and wallet analysis/publishing checks:
 
 ```sh
-cargo build --release                     # creates target/prover and target/verifier
-cd contract
-cargo build --target wasm32-unknown-unknown --release
-cargo test --release --test license_contract
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --features zk
+cargo fmt --check
+cargo clippy -p zk-citadel-wallet --all-targets -- -D warnings
+cargo test -p zk-citadel-wallet --release
+cargo package -p zk-citadel-wallet --allow-dirty
 ```
 
 Notes:
 - Always run repository tests with `--release`. The PlonK prover path runs in
   parallel and is much faster in release mode; debug-mode ZK tests can appear to
   hang for a long time.
-- Contract tests include `target/prover`, `target/verifier`, and the wasm artifact, so run the contract flow before `contract` VM tests. The contract crate does not define a `zk` feature; do not pass `--features zk` to `cargo test` from `contract/`.
+- Contract tests include `target/prover`, `target/verifier`, and the wasm artifact, so run `make contract` before `contract` VM tests or use `make test-contract`. The contract crate does not define a `zk` feature; do not pass `--features zk` to `cargo test` from `contract/`.
 - ZK tests should run in release mode with default features so `dusk-plonk/std` remains enabled. Avoid adding the slow non-default-feature ZK test path to routine docs or CI unless a specific no-std regression needs investigation.
 - `contract/build.rs` first tries to download the trusted setup from `https://nodes.dusk.network/trusted-setup` and verify its SHA-256 hash. If download fails it generates local setup material and warns that this is unsafe for real use. Do not present fallback-generated keys as deployment-ready.
 - `target/` artifacts are generated and ignored. Do not commit proving/verifier keys or wasm build outputs unless the repository policy changes.
+- The wallet defaults `deploy` to `target/wasm32-unknown-unknown/release/license_contract.wasm` and `use-license` to `target/prover`, relative to the current working directory. Override with `--code` or `CITADEL_CONTRACT_WASM` for wasm and `CITADEL_PROVER_PATH` for prover material.
+- CI has an explicit wallet code-analysis job because the wallet is not a workspace default member. Keep wallet `fmt` and `clippy -p zk-citadel-wallet --all-targets -- -D warnings` passing.
 
 ## Change guidance for agents
 
@@ -107,6 +122,9 @@ Notes:
 - The current contract uses `DEPTH = 16`, `ROOT_HISTORY_SIZE = 8`, `PUBLIC_INPUTS_LEN = 8`, and default deployment metadata with zero `deployment_id`, zero `chain_id`, zero `contract_id`, and protocol version one.
 - When touching circuit shape, public inputs, domain preimages, Merkle parameters, or proof verification, regenerate/check `target/prover` and `target/verifier`, rebuild the wasm contract, and run the VM tests.
 - When touching cookies or SP verification, remember that `Session::verify` checks the selected `SessionPolicy`, cookie envelope, session openings, optional exact root, optional exact `attr_data`, and optional attribute opening. Replay/binding, revocation freshness, richer attribute semantics, issuer trust lists beyond the selected key, and rate limits remain SP profile responsibilities.
+- When touching wallet cookie storage or wallet-issued session cookies, remember that `wallet/src/state.rs` stores `citadel_wallet.dat` and `citadel_session_cookies.dat` next to the Rusk wallet using an AES-GCM key derived from the encrypted wallet material. Session cookies remain bearer credentials.
+- When touching wallet contract payload types or metadata validation, keep `wallet/src/citadel.rs`, `contract/src/license_types.rs`, contract metadata constants, and the protocol constants synchronized.
+- Before publishing `zk-citadel-wallet`, check `wallet/Cargo.toml` package metadata, `wallet/README.md`, `cargo package -p zk-citadel-wallet`, and the wallet code-analysis commands.
 - Preserve `#![deny(missing_docs)]` expectations in `core` and keep public APIs documented.
 - Preserve the MPL-2.0 license header style used by existing Rust files when adding new Rust source files.
 - Prefer structured serialization/deserialization APIs already in use (`rkyv`, `dusk-bytes`, canonical `from_bytes`/point checks) over hand-rolled byte parsing. When byte parsing is unavoidable, validate lengths and canonical encodings explicitly.

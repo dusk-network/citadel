@@ -1,0 +1,47 @@
+[package]
+name = "zk-citadel-wallet"
+version = "0.1.0"
+description = "Wallet CLI for the Citadel protocol."
+repository = "https://github.com/dusk-network/citadel"
+categories = ["command-line-utilities", "cryptography", "authentication"]
+keywords = ["citadel", "dusk", "wallet", "identity", "zero-knowledge"]
+edition = "2024"
+rust-version = "1.94"
+license = "MPL-2.0"
+readme = "README.md"
+include = ["Cargo.toml", "README.md", "src/**/*.rs"]
+
+[[bin]]
+name = "zk-citadel-wallet"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0"
+aes = "0.7.5"
+aes-gcm = { version = "0.10.3", features = ["std"] }
+blake3 = "1.5"
+block-modes = "0.8.1"
+bytecheck = "0.6"
+chrono = "0.4"
+clap = { version = "4.5", features = ["derive", "env"] }
+crossterm = "0.29"
+dusk-bls12_381 = { version = "=0.14.2", features = ["rkyv-impl"] }
+dusk-bytes = "0.1"
+dusk-core = "1.6.0"
+dusk-plonk = { version = "0.22", default-features = false, features = ["alloc", "std", "rkyv-impl"] }
+dusk-jubjub = "0.15"
+hex = "0.4"
+phoenix-core = { version = "0.35", features = ["rkyv-impl"] }
+poseidon-merkle = { version = "0.9.0-rc.0", features = ["rkyv-impl", "size_32"] }
+pbkdf2 = "0.12"
+rand = "0.8"
+ratatui = "0.30"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+rkyv = { version = "0.7.39", features = ["validation"] }
+rpassword = "7.4"
+rusk-wallet = "0.3.0"
+sha2 = "0.10"
+tokio = { version = "1.41.1", features = ["macros", "rt-multi-thread"] }
+wallet_core = { package = "dusk-wallet-core", version = "1.6.0" }
+zk-citadel = { version = "0.15.0", path = "../core", features = ["zk", "std"] }
+zeroize = "1.8"
