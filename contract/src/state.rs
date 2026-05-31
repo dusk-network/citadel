@@ -19,8 +19,8 @@ pub mod license_contract {
         error::Error,
         license_types::{
             ContractInfo, DeploymentMetadata, IssueLicenseArg, LicenseOpening, LicenseSession,
-            LicenseSessionId, LicenseTree, MAX_LICENSE_BLOB_SIZE, PI_ROOT, PUBLIC_INPUTS_LEN,
-            UseLicenseArg,
+            LicenseSessionId, LicenseTree, MAX_LICENSE_BLOB_SIZE, PI_ROOT, PI_SESSION_ID,
+            PUBLIC_INPUTS_LEN, UseLicenseArg,
         },
         verifier_data_license_circuit,
     };
@@ -142,6 +142,13 @@ pub mod license_contract {
                 panic!("Root is not accepted");
             }
 
+            let session_id = LicenseSessionId {
+                id: use_license_arg.public_inputs[PI_SESSION_ID],
+            };
+            if self.sessions.get(&session_id).is_some() {
+                panic!("License already nullified");
+            }
+
             Self::assert_proof(
                 verifier_data_license_circuit(),
                 use_license_arg.proof,
@@ -154,12 +161,6 @@ pub mod license_contract {
             let license_session = LicenseSession {
                 public_inputs: use_license_arg.public_inputs,
             };
-            let session_id = license_session
-                .session_id()
-                .expect("public input length was checked");
-            if self.sessions.get(&session_id).is_some() {
-                panic!("License already nullified");
-            }
             self.sessions.insert(session_id, license_session);
         }
 
