@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>Citadel: Self-Sovereign Identities on Dusk</h1>
+  <h1>Citadel 2</h1>
 
   <p><strong>Private credentials. Public confidence. Prove, don’t reveal.</strong></p>
 
@@ -11,7 +11,7 @@
   </p>
 </div>
 
-This repository contains the implementation of Citadel, a Dusk-oriented self-sovereign identity prototype. A user requests an encrypted license from a License Provider, proves on-chain in zero knowledge that a registered license exists, and discloses a session cookie to a Service Provider that applies its own policy.
+This repository contains the implementation of **Citadel 2**, the second generation of the Dusk-oriented self-sovereign identity protocol. Citadel 2 refines the original design with a simpler protocol boundary, stronger domain separation and validation rules, request-based issuance, and a clearer security model. A user requests an encrypted license from a License Provider, proves on-chain in zero knowledge that a registered license exists, and discloses a session cookie to a Service Provider that applies its own policy.
 
 The protocol reference is [`docs/specs.md`](docs/specs.md). The threat model and residual risks are documented in [`docs/security.md`](docs/security.md). Our implementation is based on the original idea from this [paper](https://arxiv.org/pdf/2301.09378).
 
@@ -22,7 +22,7 @@ This repository is structured as follows:
 - :computer: [**Core**](core): protocol objects, request/license/session workflows, domain-separated helpers, Citadel Schnorr transcripts, and the license circuit.
 - :pencil: [**License Contract**](contract): license registry, Merkle root history, proof verification, session registry, and deployment metadata.
 - :briefcase: [**Wallet**](wallet): host-side CLI/TUI for Citadel wallet, deployment, and contract interactions.
-- :scroll: [**Docs**](docs): the normative protocol specification and threat model for this prototype.
+- :scroll: [**Docs**](docs): the normative protocol specification and threat model for Citadel.
 
 ## Getting Started
 

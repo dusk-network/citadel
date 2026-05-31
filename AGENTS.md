@@ -2,9 +2,9 @@
 
 ## Workspace purpose
 
-Citadel is a Dusk-oriented self-sovereign identity prototype. A user requests an encrypted license from a License Provider (LP), proves on-chain in zero knowledge that a registered license exists and is authorized, then discloses a session cookie to a Service Provider (SP). The on-chain contract verifies proof validity and records sessions; service authorization remains SP policy.
+Citadel is a Dusk-oriented self-sovereign identity protocol. A user requests an encrypted license from a License Provider (LP), proves on-chain in zero knowledge that a registered license exists and is authorized, then discloses a session cookie to a Service Provider (SP). The on-chain contract verifies proof validity and records sessions; service authorization remains SP policy.
 
-This repository is academic/prototype code and has not had exhaustive security review. Do not treat it as production-ready without circuit, contract, dependency, and operational review.
+This repository contains academic protocol code and has not had exhaustive security review. Do not treat it as production-ready without circuit, contract, dependency, and operational review.
 
 ## Primary sources of truth
 
@@ -128,5 +128,5 @@ Notes:
 - Preserve `#![deny(missing_docs)]` expectations in `core` and keep public APIs documented.
 - Preserve the MPL-2.0 license header style used by existing Rust files when adding new Rust source files.
 - Prefer structured serialization/deserialization APIs already in use (`rkyv`, `dusk-bytes`, canonical `from_bytes`/point checks) over hand-rolled byte parsing. When byte parsing is unavoidable, validate lengths and canonical encodings explicitly.
-- Treat `DEFAULT_DEPLOYMENT` as prototype/default plumbing, not as a license to erase deployment-profile checks in new externally facing code.
+- Treat `DEFAULT_DEPLOYMENT` as development/default plumbing, not as a license to erase deployment-profile checks in new externally facing code.
 - Avoid adding unaudited cryptographic shortcuts, ad hoc serialization, non-domain-separated hashes, reused randomness, or unchecked point/scalar decoding.
