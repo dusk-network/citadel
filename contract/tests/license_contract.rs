@@ -13,7 +13,7 @@ use dusk_bytes::Serializable;
 use rand::rngs::StdRng;
 use rand::{CryptoRng, RngCore, SeedableRng};
 use rkyv::{Deserialize, Infallible, check_archived_root};
-use zk_citadel::{License, LicenseOrigin, SessionCookie, circuit, gadgets};
+use zk_citadel::{License, LicenseOptions, LicenseOrigin, SessionCookie, circuit, gadgets};
 
 const PROVER_BYTES: &[u8] = include_bytes!("../../target/prover");
 
@@ -57,6 +57,7 @@ fn create_test_license<R: RngCore + CryptoRng>(
         attr,
         sk_lp,
         &LicenseOrigin::FromPublicKey(Box::new(*pk_user)),
+        LicenseOptions::default(),
         rng,
     )
     .unwrap()
