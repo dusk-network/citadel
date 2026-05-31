@@ -251,7 +251,7 @@ pub struct SessionPolicy {
 }
 
 impl SessionPolicy {
-    /// Creates a default base-cookie policy for the prototype deployment.
+    /// Creates a default base-cookie policy for the default deployment.
     pub fn new(
         policy_id: BlsScalar,
         pk_sp: PublicKey,
