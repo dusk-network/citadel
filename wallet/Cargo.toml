@@ -1,10 +1,8 @@
 [package]
 name = "zk-citadel-wallet"
 version = "0.1.0"
-description = "Wallet, deployment, and contract CLI for the Citadel SSI prototype on Dusk."
-homepage = "https://github.com/dusk-network/citadel"
+description = "Wallet CLI for the Citadel protocol."
 repository = "https://github.com/dusk-network/citadel"
-documentation = "https://docs.rs/zk-citadel-wallet"
 categories = ["command-line-utilities", "cryptography", "authentication"]
 keywords = ["citadel", "dusk", "wallet", "identity", "zero-knowledge"]
 edition = "2024"
