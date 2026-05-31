@@ -186,7 +186,7 @@ pub mod license_contract {
                 panic!("Invalid license public key");
             }
 
-            // The base contract is deployed with the prototype deployment ID
+            // The base contract is deployed with the default deployment ID
             // fixed to zero, matching `DEFAULT_DEPLOYMENT` in the core crate.
             let ctx = Hash::digest(
                 Domain::Other,
