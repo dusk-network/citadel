@@ -20,6 +20,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --check
       - run: cargo clippy -p zk-citadel-wallet --all-targets -- -D warnings
+      - run: make test-wallet
 
   dusk_analyzer:
     name: Dusk Analyzer

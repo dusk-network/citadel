@@ -2,9 +2,9 @@
 
 ## Workspace purpose
 
-Citadel is a Dusk-oriented self-sovereign identity prototype. A user requests an encrypted license from a License Provider (LP), proves on-chain in zero knowledge that a registered license exists and is authorized, then discloses a session cookie to a Service Provider (SP). The on-chain contract verifies proof validity and records sessions; service authorization remains SP policy.
+Citadel is a Dusk-oriented self-sovereign identity protocol. A user requests an encrypted license from a License Provider (LP), proves on-chain in zero knowledge that a registered license exists and is authorized, then discloses a session cookie to a Service Provider (SP). The on-chain contract verifies proof validity and records sessions; service authorization remains SP policy.
 
-This repository is academic/prototype code and has not had exhaustive security review. Do not treat it as production-ready without circuit, contract, dependency, and operational review.
+This repository contains academic protocol code and has not had exhaustive security review. Do not treat it as production-ready without circuit, contract, dependency, and operational review.
 
 ## Primary sources of truth
 
@@ -38,7 +38,7 @@ This repository is academic/prototype code and has not had exhaustive security r
 ## Code organization
 
 - Root `Cargo.toml`: Rust workspace with members `core`, `contract`, and `wallet`. The workspace `default-members` are `core` and `contract`, so commands that must include the wallet should target `-p zk-citadel-wallet` explicitly or use the root `Makefile` target.
-- Root `Makefile`: preferred release-mode entry point for contract builds, contract/core tests, core benchmarks, and wallet runs.
+- Root `Makefile`: preferred release-mode entry point for contract builds, contract/core/wallet tests, core benchmarks, and wallet runs.
 - `docs/specs.md`: normative protocol specification.
 - `docs/security.md`: threat model, security goals, residual risks, and proof obligations.
 - `core/` (`zk-citadel` crate): off-chain protocol API, data objects, helpers, and ZK circuit code.
@@ -77,6 +77,7 @@ From the repository root, prefer the `Makefile`:
 make contract
 make test-contract
 make test-core
+make test-wallet
 make bench
 make run-wallet
 ```
@@ -89,6 +90,7 @@ Target details:
 make contract                         # builds release artifacts and wasm
 make test-contract                    # runs make contract, then contract VM tests
 make test-core                        # core tests with zk enabled
+make test-wallet                      # wallet tests in release mode
 make bench                            # core benchmarks with zk enabled
 make bench BENCH_ARGS=--no-run        # compile benchmarks without running them
 make run-wallet WALLET_ARGS="--help"  # run the wallet in release mode
@@ -100,7 +102,7 @@ Documentation and wallet analysis/publishing checks:
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --features zk
 cargo fmt --check
 cargo clippy -p zk-citadel-wallet --all-targets -- -D warnings
-cargo test -p zk-citadel-wallet --release
+make test-wallet
 cargo package -p zk-citadel-wallet --allow-dirty
 ```
 
@@ -113,7 +115,7 @@ Notes:
 - `contract/build.rs` first tries to download the trusted setup from `https://nodes.dusk.network/trusted-setup` and verify its SHA-256 hash. If download fails it generates local setup material and warns that this is unsafe for real use. Do not present fallback-generated keys as deployment-ready.
 - `target/` artifacts are generated and ignored. Do not commit proving/verifier keys or wasm build outputs unless the repository policy changes.
 - The wallet defaults `deploy` to `target/wasm32-unknown-unknown/release/license_contract.wasm` and `use-license` to `target/prover`, relative to the current working directory. Override with `--code` or `CITADEL_CONTRACT_WASM` for wasm and `CITADEL_PROVER_PATH` for prover material.
-- CI has an explicit wallet code-analysis job because the wallet is not a workspace default member. Keep wallet `fmt` and `clippy -p zk-citadel-wallet --all-targets -- -D warnings` passing.
+- CI has an explicit wallet job because the wallet is not a workspace default member. Keep wallet `fmt`, `clippy -p zk-citadel-wallet --all-targets -- -D warnings`, and `make test-wallet` passing.
 
 ## Change guidance for agents
 
@@ -128,5 +130,5 @@ Notes:
 - Preserve `#![deny(missing_docs)]` expectations in `core` and keep public APIs documented.
 - Preserve the MPL-2.0 license header style used by existing Rust files when adding new Rust source files.
 - Prefer structured serialization/deserialization APIs already in use (`rkyv`, `dusk-bytes`, canonical `from_bytes`/point checks) over hand-rolled byte parsing. When byte parsing is unavoidable, validate lengths and canonical encodings explicitly.
-- Treat `DEFAULT_DEPLOYMENT` as prototype/default plumbing, not as a license to erase deployment-profile checks in new externally facing code.
+- Treat `DEFAULT_DEPLOYMENT` as development/default plumbing, not as a license to erase deployment-profile checks in new externally facing code.
 - Avoid adding unaudited cryptographic shortcuts, ad hoc serialization, non-domain-separated hashes, reused randomness, or unchecked point/scalar decoding.

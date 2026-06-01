@@ -14,7 +14,9 @@ use anyhow::{Result, bail};
 use chrono::Local;
 use chrono::Utc;
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEvent},
+    event::{
+        self, DisableBracketedPaste, EnableBracketedPaste, Event, KeyCode, KeyEvent, KeyEventKind,
+    },
     execute,
     terminal::{
         Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
@@ -34,8 +36,8 @@ use zeroize::Zeroizing;
 use crate::{
     citadel,
     cli::{
-        Cli, DEFAULT_CALL_GAS_LIMIT, DEFAULT_DEPLOY_GAS_LIMIT, DEFAULT_GAS_PRICE,
-        default_contract_wasm,
+        Cli, DEFAULT_CALL_GAS_PRICE, DEFAULT_DEPLOY_GAS_LIMIT, DEFAULT_DEPLOY_GAS_PRICE,
+        DEFAULT_ISSUE_LICENSE_GAS_LIMIT, DEFAULT_USE_LICENSE_GAS_LIMIT, default_contract_wasm,
     },
     dusk::{
         CitadelQuery, ContractDeploy, Dusk, IssueLicense, ReceiveLicense, RuskWallet,
@@ -65,13 +67,14 @@ enum Action {
     UseLicense,
     ListCookies,
     GetSession,
+    VerifySessionCookie,
     Metadata,
     Roots,
     Info,
 }
 
 impl Action {
-    const ALL: [Self; 14] = [
+    const ALL: [Self; 15] = [
         Self::ToggleAccount,
         Self::Deploy,
         Self::SetActiveContract,
@@ -83,6 +86,7 @@ impl Action {
         Self::UseLicense,
         Self::ListCookies,
         Self::GetSession,
+        Self::VerifySessionCookie,
         Self::Metadata,
         Self::Roots,
         Self::Info,
@@ -101,6 +105,7 @@ impl Action {
             Self::UseLicense => "Use license",
             Self::ListCookies => "List cookies",
             Self::GetSession => "Get session",
+            Self::VerifySessionCookie => "Verify session cookie",
             Self::Metadata => "Metadata",
             Self::Roots => "Roots",
             Self::Info => "Info",
@@ -120,6 +125,9 @@ impl Action {
             Self::UseLicense => "Use an owned license by tree position",
             Self::ListCookies => "List saved session cookies",
             Self::GetSession => "Read accepted session public inputs",
+            Self::VerifySessionCookie => {
+                "Verify a cookie against chain data and this wallet's SP key"
+            }
             Self::Metadata => "Read deployment and circuit metadata",
             Self::Roots => "Read current and accepted roots",
             Self::Info => "Read active contract counters",
@@ -272,12 +280,16 @@ pub async fn run(cli: &Cli) -> Result<()> {
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
+    execute!(stdout, EnterAlternateScreen, EnableBracketedPaste)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
     let result = run_loop(&mut terminal, cli, wallet_password).await;
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    execute!(
+        terminal.backend_mut(),
+        DisableBracketedPaste,
+        LeaveAlternateScreen
+    )?;
     terminal.show_cursor()?;
     result
 }
@@ -314,56 +326,86 @@ async fn run_loop(
     loop {
         render(terminal, cli, &app)?;
 
-        if event::poll(Duration::from_millis(250))?
-            && let Event::Key(key) = event::read()?
-        {
-            if app.output_popup.is_some() {
-                handle_output_popup_key(&mut app, key);
-            } else if app.pending.is_some() {
-                match handle_input_key(&mut app, key) {
-                    Ok(Some((action, answers))) => {
-                        run_and_log(terminal, cli, &mut app, action, answers).await?;
-                    }
-                    Ok(None) => {}
-                    Err(error) => {
-                        app.status = error.to_string();
-                        app.log.push(log_error(format!("error: {error}")));
-                    }
-                }
-            } else if app.license_picker.is_some() {
-                if let Some(position) = handle_license_picker_key(&mut app, key) {
-                    begin_use_license_context_prompts(&mut app, position);
-                }
-            } else {
-                match key.code {
-                    KeyCode::Char('q') | KeyCode::Esc => break,
-                    KeyCode::Up | KeyCode::Char('k') => {
-                        app.selected = app.selected.saturating_sub(1);
-                    }
-                    KeyCode::Down | KeyCode::Char('j') => {
-                        app.selected = (app.selected + 1).min(Action::ALL.len() - 1);
-                    }
-                    KeyCode::Enter => {
-                        if app.selected_action() == Action::UseLicense {
-                            begin_license_picker(terminal, cli, &mut app).await?;
-                        } else if let Some(action) = app.begin_action() {
-                            run_and_log(terminal, cli, &mut app, action, Vec::new()).await?;
+        if event::poll(Duration::from_millis(250))? {
+            match event::read()? {
+                Event::Key(key) if key.kind == KeyEventKind::Release => {}
+                Event::Key(key) => {
+                    if app.output_popup.is_some() {
+                        handle_output_popup_key(&mut app, key);
+                    } else if app.pending.is_some() {
+                        match handle_input_key(&mut app, key) {
+                            Ok(Some((action, answers))) => {
+                                run_and_log(terminal, cli, &mut app, action, answers).await?;
+                            }
+                            Ok(None) => {}
+                            Err(error) => {
+                                app.status = error.to_string();
+                                app.log.push(log_error(format!("error: {error}")));
+                            }
+                        }
+                    } else if app.license_picker.is_some() {
+                        if let Some(position) = handle_license_picker_key(&mut app, key) {
+                            begin_use_license_context_prompts(&mut app, position);
+                        }
+                    } else {
+                        match key.code {
+                            KeyCode::Char('q') | KeyCode::Esc => break,
+                            KeyCode::Up | KeyCode::Char('k') => {
+                                app.selected = app.selected.saturating_sub(1);
+                            }
+                            KeyCode::Down | KeyCode::Char('j') => {
+                                app.selected = (app.selected + 1).min(Action::ALL.len() - 1);
+                            }
+                            KeyCode::Enter => {
+                                if app.selected_action() == Action::UseLicense {
+                                    begin_license_picker(terminal, cli, &mut app).await?;
+                                } else if let Some(action) = app.begin_action() {
+                                    run_and_log(terminal, cli, &mut app, action, Vec::new())
+                                        .await?;
+                                }
+                            }
+                            KeyCode::Char('o') => match open_output_popup(&mut app) {
+                                Ok(()) => {}
+                                Err(error) => {
+                                    app.status = error.to_string();
+                                    app.log.push(log_error(format!("error: {error}")));
+                                }
+                            },
+                            _ => {}
                         }
                     }
-                    KeyCode::Char('o') => match open_output_popup(&mut app) {
-                        Ok(()) => {}
-                        Err(error) => {
-                            app.status = error.to_string();
-                            app.log.push(log_error(format!("error: {error}")));
-                        }
-                    },
-                    _ => {}
                 }
+                Event::Paste(text) if app.pending.is_some() => {
+                    handle_input_paste(&mut app, &text);
+                }
+                _ => {}
             }
         }
     }
 
     Ok(())
+}
+
+fn handle_input_paste(app: &mut App, text: &str) {
+    if app.pending.is_none() {
+        return;
+    }
+
+    let pasted = text.trim_matches(['\r', '\n']);
+    if current_prompt_is_hex_like(app) {
+        app.input
+            .extend(pasted.chars().filter(|c| !c.is_whitespace()));
+    } else {
+        app.input.push_str(pasted);
+    }
+}
+
+fn current_prompt_is_hex_like(app: &App) -> bool {
+    let Some(pending) = &app.pending else {
+        return false;
+    };
+    let label = pending.prompts[pending.index].label;
+    label.contains("hex") || label.contains("blob") || label.contains("cookie")
 }
 
 fn handle_input_key(app: &mut App, key: KeyEvent) -> Result<Option<(Action, Vec<String>)>> {
@@ -1096,6 +1138,18 @@ fn prompts_for(action: Action, wallet_state: &CitadelWalletState) -> Vec<Prompt>
             default: String::new(),
             required: true,
         }],
+        Action::VerifySessionCookie => vec![
+            Prompt {
+                label: "session cookie hex",
+                default: String::new(),
+                required: true,
+            },
+            Prompt {
+                label: "expected challenge",
+                default: String::new(),
+                required: true,
+            },
+        ],
     }
 }
 
@@ -1127,7 +1181,7 @@ async fn execute_action(
                     profile_idx: Some(PROFILE_IDX),
                     shielded: wallet_state.use_shielded,
                     gas_limit: DEFAULT_DEPLOY_GAS_LIMIT,
-                    gas_price: DEFAULT_GAS_PRICE,
+                    gas_price: DEFAULT_DEPLOY_GAS_PRICE,
                 })
                 .await?;
 
@@ -1180,8 +1234,8 @@ async fn execute_action(
                         contract_id,
                         profile_idx: Some(PROFILE_IDX),
                         shielded: wallet_state.use_shielded,
-                        gas_limit: DEFAULT_CALL_GAS_LIMIT,
-                        gas_price: DEFAULT_GAS_PRICE,
+                        gas_limit: DEFAULT_ISSUE_LICENSE_GAS_LIMIT,
+                        gas_price: DEFAULT_CALL_GAS_PRICE,
                     },
                     issue_arg,
                 )
@@ -1212,8 +1266,8 @@ async fn execute_action(
                         contract_id: wallet_state.active_contract()?.to_string(),
                         profile_idx: Some(PROFILE_IDX),
                         shielded: wallet_state.use_shielded,
-                        gas_limit: DEFAULT_CALL_GAS_LIMIT,
-                        gas_price: DEFAULT_GAS_PRICE,
+                        gas_limit: DEFAULT_ISSUE_LICENSE_GAS_LIMIT,
+                        gas_price: DEFAULT_CALL_GAS_PRICE,
                     },
                     issue_arg,
                 )
@@ -1291,8 +1345,8 @@ async fn execute_action(
                     challenge,
                     profile_idx: Some(PROFILE_IDX),
                     shielded: wallet_state.use_shielded,
-                    gas_limit: DEFAULT_CALL_GAS_LIMIT,
-                    gas_price: DEFAULT_GAS_PRICE,
+                    gas_limit: DEFAULT_USE_LICENSE_GAS_LIMIT,
+                    gas_price: DEFAULT_CALL_GAS_PRICE,
                 })
                 .await?;
             wallet_state.save(&cli.wallet_dir, storage_key)?;
@@ -1351,6 +1405,31 @@ async fn execute_action(
                     }),
             );
             Ok(lines)
+        }
+        Action::VerifySessionCookie => {
+            let cookie =
+                citadel::parse_session_cookie_hex(&answer(&answers, 0, "session cookie")?)?;
+            let expected_challenge =
+                citadel::encode_challenge(&answer(&answers, 1, "expected challenge")?)?;
+            let service_provider = phoenix_core::PublicKey::from(
+                &wallet(cli, wallet_password).citadel_secret_key(PROFILE_IDX)?,
+            );
+            let contract_id = wallet_state.active_contract()?;
+            let chain = Dusk::new(cli.state.clone());
+            chain.metadata(contract_id).await?;
+            let Some(session) = chain.session(contract_id, cookie.session_id).await? else {
+                anyhow::bail!(
+                    "session not found for session_id {}",
+                    hex::encode(cookie.session_id.to_bytes())
+                );
+            };
+            let verification = citadel::verify_session_cookie(
+                cookie,
+                &session,
+                expected_challenge,
+                service_provider,
+            )?;
+            Ok(citadel::session_cookie_verification_lines(&verification))
         }
         Action::Metadata => {
             let metadata = Dusk::new(cli.state.clone())

@@ -1,4 +1,4 @@
-# Citadel Protocol Specification
+# Citadel 2: Protocol Specification
 
 **Updated:** 30 May 2026.  
 **Status:** Draft.  

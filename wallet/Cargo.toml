@@ -9,7 +9,7 @@ edition = "2024"
 rust-version = "1.94"
 license = "MPL-2.0"
 readme = "README.md"
-include = ["Cargo.toml", "README.md", "src/**/*.rs"]
+include = ["Cargo.toml", "README.md", "CHANGELOG.md", "src/**/*.rs"]
 
 [[bin]]
 name = "zk-citadel-wallet"

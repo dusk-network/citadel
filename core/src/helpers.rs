@@ -106,7 +106,7 @@ impl Default for Deployment {
     }
 }
 
-/// The default academic/prototype deployment used by the existing API.
+/// The default development deployment used by the existing API.
 pub const DEFAULT_DEPLOYMENT: Deployment = Deployment::new(
     BlsScalar::zero(),
     BlsScalar::one(),

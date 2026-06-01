@@ -55,9 +55,9 @@ pub struct LicenseContext {
     pub schema_id: BlsScalar,
     /// Issuance metadata encoded by the deployment profile.
     pub issued_at: BlsScalar,
-    /// Expiration value, or zero as the prototype no-expiration marker.
+    /// Expiration value, or zero as the default no-expiration marker.
     pub expires_at: BlsScalar,
-    /// Revocation handle, or zero as the prototype no-revocation marker.
+    /// Revocation handle, or zero as the default no-revocation marker.
     pub revocation_id: BlsScalar,
 }
 
@@ -65,7 +65,7 @@ impl LicenseContext {
     /// Serialized size of [`LicenseContext`].
     pub const SIZE: usize = BlsScalar::SIZE * 6;
 
-    /// Creates the default prototype context for the selected deployment.
+    /// Creates the default context for the selected deployment.
     pub fn prototype(deployment: Deployment) -> Self {
         Self {
             version: OBJECT_VERSION_V1,
@@ -143,7 +143,7 @@ pub struct License {
 
 /// License construction parameters.
 ///
-/// Callers that want the prototype defaults can pass [`LicenseOptions::default`],
+/// Callers that want the default options can pass [`LicenseOptions::default`],
 /// which uses `DEFAULT_DEPLOYMENT` and zero values for schema, issuance,
 /// expiration, and revocation context.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -154,9 +154,9 @@ pub struct LicenseOptions {
     pub schema_id: BlsScalar,
     /// Issuance metadata encoded by the deployment profile.
     pub issued_at: BlsScalar,
-    /// Expiration value, or zero as the prototype no-expiration marker.
+    /// Expiration value, or zero as the default no-expiration marker.
     pub expires_at: BlsScalar,
-    /// Revocation handle, or zero as the prototype no-revocation marker.
+    /// Revocation handle, or zero as the default no-revocation marker.
     pub revocation_id: BlsScalar,
 }
 

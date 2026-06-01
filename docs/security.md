@@ -1,4 +1,4 @@
-# Citadel Threat Model
+# Citadel 2: Threat Model
 
 **Updated:** 30 May 2026.  
 **Status:** Draft.  

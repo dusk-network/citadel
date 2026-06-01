@@ -14,9 +14,9 @@ of introducing a separate Citadel key store. Dusk account derivation, signing,
 deployment, and write calls go through `rusk-wallet`; read-only contract queries
 are performed directly over RUES.
 
-This crate is prototype tooling. The underlying Citadel protocol and contract
-are not production-ready without further circuit, contract, dependency, and
-operational review.
+This crate provides development tooling for the Citadel protocol. The
+underlying protocol and contract are not production-ready without further
+circuit, contract, dependency, and operational review.
 
 ## Usage
 
@@ -54,6 +54,14 @@ Local Citadel state is stored next to the Rusk wallet in `citadel_wallet.dat`
 and `citadel_session_cookies.dat`. Both files are encrypted with AES-GCM using
 a Citadel-specific key derived from the password-protected wallet material.
 Session cookies are bearer credentials; handle them as sensitive.
+
+## Test
+
+Run the wallet unit tests:
+
+```sh
+cargo t --release
+```
 
 ## Non-interactive API
 
@@ -136,15 +144,30 @@ zk-citadel-wallet \
 `use-license` prints the accepted `session_id`, prints a hex-encoded base
 `session_cookie`, and saves that cookie to the encrypted local cookie store.
 
+The default call gas limits are conservative caps for the wallet:
+`issue-request-license` and `issue-license` default to `300000000`, while
+`use-license` defaults to `50000000`. Contract calls default to a gas price of
+`1` Lux, while deployment keeps the Dusk deployment minimum of `2000` Lux. At
+the default call gas price, failed `issue-license` and `use-license` execution
+is capped at roughly 0.3 DUSK and 0.05 DUSK respectively. Pass `--gas-limit`
+or `--gas-price` to tune the cap or inclusion price for a specific node or
+contract build.
+
 Inspect saved cookies, accepted sessions, and contract state:
 
 ```sh
 zk-citadel-wallet --wallet-dir ~/.dusk/rusk-wallet list-cookies
 zk-citadel-wallet --wallet-dir ~/.dusk/rusk-wallet get-session --session-id <SESSION_ID_HEX>
+zk-citadel-wallet --wallet-dir ~/.dusk/rusk-wallet verify-session-cookie \
+  --session-cookie <SESSION_COOKIE_HEX> \
+  --challenge "event-2026-05"
 zk-citadel-wallet --wallet-dir ~/.dusk/rusk-wallet metadata
 zk-citadel-wallet --wallet-dir ~/.dusk/rusk-wallet roots
 zk-citadel-wallet --wallet-dir ~/.dusk/rusk-wallet info
 ```
+
+`verify-session-cookie` checks the cookie against the active contract session
+and requires the cookie's SP key to match profile 0 of the current wallet.
 
 ## License
 
