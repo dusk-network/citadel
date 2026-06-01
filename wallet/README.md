@@ -55,6 +55,14 @@ and `citadel_session_cookies.dat`. Both files are encrypted with AES-GCM using
 a Citadel-specific key derived from the password-protected wallet material.
 Session cookies are bearer credentials; handle them as sensitive.
 
+## Test
+
+Run the wallet unit tests:
+
+```sh
+cargo t --release
+```
+
 ## Non-interactive API
 
 Deploy a compiled contract and store it as active:
@@ -150,10 +158,16 @@ Inspect saved cookies, accepted sessions, and contract state:
 ```sh
 zk-citadel-wallet --wallet-dir ~/.dusk/rusk-wallet list-cookies
 zk-citadel-wallet --wallet-dir ~/.dusk/rusk-wallet get-session --session-id <SESSION_ID_HEX>
+zk-citadel-wallet --wallet-dir ~/.dusk/rusk-wallet verify-session-cookie \
+  --session-cookie <SESSION_COOKIE_HEX> \
+  --challenge "event-2026-05"
 zk-citadel-wallet --wallet-dir ~/.dusk/rusk-wallet metadata
 zk-citadel-wallet --wallet-dir ~/.dusk/rusk-wallet roots
 zk-citadel-wallet --wallet-dir ~/.dusk/rusk-wallet info
 ```
+
+`verify-session-cookie` checks the cookie against the active contract session
+and requires the cookie's SP key to match profile 0 of the current wallet.
 
 ## License
 

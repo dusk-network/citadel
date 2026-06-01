@@ -249,6 +249,33 @@ async fn main() -> Result<()> {
             }
             Ok(())
         }
+        Command::VerifySessionCookie(args) => {
+            let state = CitadelWalletState::load(&cli.wallet_dir, &storage_key)?;
+            let contract_id = state.active_contract()?;
+            let cookie = citadel::parse_session_cookie_hex(&args.session_cookie)?;
+            let expected_challenge = citadel::encode_challenge(&args.challenge)?;
+            let service_provider = phoenix_core::PublicKey::from(
+                &wallet(&cli, Some(&wallet_password)).citadel_secret_key(PROFILE_IDX)?,
+            );
+            let chain = dusk(&cli);
+            chain.metadata(contract_id).await?;
+            let Some(session) = chain.session(contract_id, cookie.session_id).await? else {
+                anyhow::bail!(
+                    "session not found for session_id {}",
+                    hex::encode(cookie.session_id.to_bytes())
+                );
+            };
+            let verification = citadel::verify_session_cookie(
+                cookie,
+                &session,
+                expected_challenge,
+                service_provider,
+            )?;
+            for line in citadel::session_cookie_verification_lines(&verification) {
+                println!("{line}");
+            }
+            Ok(())
+        }
         Command::ListCookies => {
             let store = SessionCookieStore::load(&cli.wallet_dir, &storage_key)?;
             if store.records.is_empty() {

@@ -73,6 +73,8 @@ pub enum Command {
     UseLicense(UseLicenseArgs),
     /// Query an accepted session by session ID.
     GetSession(SessionArgs),
+    /// Verify a disclosed session cookie against chain data and this wallet's SP key.
+    VerifySessionCookie(VerifySessionCookieArgs),
     /// List locally saved session cookies.
     ListCookies,
     /// Query active contract deployment metadata.
@@ -201,6 +203,17 @@ pub struct SessionArgs {
     /// Session ID as a canonical 32-byte scalar hex value.
     #[arg(long, value_name = "HEX")]
     pub session_id: String,
+}
+
+#[derive(Debug, Parser)]
+pub struct VerifySessionCookieArgs {
+    /// Hex-encoded session cookie printed by use-license or list-cookies.
+    #[arg(long, value_name = "HEX")]
+    pub session_cookie: String,
+
+    /// Expected SP challenge text. Encoded the same way as use-license.
+    #[arg(long, value_name = "TEXT")]
+    pub challenge: String,
 }
 
 fn default_wallet_dir() -> PathBuf {

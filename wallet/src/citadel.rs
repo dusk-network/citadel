@@ -25,7 +25,8 @@ use rkyv::{Archive, Deserialize, Serialize};
 use rusk_wallet::Address;
 use sha2::{Digest, Sha512};
 use zk_citadel::{
-    License, LicenseOptions, LicenseOrigin, Request, SessionCookie, circuit, gadgets,
+    License, LicenseOptions, LicenseOrigin, Request, Session, SessionCookie, SessionPolicy,
+    circuit, gadgets,
     helpers::{
         DEFAULT_DEPLOYMENT, MERKLE_ARITY, OBJECT_VERSION_V1, PUBLIC_INPUTS_LEN,
         attr_data_from_canonical_attributes,
@@ -129,6 +130,18 @@ pub struct LicenseInfo {
 pub struct PreparedUseLicense {
     pub arg: UseLicenseArg,
     pub session_cookie: SessionCookie,
+}
+
+/// Result of checking a disclosed session cookie against on-chain session data.
+#[derive(Debug, Clone)]
+pub struct SessionCookieVerification {
+    pub session_id: BlsScalar,
+    pub session_root: BlsScalar,
+    pub policy_id: BlsScalar,
+    pub service_provider: PublicKey,
+    pub license_provider: PublicKey,
+    pub attribute_scalar: JubJubScalar,
+    pub challenge_scalar: JubJubScalar,
 }
 
 pub fn serialize_unit() -> Result<Vec<u8>> {
@@ -402,6 +415,76 @@ pub fn session_cookie_hex(cookie: &SessionCookie) -> Result<String> {
     Ok(hex::encode(bytes.as_slice()))
 }
 
+pub fn parse_session_cookie_hex(value: &str) -> Result<SessionCookie> {
+    let value = value.trim().strip_prefix("0x").unwrap_or(value.trim());
+    let bytes = hex::decode(value).map_err(|_| anyhow!("session cookie is not valid hex"))?;
+    rkyv::from_bytes(&bytes).map_err(|_| anyhow!("failed to decode session cookie"))
+}
+
+pub fn verify_session_cookie(
+    cookie: SessionCookie,
+    chain_session: &LicenseSession,
+    expected_challenge: JubJubScalar,
+    expected_service_provider: PublicKey,
+) -> Result<SessionCookieVerification> {
+    let session = Session::from(&chain_session.public_inputs)
+        .map_err(|error| anyhow!("failed to parse session public inputs: {error}"))?;
+    let policy = SessionPolicy::new(
+        cookie.policy_id,
+        expected_service_provider,
+        cookie.pk_lp,
+        expected_challenge,
+    );
+
+    session
+        .verify(cookie, &policy)
+        .map_err(|error| anyhow!("session cookie verification failed: {error}"))?;
+
+    Ok(SessionCookieVerification {
+        session_id: session.session_id,
+        session_root: session.root,
+        policy_id: cookie.policy_id,
+        service_provider: cookie.pk_sp,
+        license_provider: cookie.pk_lp,
+        attribute_scalar: cookie.attr_data,
+        challenge_scalar: cookie.c,
+    })
+}
+
+pub fn session_cookie_verification_lines(verification: &SessionCookieVerification) -> Vec<String> {
+    vec![
+        String::from("session_cookie_valid: true"),
+        format!(
+            "session_id: {}",
+            hex::encode(verification.session_id.to_bytes())
+        ),
+        format!(
+            "session_root: {}",
+            hex::encode(verification.session_root.to_bytes())
+        ),
+        format!(
+            "policy_id: {}",
+            hex::encode(verification.policy_id.to_bytes())
+        ),
+        format!(
+            "service_provider: {}",
+            public_key_hex(&verification.service_provider)
+        ),
+        format!(
+            "license_provider: {}",
+            public_key_hex(&verification.license_provider)
+        ),
+        format!(
+            "attribute_scalar: {}",
+            hex::encode(verification.attribute_scalar.to_bytes())
+        ),
+        format!(
+            "challenge_scalar: {}",
+            hex::encode(verification.challenge_scalar.to_bytes())
+        ),
+    ]
+}
+
 pub fn parse_bls_scalar_hex(value: &str, label: &str) -> Result<BlsScalar> {
     let bytes = decode_fixed_hex::<32>(value, label)?;
     Option::<BlsScalar>::from(BlsScalar::from_bytes(&bytes))
@@ -435,4 +518,115 @@ fn attribute_scalar(attributes: &str) -> JubJubScalar {
         attributes.as_bytes(),
         JubJubScalar::from(0u64),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use dusk_jubjub::{GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED};
+    use phoenix_core::SecretKey;
+    use rand::rngs::OsRng;
+    use zk_citadel::helpers::{
+        COOKIE_MODE_BASE, lp_commitment, session_hash as compute_session_hash,
+    };
+
+    fn cookie(challenge: JubJubScalar) -> SessionCookie {
+        let sk_sp = SecretKey::random(&mut OsRng);
+        let sk_lp = SecretKey::random(&mut OsRng);
+
+        SessionCookie {
+            version: OBJECT_VERSION_V1,
+            deployment_id: DEFAULT_DEPLOYMENT.id,
+            cookie_mode: COOKIE_MODE_BASE,
+            policy_id: BlsScalar::from(10u64),
+            pk_sp: PublicKey::from(&sk_sp),
+            r_session: BlsScalar::from(11u64),
+            session_id: BlsScalar::from(12u64),
+            pk_lp: PublicKey::from(&sk_lp),
+            attr_data: JubJubScalar::from(13u64),
+            attr_opening: None,
+            c: challenge,
+            s_0: BlsScalar::from(15u64),
+            s_1: JubJubScalar::from(16u64),
+            s_2: JubJubScalar::from(17u64),
+            binding_data: [BlsScalar::zero(); 4],
+        }
+    }
+
+    fn chain_session(cookie: &SessionCookie) -> LicenseSession {
+        let pk_sp_a = JubJubAffine::from(cookie.pk_sp.A());
+        let pk_lp_a = JubJubAffine::from(cookie.pk_lp.A());
+        let com_1 = JubJubAffine::from(
+            (GENERATOR_EXTENDED * cookie.attr_data) + (GENERATOR_NUMS_EXTENDED * cookie.s_1),
+        );
+        let com_2 = JubJubAffine::from(
+            (GENERATOR_EXTENDED * cookie.c) + (GENERATOR_NUMS_EXTENDED * cookie.s_2),
+        );
+
+        LicenseSession {
+            public_inputs: vec![
+                cookie.session_id,
+                compute_session_hash(DEFAULT_DEPLOYMENT, pk_sp_a, cookie.r_session),
+                lp_commitment(DEFAULT_DEPLOYMENT, pk_lp_a, cookie.s_0),
+                com_1.get_u(),
+                com_1.get_v(),
+                com_2.get_u(),
+                com_2.get_v(),
+                BlsScalar::from(18u64),
+            ],
+        }
+    }
+
+    #[test]
+    fn parses_session_cookie_hex_round_trip() {
+        let cookie = cookie(JubJubScalar::from(14u64));
+        let cookie_hex = session_cookie_hex(&cookie).expect("cookie should serialize");
+        let parsed = parse_session_cookie_hex(&cookie_hex).expect("cookie should parse");
+
+        assert_eq!(parsed.session_id, cookie.session_id);
+        assert_eq!(parsed.pk_sp, cookie.pk_sp);
+        assert_eq!(parsed.pk_lp, cookie.pk_lp);
+        assert_eq!(parsed.c, cookie.c);
+    }
+
+    #[test]
+    fn verifies_session_cookie_against_chain_session_and_challenge() {
+        let challenge = JubJubScalar::from(14u64);
+        let cookie = cookie(challenge);
+        let chain_session = chain_session(&cookie);
+
+        let verification = verify_session_cookie(cookie, &chain_session, challenge, cookie.pk_sp)
+            .expect("matching chain session and challenge should verify");
+
+        assert_eq!(verification.session_id, cookie.session_id);
+        assert_eq!(verification.session_root, BlsScalar::from(18u64));
+        assert_eq!(verification.service_provider, cookie.pk_sp);
+    }
+
+    #[test]
+    fn rejects_wrong_expected_challenge() {
+        let cookie = cookie(JubJubScalar::from(14u64));
+        let chain_session = chain_session(&cookie);
+
+        assert!(
+            verify_session_cookie(
+                cookie,
+                &chain_session,
+                JubJubScalar::from(99u64),
+                cookie.pk_sp
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn rejects_wrong_expected_service_provider() {
+        let challenge = JubJubScalar::from(14u64);
+        let cookie = cookie(challenge);
+        let chain_session = chain_session(&cookie);
+        let other_sp = PublicKey::from(&SecretKey::random(&mut OsRng));
+
+        assert!(verify_session_cookie(cookie, &chain_session, challenge, other_sp).is_err());
+    }
 }
