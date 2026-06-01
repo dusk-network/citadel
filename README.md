@@ -73,6 +73,14 @@ running them, use:
 make bench BENCH_ARGS=--no-run
 ```
 
+### Test Wallet
+
+```sh
+make test-wallet
+```
+
+Runs the wallet test suite in release mode.
+
 ### Run Wallet
 
 ```sh
