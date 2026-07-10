@@ -41,7 +41,7 @@ use crate::{
     },
     dusk::{
         CitadelQuery, ContractDeploy, Dusk, IssueLicense, ReceiveLicense, RuskWallet,
-        RuskWalletConfig, UseLicense,
+        RuskWalletConfig, UseLicense, configured_wallet_password,
     },
     state::{CitadelWalletState, SessionCookieRecord, SessionCookieStore},
 };
@@ -273,8 +273,8 @@ impl App {
 }
 
 pub async fn run(cli: &Cli) -> Result<()> {
-    let wallet_password = match &cli.password {
-        Some(password) => Some(Zeroizing::new(password.clone())),
+    let wallet_password = match configured_wallet_password() {
+        Some(password) => Some(Zeroizing::new(password)),
         None => Some(prompt_wallet_password()?),
     };
 
@@ -1145,6 +1145,16 @@ fn prompts_for(action: Action, wallet_state: &CitadelWalletState) -> Vec<Prompt>
                 required: true,
             },
             Prompt {
+                label: "expected policy ID hex",
+                default: String::new(),
+                required: true,
+            },
+            Prompt {
+                label: "trusted license provider hex",
+                default: String::new(),
+                required: true,
+            },
+            Prompt {
                 label: "expected challenge",
                 default: String::new(),
                 required: true,
@@ -1226,7 +1236,7 @@ async fn execute_action(
             let attributes = answer(&answers, 1, "attributes")?;
             let contract_id = wallet_state.active_contract()?.to_string();
             let issuer = wallet(cli, wallet_password).citadel_secret_key(PROFILE_IDX)?;
-            let (issue_arg, request_id) =
+            let (issue_arg, request_id, attr_data) =
                 citadel::issue_license_from_request_arg(&attributes, &request, &issuer)?;
             let receipt = wallet(cli, wallet_password)
                 .issue_license(
@@ -1244,10 +1254,7 @@ async fn execute_action(
             Ok(vec![
                 format!("tx_hash: {}", receipt.tx_hash),
                 format!("request_id: {}", hex::encode(request_id.to_bytes())),
-                format!(
-                    "attribute_scalar: {}",
-                    citadel::attribute_scalar_hex(&attributes)
-                ),
+                format!("attribute_scalar: {}", hex::encode(attr_data.to_bytes())),
                 format!(
                     "issuer_public_key: {}",
                     citadel::issuer_public_key_hex(&issuer)
@@ -1259,7 +1266,8 @@ async fn execute_action(
             let recipient = answer(&answers, 1, "recipient address")?;
             let issuer = wallet(cli, wallet_password).citadel_secret_key(PROFILE_IDX)?;
             let recipient_key = citadel::parse_shielded_address(&recipient)?;
-            let issue_arg = citadel::issue_license_arg(&attributes, recipient_key, &issuer)?;
+            let (issue_arg, attr_data) =
+                citadel::issue_license_arg(&attributes, recipient_key, &issuer)?;
             let receipt = wallet(cli, wallet_password)
                 .issue_license(
                     IssueLicense {
@@ -1276,10 +1284,7 @@ async fn execute_action(
             Ok(vec![
                 format!("tx_hash: {}", receipt.tx_hash),
                 format!("recipient_address: {recipient}"),
-                format!(
-                    "attribute_scalar: {}",
-                    citadel::attribute_scalar_hex(&attributes)
-                ),
+                format!("attribute_scalar: {}", hex::encode(attr_data.to_bytes())),
                 format!(
                     "issuer_public_key: {}",
                     citadel::issuer_public_key_hex(&issuer)
@@ -1410,7 +1415,13 @@ async fn execute_action(
             let cookie =
                 citadel::parse_session_cookie_hex(&answer(&answers, 0, "session cookie")?)?;
             let expected_challenge =
-                citadel::encode_challenge(&answer(&answers, 1, "expected challenge")?)?;
+                citadel::encode_challenge(&answer(&answers, 3, "expected challenge")?)?;
+            let expected_policy_id =
+                citadel::parse_bls_scalar_hex(&answer(&answers, 1, "policy ID")?, "policy ID")?;
+            let expected_license_provider = citadel::parse_public_key_hex(
+                &answer(&answers, 2, "license provider")?,
+                "license provider",
+            )?;
             let service_provider = phoenix_core::PublicKey::from(
                 &wallet(cli, wallet_password).citadel_secret_key(PROFILE_IDX)?,
             );
@@ -1428,6 +1439,8 @@ async fn execute_action(
                 &session,
                 expected_challenge,
                 service_provider,
+                expected_policy_id,
+                expected_license_provider,
             )?;
             Ok(citadel::session_cookie_verification_lines(&verification))
         }
@@ -1527,11 +1540,9 @@ fn panel_block(title: &'static str) -> Block<'static> {
 fn wallet(cli: &Cli, password: Option<&Zeroizing<String>>) -> RuskWallet {
     RuskWallet::new(RuskWalletConfig {
         wallet_dir: cli.wallet_dir.clone(),
-        password: password.cloned().or_else(|| {
-            cli.password
-                .as_ref()
-                .map(|password| Zeroizing::new(password.clone()))
-        }),
+        password: password
+            .cloned()
+            .or_else(|| configured_wallet_password().map(Zeroizing::new)),
         state: cli.state.clone(),
         prover: cli.prover.clone().unwrap_or_else(|| cli.state.clone()),
         archiver: cli.archiver.clone().unwrap_or_else(|| cli.state.clone()),

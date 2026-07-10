@@ -23,7 +23,7 @@ pub use license_types::{
     UseLicenseArg,
 };
 
-const VD_LICENSE_CIRCUIT: &[u8] = include_bytes!("../../target/verifier");
+const VD_LICENSE_CIRCUIT: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/license_verifier"));
 
 /// Verifier data for the `License` circuit.
 #[allow(dead_code)]

@@ -5,7 +5,8 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use dusk_jubjub::{
-    EDWARDS_D, GENERATOR, GENERATOR_EXTENDED, GENERATOR_NUMS, GENERATOR_NUMS_EXTENDED, dhke,
+    EDWARDS_D, GENERATOR, GENERATOR_EXTENDED, GENERATOR_NUMS, GENERATOR_NUMS_EXTENDED,
+    JubJubExtended, dhke,
 };
 use dusk_plonk::prelude::*;
 use dusk_poseidon::{Domain, HashGadget};
@@ -23,7 +24,7 @@ use crate::{
     helpers::{
         COOKIE_MODE_BASE, CitadelDomain, DEFAULT_DEPLOYMENT, OBJECT_VERSION_V1,
         license_encryption_salt, license_key, lp_commitment, session_auth, session_hash,
-        session_id,
+        session_id, stealth_address_is_valid,
     },
     signatures::{LicenseSignature, SessionAuthSignature},
 };
@@ -246,12 +247,18 @@ fn assert_valid_witness_point(composer: &mut Composer, point: WitnessPoint) {
     assert_on_curve(composer, point);
     assert_not_identity(composer, point);
 
-    // Jubjub has cofactor 8; multiplying by 8 must not collapse a valid
-    // prime-order witness point to the identity.
-    let two_p = composer.component_add_point(point, point);
-    let four_p = composer.component_add_point(two_p, two_p);
-    let eight_p = composer.component_add_point(four_p, four_p);
-    assert_not_identity(composer, eight_p);
+    // The cofactor map [8] has the prime-order subgroup as its image. Proving
+    // point = [8]Q for an on-curve Q excludes hidden torsion components.
+    let inv_eight = JubJubScalar::from(8u64).invert().unwrap();
+    let point_value = JubJubAffine::from_raw_unchecked(composer[*point.x()], composer[*point.y()]);
+    let subgroup_preimage = JubJubAffine::from(JubJubExtended::from(point_value) * inv_eight);
+    let subgroup_preimage = composer.append_point(subgroup_preimage);
+    assert_on_curve(composer, subgroup_preimage);
+
+    let two_q = composer.component_add_point(subgroup_preimage, subgroup_preimage);
+    let four_q = composer.component_add_point(two_q, two_q);
+    let eight_q = composer.component_add_point(four_q, four_q);
+    composer.assert_equal_point(eight_q, point);
 }
 
 fn assert_on_curve(composer: &mut Composer, point: WitnessPoint) {
@@ -348,6 +355,9 @@ impl<const DEPTH: usize> GadgetParameters<DEPTH> {
         if lic.version != OBJECT_VERSION_V1 || lic.deployment_id != DEFAULT_DEPLOYMENT.id {
             return Err(phoenix_core::Error::InvalidData);
         }
+        if !stealth_address_is_valid(&lic.lsa) {
+            return Err(phoenix_core::Error::InvalidData);
+        }
 
         let lsk = sk.gen_note_sk(&lic.lsa);
         let k_lic = dhke(sk.a(), lic.lsa.R());
@@ -442,5 +452,64 @@ impl<const DEPTH: usize> GadgetParameters<DEPTH> {
                 binding_data: [BlsScalar::zero(); 4],
             },
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use dusk_jubjub::JubJubScalar;
+    use rand_core::OsRng;
+
+    static LABEL: &[u8; 22] = b"citadel-point-validity";
+
+    #[derive(Clone, Copy)]
+    struct PointValidityCircuit {
+        point: JubJubAffine,
+    }
+
+    impl Default for PointValidityCircuit {
+        fn default() -> Self {
+            Self {
+                point: JubJubAffine::from(GENERATOR_EXTENDED * JubJubScalar::from(7u64)),
+            }
+        }
+    }
+
+    impl Circuit for PointValidityCircuit {
+        fn circuit(&self, composer: &mut Composer) -> Result<(), Error> {
+            let point = composer.append_point(self.point);
+            assert_valid_witness_point(composer, point);
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn witness_point_validity_rejects_torsion_shifted_points() {
+        let pp = PublicParameters::setup(1 << 11, &mut OsRng)
+            .expect("public parameters should be created");
+        let (prover, verifier) = Compiler::compile::<PointValidityCircuit>(&pp, LABEL)
+            .expect("point-validity circuit should compile");
+
+        let valid = PointValidityCircuit::default();
+        let (proof, public_inputs) = prover
+            .prove(&mut OsRng, &valid)
+            .expect("valid prime-order point should prove");
+        verifier
+            .verify(&proof, &public_inputs)
+            .expect("valid prime-order point should verify");
+
+        let torsion = JubJubAffine::from_raw_unchecked(BlsScalar::zero(), -BlsScalar::one());
+        let shifted = JubJubAffine::from(
+            (GENERATOR_EXTENDED * JubJubScalar::from(9u64)) + JubJubExtended::from(torsion),
+        );
+        assert!(bool::from(shifted.is_on_curve()));
+        assert!(!bool::from(shifted.is_prime_order()));
+
+        let invalid = PointValidityCircuit { point: shifted };
+        prover
+            .prove(&mut OsRng, &invalid)
+            .expect_err("torsion-shifted point should not satisfy the circuit");
     }
 }

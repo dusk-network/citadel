@@ -480,6 +480,12 @@ pub fn public_key_is_valid(pk: &PublicKey) -> bool {
         && public_key_point_is_valid(JubJubAffine::from(pk.B()))
 }
 
+/// Returns whether a Phoenix stealth address is made of valid non-identity subgroup points.
+pub fn stealth_address_is_valid(sa: &StealthAddress) -> bool {
+    public_key_point_is_valid(JubJubAffine::from(sa.R()))
+        && public_key_point_is_valid(JubJubAffine::from(sa.note_pk().as_ref()))
+}
+
 /// Returns whether a Phoenix public-key point is valid and non-identity.
 pub fn public_key_point_is_valid(point: JubJubAffine) -> bool {
     bool::from(point.is_on_curve())

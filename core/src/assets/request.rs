@@ -20,8 +20,8 @@ use rkyv::{Archive, Deserialize, Serialize};
 use dusk_plonk::prelude::*;
 
 use crate::helpers::{
-    DEFAULT_DEPLOYMENT, Deployment, OBJECT_VERSION_V1, license_key, request_encryption_salt,
-    request_id,
+    DEFAULT_DEPLOYMENT, Deployment, OBJECT_VERSION_V1, license_key, public_key_is_valid,
+    request_encryption_salt, request_id,
 };
 
 const DEPLOYMENT_CONTEXT_SIZE: usize = BlsScalar::SIZE;
@@ -71,6 +71,10 @@ impl Request {
         deployment: Deployment,
         rng: &mut R,
     ) -> Result<Self, Error> {
+        if !public_key_is_valid(pk_user) || !public_key_is_valid(pk_lp) {
+            return Err(Error::InvalidData);
+        }
+
         let lsa = pk_user.gen_stealth_address(&JubJubScalar::random(&mut *rng));
         let lsk = sk_user.gen_note_sk(&lsa);
         let k_lic = license_key(

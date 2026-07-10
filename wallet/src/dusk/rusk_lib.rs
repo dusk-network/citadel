@@ -38,6 +38,8 @@ use wallet_core::{Seed, keys::derive_phoenix_sk};
 use zeroize::Zeroize;
 use zeroize::Zeroizing;
 
+const WALLET_PASSWORD_ENV: &str = "CITADEL_WALLET_PASSWORD";
+
 use crate::citadel::{self, IssueLicenseArg, OwnedLicense, UseLicenseArg};
 
 use super::util::{decode_hex, normalize_contract_id};
@@ -439,8 +441,12 @@ impl RuskWallet {
             return Ok(password.clone());
         }
 
+        if let Some(password) = configured_wallet_password() {
+            return Ok(Zeroizing::new(password));
+        }
+
         if !io::stdin().is_terminal() {
-            bail!("wallet password is required; pass --password or set CITADEL_WALLET_PASSWORD");
+            bail!("wallet password is required; set CITADEL_WALLET_PASSWORD");
         }
 
         prompt_wallet_password(None)
@@ -514,6 +520,10 @@ pub fn prompt_wallet_password(config_password: Option<&String>) -> Result<Zeroiz
     Ok(Zeroizing::new(
         rpassword::prompt_password("rusk-wallet password: ").context("failed to read password")?,
     ))
+}
+
+pub fn configured_wallet_password() -> Option<String> {
+    std::env::var(WALLET_PASSWORD_ENV).ok()
 }
 
 fn derive_wallet_key(

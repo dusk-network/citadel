@@ -111,6 +111,12 @@ impl Session {
             return Err(Error::WrongChallenge);
         }
 
+        if let Some(expected_binding_data) = policy.expected_binding_data
+            && sc.binding_data != expected_binding_data
+        {
+            return Err(Error::WrongBindingData);
+        }
+
         if let Some(expected_attr_data) = policy.expected_attr_data
             && sc.attr_data != expected_attr_data
         {
@@ -246,6 +252,8 @@ pub struct SessionPolicy {
     pub expected_attr_data: Option<JubJubScalar>,
     /// Optional exact root freshness check for this policy.
     pub expected_root: Option<BlsScalar>,
+    /// Optional exact binding data expected by this policy.
+    pub expected_binding_data: Option<[BlsScalar; 4]>,
     /// Whether digest-style attributes must be opened in the base cookie.
     pub require_attribute_opening: bool,
 }
@@ -268,6 +276,7 @@ impl SessionPolicy {
             challenge,
             expected_attr_data: None,
             expected_root: None,
+            expected_binding_data: None,
             require_attribute_opening: false,
         }
     }
@@ -293,6 +302,12 @@ impl SessionPolicy {
     /// Requires a specific Merkle root.
     pub fn with_expected_root(mut self, root: BlsScalar) -> Self {
         self.expected_root = Some(root);
+        self
+    }
+
+    /// Requires exact profile-defined binding data.
+    pub fn with_expected_binding_data(mut self, binding_data: [BlsScalar; 4]) -> Self {
+        self.expected_binding_data = Some(binding_data);
         self
     }
 

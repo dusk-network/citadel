@@ -15,7 +15,9 @@ use dusk_plonk::prelude::BlsScalar;
 use ff::Field;
 use rand_core::{CryptoRng, RngCore};
 
-use crate::helpers::{Deployment, license_sig_challenge, session_sig_challenge};
+use crate::helpers::{
+    Deployment, license_sig_challenge, public_key_point_is_valid, session_sig_challenge,
+};
 
 /// LP Schnorr signature over a Citadel license message.
 #[cfg_attr(
@@ -67,6 +69,10 @@ impl LicenseSignature {
         msg_lic: BlsScalar,
     ) -> bool {
         let r = JubJubAffine::from(self.r);
+        if !public_key_point_is_valid(signing_point) || !public_key_point_is_valid(r) {
+            return false;
+        }
+
         let challenge = license_sig_challenge(deployment, signing_point, r, msg_lic);
         let lhs = GENERATOR_EXTENDED * self.z;
         let rhs = self.r + (dusk_jubjub::JubJubExtended::from(signing_point) * challenge);
@@ -168,14 +174,17 @@ impl SessionAuthSignature {
         lpk_p: JubJubAffine,
         session_auth: BlsScalar,
     ) -> bool {
-        let challenge = session_sig_challenge(
-            deployment,
-            lpk,
-            lpk_p,
-            JubJubAffine::from(self.r),
-            JubJubAffine::from(self.r_prime),
-            session_auth,
-        );
+        let r = JubJubAffine::from(self.r);
+        let r_prime = JubJubAffine::from(self.r_prime);
+        if !public_key_point_is_valid(lpk)
+            || !public_key_point_is_valid(lpk_p)
+            || !public_key_point_is_valid(r)
+            || !public_key_point_is_valid(r_prime)
+        {
+            return false;
+        }
+
+        let challenge = session_sig_challenge(deployment, lpk, lpk_p, r, r_prime, session_auth);
 
         let lhs = GENERATOR_EXTENDED * self.z;
         let rhs = self.r + (dusk_jubjub::JubJubExtended::from(lpk) * challenge);

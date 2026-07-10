@@ -30,6 +30,7 @@ pub mod license_contract {
     const MERKLE_ARITY: usize = 4;
     const DEPTH: usize = 16; // the depth of LicenseCircuit's Merkle tree
     const ROOT_HISTORY_SIZE: usize = 8;
+    const MAX_SESSIONS: usize = 1 << DEPTH;
     const CITADEL_CONTEXT_V1_TAG: BlsScalar = BlsScalar::zero();
     const DEFAULT_DEPLOYMENT_ID: BlsScalar = BlsScalar::zero();
     const CITADEL_LICENSE_HASH_V1_TAG: u64 = 0x04;
@@ -147,6 +148,9 @@ pub mod license_contract {
             };
             if self.sessions.get(&session_id).is_some() {
                 panic!("License already nullified");
+            }
+            if self.sessions.len() >= MAX_SESSIONS {
+                panic!("Session registry is full");
             }
 
             Self::assert_proof(
