@@ -249,7 +249,11 @@ fn assert_valid_witness_point(composer: &mut Composer, point: WitnessPoint) {
 
     // The cofactor map [8] has the prime-order subgroup as its image. Proving
     // point = [8]Q for an on-curve Q excludes hidden torsion components.
-    let inv_eight = JubJubScalar::from(8u64).invert().unwrap();
+    // Eight is non-zero. Falling back to zero makes the equality below
+    // unsatisfiable for non-identity points instead of aborting synthesis.
+    let inv_eight = JubJubScalar::from(8u64)
+        .invert()
+        .unwrap_or(JubJubScalar::zero());
     let point_value = JubJubAffine::from_raw_unchecked(composer[*point.x()], composer[*point.y()]);
     let subgroup_preimage = JubJubAffine::from(JubJubExtended::from(point_value) * inv_eight);
     let subgroup_preimage = composer.append_point(subgroup_preimage);
