@@ -29,6 +29,17 @@ cargo test --release --test license_contract
 
 The build script first tries to download the Dusk trusted setup and verify its SHA-256 hash. If the download is unavailable it generates local setup material so tests can run, but those generated keys are not deployment-ready.
 
+The build requires Cargo's `OUT_DIR` and writable output paths for generated
+artifacts. Missing build environment or artifact-write failures are fatal build
+errors.
+
+## Reverts
+
+Contract entrypoints use `panic!` to reject invalid calls, which Dusk VM treats
+as contract reverts. Capacity guards such as a full license tree follow the
+same revert model as malformed public inputs, stale roots, duplicate
+nullifiers, and failed proof verification.
+
 ## License
 
 This project is licensed under the [Mozilla Public License 2.0](../LICENSE).

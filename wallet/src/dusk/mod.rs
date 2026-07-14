@@ -11,5 +11,5 @@ mod util;
 pub use query::{CitadelQuery, Dusk};
 pub use rusk_lib::{
     ContractDeploy, IssueLicense, ReceiveLicense, RuskWallet, RuskWalletConfig, UseLicense,
-    prompt_wallet_password,
+    configured_wallet_password, prompt_wallet_password,
 };

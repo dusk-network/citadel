@@ -22,7 +22,7 @@ use dusk_plonk::prelude::*;
 use crate::assets::{REQ_PLAINTEXT_SIZE, Request};
 use crate::helpers::{
     DEFAULT_DEPLOYMENT, Deployment, OBJECT_VERSION_V1, license_encryption_salt, license_key,
-    license_sig_message, public_key_is_valid, request_encryption_salt,
+    license_sig_message, public_key_is_valid, request_encryption_salt, stealth_address_is_valid,
 };
 use crate::signatures::LicenseSignature;
 
@@ -190,6 +190,9 @@ impl License {
                 if req.deployment_id != deployment.id {
                     return Err(Error::InvalidData);
                 }
+                if !stealth_address_is_valid(&req.rsa) {
+                    return Err(Error::InvalidData);
+                }
 
                 let actual_pk_lp = PublicKey::from(sk_lp);
                 let k_dh = dhke(sk_lp.a(), req.rsa.R());
@@ -201,6 +204,9 @@ impl License {
                 let mut lsa_bytes = [0u8; StealthAddress::SIZE];
                 lsa_bytes.copy_from_slice(&dec[..StealthAddress::SIZE]);
                 let lsa = StealthAddress::from_bytes(&lsa_bytes)?;
+                if !stealth_address_is_valid(&lsa) {
+                    return Err(Error::InvalidData);
+                }
 
                 let mut k_lic_bytes = [0u8; JubJubAffine::SIZE];
                 let mut offset = StealthAddress::SIZE;
@@ -237,6 +243,10 @@ impl License {
                 (lsa, k_lic)
             }
             LicenseOrigin::FromPublicKey(pk_user) => {
+                if !public_key_is_valid(pk_user) {
+                    return Err(Error::InvalidData);
+                }
+
                 let r_dh = JubJubScalar::random(&mut *rng);
                 let lsa = pk_user.gen_stealth_address(&r_dh);
                 let k_lic = dhke(&r_dh, pk_user.A());
@@ -285,6 +295,10 @@ impl License {
             BlsScalar::zero(),
             BlsScalar::zero(),
         );
+        if !stealth_address_is_valid(&self.lsa) {
+            return Err(Error::InvalidData);
+        }
+
         let lpk = JubJubAffine::from(self.lsa.note_pk().as_ref());
         let lsa_r = JubJubAffine::from(self.lsa.R());
         let lsk = sk.gen_note_sk(&self.lsa);

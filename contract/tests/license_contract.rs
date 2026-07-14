@@ -13,6 +13,7 @@ use dusk_bytes::Serializable;
 use rand::rngs::StdRng;
 use rand::{CryptoRng, RngCore, SeedableRng};
 use rkyv::{Deserialize, Infallible, check_archived_root};
+use sha2::{Digest, Sha256};
 use zk_citadel::{License, LicenseOptions, LicenseOrigin, SessionCookie, circuit, gadgets};
 
 const PROVER_BYTES: &[u8] = include_bytes!("../../target/prover");
@@ -90,9 +91,9 @@ fn initialize() -> Session {
 }
 
 /// Deserializes license, panics if deserialization fails.
-fn deserialise_license(v: &Vec<u8>) -> License {
+fn deserialise_license(v: &[u8]) -> License {
     let response_data =
-        check_archived_root::<License>(v.as_slice()).expect("License should deserialize correctly");
+        check_archived_root::<License>(v).expect("License should deserialize correctly");
     let license: License = response_data
         .deserialize(&mut Infallible)
         .expect("Infallible");
@@ -101,14 +102,11 @@ fn deserialise_license(v: &Vec<u8>) -> License {
 
 /// Finds owned license in a collection of licenses.
 /// It searches in a reverse order to return a newest license.
-fn find_owned_license(
-    sk_user: &SecretKey,
-    licenses: &Vec<(u64, Vec<u8>)>,
-) -> Option<(u64, License)> {
+fn find_owned_license(sk_user: &SecretKey, licenses: &[(u64, Vec<u8>)]) -> Option<(u64, License)> {
     for (pos, license) in licenses.iter().rev() {
-        let license = deserialise_license(&license);
+        let license = deserialise_license(license);
         if ViewKey::from(sk_user).owns(&license.lsa) {
-            return Some((pos.clone(), license));
+            return Some((*pos, license));
         }
     }
     None
@@ -169,8 +167,7 @@ fn license_issue_get_merkle() {
             u64::MAX,
             feeder,
         )
-        .expect("Querying of the licenses should succeed")
-        .data;
+        .expect("Querying of the licenses should succeed");
 
     let pos_license_pairs: Vec<(u64, Vec<u8>)> = receiver
         .iter()
@@ -237,8 +234,7 @@ fn multiple_licenses_issue_get_merkle() {
             u64::MAX,
             feeder,
         )
-        .expect("Querying of the licenses should succeed")
-        .data;
+        .expect("Querying of the licenses should succeed");
 
     let pos_license_pairs: Vec<(u64, Vec<u8>)> = receiver
         .iter()
@@ -278,7 +274,10 @@ fn metadata_and_info_track_state() {
     assert_eq!(metadata.protocol_version, BlsScalar::one());
     assert_eq!(metadata.chain_id, BlsScalar::zero());
     assert_eq!(metadata.contract_id, BlsScalar::zero());
-    assert_ne!(metadata.verifier_key_hash, BlsScalar::zero());
+    assert_eq!(
+        metadata.verifier_key_hash,
+        metadata_scalar_from_sha256(b"CITADEL_VERIFIER_KEY_HASH_V1", VERIFIER_BYTES)
+    );
     assert_ne!(metadata.circuit_hash, BlsScalar::zero());
     assert_eq!(metadata.merkle_arity, 4);
     assert_eq!(metadata.merkle_depth, circuit::DEPTH as u32);
@@ -378,6 +377,24 @@ fn metadata_and_info_track_state() {
         .expect("Querying an issued opening should succeed")
         .data;
     assert!(opening.is_some());
+}
+
+fn metadata_scalar_from_sha256(domain: &[u8], bytes: &[u8]) -> BlsScalar {
+    let mut hasher = Sha256::new();
+    hasher.update(domain);
+    hasher.update((bytes.len() as u64).to_le_bytes());
+    hasher.update(bytes);
+    let digest = hasher.finalize();
+
+    let mut scalar_bytes = [0u8; 32];
+    scalar_bytes[..31].copy_from_slice(&digest[..31]);
+
+    let mut limbs = [0u64; 4];
+    for (i, byte) in scalar_bytes.iter().enumerate() {
+        limbs[i / 8] |= (*byte as u64) << ((i % 8) * 8);
+    }
+
+    BlsScalar::from_raw(limbs)
 }
 
 #[test]
@@ -585,8 +602,7 @@ fn use_license_get_session() {
             u64::MAX,
             feeder,
         )
-        .expect("Querying the license should succeed")
-        .data;
+        .expect("Querying the license should succeed");
 
     let pos_license_pairs: Vec<(u64, Vec<u8>)> = receiver
         .iter()

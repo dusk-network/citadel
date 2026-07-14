@@ -33,7 +33,8 @@ async fn main() -> Result<()> {
         return tui::run(&cli).await;
     }
 
-    let wallet_password = dusk::prompt_wallet_password(cli.password.as_ref())?;
+    let configured_password = dusk::configured_wallet_password();
+    let wallet_password = dusk::prompt_wallet_password(configured_password.as_ref())?;
     let storage_key = wallet(&cli, Some(&wallet_password)).citadel_storage_key()?;
 
     match command {
@@ -100,7 +101,7 @@ async fn main() -> Result<()> {
             let contract_id = state.active_contract()?.to_string();
             let request = citadel::parse_request_blob_hex(&args.request_blob)?;
             let issuer = wallet(&cli, Some(&wallet_password)).citadel_secret_key(PROFILE_IDX)?;
-            let (issue_arg, request_id) =
+            let (issue_arg, request_id, attr_data) =
                 citadel::issue_license_from_request_arg(&args.attributes, &request, &issuer)?;
             let receipt = wallet(&cli, Some(&wallet_password))
                 .issue_license(
@@ -121,17 +122,15 @@ async fn main() -> Result<()> {
                 "issuer_public_key: {}",
                 citadel::issuer_public_key_hex(&issuer)
             );
-            println!(
-                "attribute_scalar: {}",
-                citadel::attribute_scalar_hex(&args.attributes)
-            );
+            println!("attribute_scalar: {}", hex::encode(attr_data.to_bytes()));
             Ok(())
         }
         Command::IssueLicense(args) => {
             let state = CitadelWalletState::load(&cli.wallet_dir, &storage_key)?;
             let issuer = wallet(&cli, Some(&wallet_password)).citadel_secret_key(PROFILE_IDX)?;
             let recipient = citadel::parse_shielded_address(&args.shielded_address)?;
-            let issue_arg = citadel::issue_license_arg(&args.attributes, recipient, &issuer)?;
+            let (issue_arg, attr_data) =
+                citadel::issue_license_arg(&args.attributes, recipient, &issuer)?;
             let receipt = wallet(&cli, Some(&wallet_password))
                 .issue_license(
                     IssueLicense {
@@ -150,10 +149,7 @@ async fn main() -> Result<()> {
                 "issuer_public_key: {}",
                 citadel::issuer_public_key_hex(&issuer)
             );
-            println!(
-                "attribute_scalar: {}",
-                citadel::attribute_scalar_hex(&args.attributes)
-            );
+            println!("attribute_scalar: {}", hex::encode(attr_data.to_bytes()));
             Ok(())
         }
         Command::ListLicenses => {
@@ -253,6 +249,9 @@ async fn main() -> Result<()> {
             let state = CitadelWalletState::load(&cli.wallet_dir, &storage_key)?;
             let contract_id = state.active_contract()?;
             let cookie = citadel::parse_session_cookie_hex(&args.session_cookie)?;
+            let expected_policy_id = citadel::parse_bls_scalar_hex(&args.policy_id, "policy ID")?;
+            let expected_license_provider =
+                citadel::parse_public_key_hex(&args.license_provider, "license provider")?;
             let expected_challenge = citadel::encode_challenge(&args.challenge)?;
             let service_provider = phoenix_core::PublicKey::from(
                 &wallet(&cli, Some(&wallet_password)).citadel_secret_key(PROFILE_IDX)?,
@@ -270,6 +269,8 @@ async fn main() -> Result<()> {
                 &session,
                 expected_challenge,
                 service_provider,
+                expected_policy_id,
+                expected_license_provider,
             )?;
             for line in citadel::session_cookie_verification_lines(&verification) {
                 println!("{line}");
@@ -369,11 +370,9 @@ fn session_cookie_lines(index: usize, record: &SessionCookieRecord) -> Vec<Strin
 fn wallet(cli: &Cli, password: Option<&Zeroizing<String>>) -> RuskWallet {
     RuskWallet::new(RuskWalletConfig {
         wallet_dir: cli.wallet_dir.clone(),
-        password: password.cloned().or_else(|| {
-            cli.password
-                .as_ref()
-                .map(|password| Zeroizing::new(password.clone()))
-        }),
+        password: password
+            .cloned()
+            .or_else(|| dusk::configured_wallet_password().map(Zeroizing::new)),
         state: cli.state.clone(),
         prover: cli.prover.clone().unwrap_or_else(|| cli.state.clone()),
         archiver: cli.archiver.clone().unwrap_or_else(|| cli.state.clone()),

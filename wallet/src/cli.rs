@@ -26,10 +26,6 @@ pub struct Cli {
     #[arg(long, value_name = "PATH", default_value_os_t = default_wallet_dir())]
     pub wallet_dir: PathBuf,
 
-    /// Wallet password. Prefer CITADEL_WALLET_PASSWORD in CI.
-    #[arg(long, env = "CITADEL_WALLET_PASSWORD")]
-    pub password: Option<String>,
-
     /// Rusk state node URL.
     #[arg(long, default_value = DEFAULT_STATE_URL)]
     pub state: String,
@@ -210,6 +206,14 @@ pub struct VerifySessionCookieArgs {
     /// Hex-encoded session cookie printed by use-license or list-cookies.
     #[arg(long, value_name = "HEX")]
     pub session_cookie: String,
+
+    /// Expected policy ID as a canonical 32-byte scalar hex value.
+    #[arg(long, value_name = "HEX")]
+    pub policy_id: String,
+
+    /// Trusted License Provider public key as 64 bytes of hex.
+    #[arg(long, value_name = "HEX")]
+    pub license_provider: String,
 
     /// Expected SP challenge text. Encoded the same way as use-license.
     #[arg(long, value_name = "TEXT")]

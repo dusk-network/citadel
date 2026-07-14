@@ -47,8 +47,9 @@ Artifact defaults are relative to the current working directory:
   override with `--code` or `CITADEL_CONTRACT_WASM`.
 - `use-license` reads `target/prover`; override with `CITADEL_PROVER_PATH`.
 
-Passwords can be provided with `--password` or `CITADEL_WALLET_PASSWORD`.
-Without either, the CLI prompts when it needs to open the wallet.
+Passwords can be provided with `CITADEL_WALLET_PASSWORD`. Without it, the CLI
+prompts when it needs to open the wallet. The wallet intentionally does not
+accept passwords through argv.
 
 Local Citadel state is stored next to the Rusk wallet in `citadel_wallet.dat`
 and `citadel_session_cookies.dat`. Both files are encrypted with AES-GCM using

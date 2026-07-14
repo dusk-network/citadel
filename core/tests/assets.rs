@@ -4,14 +4,14 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use dusk_jubjub::{GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED, JubJubAffine};
+use dusk_jubjub::{GENERATOR_EXTENDED, GENERATOR_NUMS_EXTENDED, JubJubAffine, JubJubExtended};
 use dusk_plonk::prelude::*;
-use phoenix_core::{PublicKey, SecretKey};
+use phoenix_core::{PublicKey, SecretKey, StealthAddress};
 use rand_core::OsRng;
 
 use zk_citadel::{
-    AttributeOpening, Error as CitadelError, License, LicenseOptions, LicenseOrigin, Request,
-    Session, SessionCookie, SessionPolicy,
+    AttributeOpening, Error as CitadelError, License, LicenseOptions, LicenseOrigin,
+    LicenseSignature, Request, Session, SessionAuthSignature, SessionCookie, SessionPolicy,
     helpers::{
         COOKIE_MODE_BASE, DEFAULT_DEPLOYMENT, Deployment, OBJECT_VERSION_V1, PI_COM_1_X,
         PI_COM_1_Y, attr_data as compute_attr_data, attr_data_from_canonical_attributes,
@@ -169,6 +169,65 @@ fn direct_license_carries_selected_deployment() {
 }
 
 #[test]
+fn request_and_direct_license_reject_invalid_public_keys_before_dh() {
+    let sk_user = SecretKey::random(&mut OsRng);
+    let pk_user = PublicKey::from(&sk_user);
+    let sk_lp = SecretKey::random(&mut OsRng);
+    let pk_lp = PublicKey::from(&sk_lp);
+    let invalid_pk = PublicKey::new(JubJubExtended::identity(), JubJubExtended::identity());
+    let attr_data = JubJubScalar::from(457u64);
+
+    assert!(Request::new(&sk_user, &invalid_pk, &pk_lp, &mut OsRng).is_err());
+    assert!(Request::new(&sk_user, &pk_user, &invalid_pk, &mut OsRng).is_err());
+    assert!(
+        License::new(
+            &attr_data,
+            &sk_lp,
+            &LicenseOrigin::FromPublicKey(Box::new(invalid_pk)),
+            LicenseOptions::default(),
+            &mut OsRng,
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn request_and_license_reject_invalid_stealth_addresses_before_dh() {
+    let sk_user = SecretKey::random(&mut OsRng);
+    let pk_user = PublicKey::from(&sk_user);
+    let sk_lp = SecretKey::random(&mut OsRng);
+    let pk_lp = PublicKey::from(&sk_lp);
+    let attr_data = JubJubScalar::from(458u64);
+
+    let mut request =
+        Request::new(&sk_user, &pk_user, &pk_lp, &mut OsRng).expect("request should build");
+    request.rsa =
+        StealthAddress::from_raw_unchecked(JubJubExtended::identity(), *request.rsa.note_pk());
+    assert!(
+        License::new(
+            &attr_data,
+            &sk_lp,
+            &LicenseOrigin::FromRequest(Box::new(request)),
+            LicenseOptions::default(),
+            &mut OsRng,
+        )
+        .is_err()
+    );
+
+    let mut license = License::new(
+        &attr_data,
+        &sk_lp,
+        &LicenseOrigin::FromPublicKey(Box::new(pk_user)),
+        LicenseOptions::default(),
+        &mut OsRng,
+    )
+    .expect("direct issuance should succeed");
+    license.lsa =
+        StealthAddress::from_raw_unchecked(JubJubExtended::identity(), *license.lsa.note_pk());
+    assert!(license.open(&sk_user).is_err());
+}
+
+#[test]
 fn license_payload_round_trip_carries_full_lp_key() {
     let sk_user = SecretKey::random(&mut OsRng);
     let pk_user = PublicKey::from(&sk_user);
@@ -207,6 +266,40 @@ fn license_payload_round_trip_carries_full_lp_key() {
     assert_eq!(payload.context.issued_at, BlsScalar::from(32u64));
     assert_eq!(payload.context.expires_at, BlsScalar::from(33u64));
     assert_eq!(payload.context.revocation_id, BlsScalar::from(34u64));
+}
+
+#[test]
+fn schnorr_verify_rejects_invalid_public_key_forgeries() {
+    let msg = BlsScalar::from(71u64);
+    let signing_secret = JubJubScalar::from(72u64);
+    let signing_point = JubJubAffine::from(GENERATOR_EXTENDED * signing_secret);
+    let license_sig = LicenseSignature::sign(
+        &mut OsRng,
+        DEFAULT_DEPLOYMENT,
+        &signing_secret,
+        signing_point,
+        msg,
+    );
+    assert!(license_sig.verify(DEFAULT_DEPLOYMENT, signing_point, msg));
+    assert!(!LicenseSignature::default().verify(DEFAULT_DEPLOYMENT, JubJubAffine::identity(), msg));
+
+    let lpk = JubJubAffine::from(GENERATOR_EXTENDED * signing_secret);
+    let lpk_p = JubJubAffine::from(GENERATOR_NUMS_EXTENDED * signing_secret);
+    let session_sig = SessionAuthSignature::sign(
+        &mut OsRng,
+        DEFAULT_DEPLOYMENT,
+        &signing_secret,
+        lpk,
+        lpk_p,
+        msg,
+    );
+    assert!(session_sig.verify(DEFAULT_DEPLOYMENT, lpk, lpk_p, msg));
+    assert!(!SessionAuthSignature::default().verify(
+        DEFAULT_DEPLOYMENT,
+        JubJubAffine::identity(),
+        JubJubAffine::identity(),
+        msg
+    ));
 }
 
 #[test]
@@ -271,10 +364,10 @@ fn session_rejects_malformed_public_inputs() {
 fn session_verify_reports_each_cookie_opening_failure() {
     let sc = cookie();
     let session = Session::from(&public_inputs(&sc)).expect("valid public inputs should parse");
-    let policy = policy(&sc);
+    let selected_policy = policy(&sc);
 
     session
-        .verify(sc, &policy)
+        .verify(sc, &selected_policy)
         .expect("matching cookie should open the session");
 
     let signing_point_policy = SessionPolicy::new(sc.policy_id, sc.pk_sp, sc.pk_lp, sc.c)
@@ -287,35 +380,35 @@ fn session_verify_reports_each_cookie_opening_failure() {
     let mut wrong_deployment = sc;
     wrong_deployment.deployment_id = BlsScalar::from(1u64);
     assert!(matches!(
-        session.verify(wrong_deployment, &policy),
+        session.verify(wrong_deployment, &selected_policy),
         Err(CitadelError::WrongDeployment)
     ));
 
     let mut wrong_policy_id = sc;
     wrong_policy_id.policy_id = BlsScalar::from(42u64);
     assert!(matches!(
-        session.verify(wrong_policy_id, &policy),
+        session.verify(wrong_policy_id, &selected_policy),
         Err(CitadelError::WrongPolicyId)
     ));
 
     let mut wrong_cookie_mode = sc;
     wrong_cookie_mode.cookie_mode = BlsScalar::from(2u64);
     assert!(matches!(
-        session.verify(wrong_cookie_mode, &policy),
+        session.verify(wrong_cookie_mode, &selected_policy),
         Err(CitadelError::WrongCookieMode)
     ));
 
     let mut wrong_session_id = sc;
     wrong_session_id.session_id = BlsScalar::from(2u64);
     assert!(matches!(
-        session.verify(wrong_session_id, &policy),
+        session.verify(wrong_session_id, &selected_policy),
         Err(CitadelError::WrongSessionId)
     ));
 
     let mut wrong_session_hash = sc;
     wrong_session_hash.r_session = BlsScalar::from(3u64);
     assert!(matches!(
-        session.verify(wrong_session_hash, &policy),
+        session.verify(wrong_session_hash, &selected_policy),
         Err(CitadelError::WrongSessionHash)
     ));
 
@@ -323,7 +416,7 @@ fn session_verify_reports_each_cookie_opening_failure() {
     let mut wrong_sp = sc;
     wrong_sp.pk_sp = other_sp;
     assert!(matches!(
-        session.verify(wrong_sp, &policy),
+        session.verify(wrong_sp, &selected_policy),
         Err(CitadelError::WrongServiceProvider)
     ));
 
@@ -331,35 +424,35 @@ fn session_verify_reports_each_cookie_opening_failure() {
     let mut wrong_lp = sc;
     wrong_lp.pk_lp = other_lp;
     assert!(matches!(
-        session.verify(wrong_lp, &policy),
+        session.verify(wrong_lp, &selected_policy),
         Err(CitadelError::WrongLicenseProvider)
     ));
 
     let mut wrong_lp_commitment = sc;
     wrong_lp_commitment.s_0 = BlsScalar::from(4u64);
     assert!(matches!(
-        session.verify(wrong_lp_commitment, &policy),
+        session.verify(wrong_lp_commitment, &selected_policy),
         Err(CitadelError::WrongLicenseProviderComm)
     ));
 
     let mut wrong_attr_commitment = sc;
     wrong_attr_commitment.attr_data = JubJubScalar::from(5u64);
     assert!(matches!(
-        session.verify(wrong_attr_commitment, &policy),
+        session.verify(wrong_attr_commitment, &selected_policy),
         Err(CitadelError::WrongAttributeDataComm)
     ));
 
     let mut wrong_challenge_commitment = sc;
     wrong_challenge_commitment.c = JubJubScalar::from(6u64);
     assert!(matches!(
-        session.verify(wrong_challenge_commitment, &policy),
+        session.verify(wrong_challenge_commitment, &selected_policy),
         Err(CitadelError::WrongChallenge)
     ));
 
     let mut wrong_challenge_opening = sc;
     wrong_challenge_opening.s_2 = JubJubScalar::from(19u64);
     assert!(matches!(
-        session.verify(wrong_challenge_opening, &policy),
+        session.verify(wrong_challenge_opening, &selected_policy),
         Err(CitadelError::WrongChallengeComm)
     ));
 }

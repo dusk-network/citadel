@@ -474,6 +474,8 @@ The base cookie reveals the openings needed by the SP. In the base mode, `attr_d
 
 The base session cookie is a bearer credential unless the selected SP profile adds binding. Anyone who obtains it can attempt to replay it to the SP. SPs MUST treat cookies as sensitive credentials and MUST define a replay policy before using Citadel for real service access.
 
+Profile-defined binding data carried only in the cookie does not itself change this bearer-credential property. Account, channel, client-key, nonce, or request binding MUST be enforced through the committed challenge, another proof-bound session value, or previously established authenticated server state keyed by a proof-bound value. Comparing an expected value only with an uncommitted cookie field is insufficient.
+
 The cookie or the surrounding authenticated request MUST identify the SP policy profile being used. The SP MUST NOT infer a policy profile from fields that could be valid under multiple profiles.
 
 ### 6.5 Selective-Disclosure Cookie

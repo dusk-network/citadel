@@ -10,7 +10,7 @@
 //! them synchronized with `contract/src/license_types.rs` and the deployment
 //! constants checked in `validate_metadata`.
 
-use std::{path::Path, str::FromStr};
+use std::{fs, path::Path, path::PathBuf, str::FromStr};
 
 use anyhow::{Context, Result, anyhow};
 use bytecheck::CheckBytes;
@@ -20,21 +20,45 @@ use dusk_core::{JubJubAffine, JubJubScalar};
 use dusk_plonk::prelude::Prover;
 use phoenix_core::{PublicKey, SecretKey};
 use poseidon_merkle::Opening;
+use rand::RngCore;
 use rand::rngs::OsRng;
 use rkyv::{Archive, Deserialize, Serialize};
 use rusk_wallet::Address;
-use sha2::{Digest, Sha512};
+use sha2::{Digest, Sha256, Sha512};
 use zk_citadel::{
     License, LicenseOptions, LicenseOrigin, Request, Session, SessionCookie, SessionPolicy,
     circuit, gadgets,
     helpers::{
         DEFAULT_DEPLOYMENT, MERKLE_ARITY, OBJECT_VERSION_V1, PUBLIC_INPUTS_LEN,
-        attr_data_from_canonical_attributes,
+        attr_data_from_canonical_attributes, public_key_is_valid,
     },
 };
 
 const ROOT_HISTORY_SIZE: u32 = 8;
 const MAX_LICENSE_BLOB_SIZE: u32 = 4096;
+const WALLET_TEXT_ATTRIBUTE_SCHEMA_ID: u64 = 1;
+const DEFAULT_VERIFIER_PATH: &str = "target/verifier";
+const VERIFIER_PATH_ENV: &str = "CITADEL_VERIFIER_PATH";
+const CIRCUIT_SOURCE_FINGERPRINT_DOMAIN: &[u8] = b"zk-citadel-license-circuit-source-fingerprint";
+const CIRCUIT_SOURCE_FILES: &[(&str, &str)] = &[
+    ("core/Cargo.toml", include_str!("../../core/Cargo.toml")),
+    (
+        "core/src/helpers.rs",
+        include_str!("../../core/src/helpers.rs"),
+    ),
+    (
+        "core/src/signatures.rs",
+        include_str!("../../core/src/signatures.rs"),
+    ),
+    (
+        "core/src/zk/circuit.rs",
+        include_str!("../../core/src/zk/circuit.rs"),
+    ),
+    (
+        "core/src/zk/gadgets.rs",
+        include_str!("../../core/src/zk/gadgets.rs"),
+    ),
+];
 
 /// Serialized argument passed to the contract's `issue_license` method.
 #[derive(Debug, Clone, PartialEq, Archive, Serialize, Deserialize)]
@@ -183,10 +207,14 @@ pub fn decode_session(bytes: &[u8]) -> Result<Option<LicenseSession>> {
 
 pub fn parse_shielded_address(address: &str) -> Result<PublicKey> {
     let address = Address::from_str(address.trim()).map_err(|error| anyhow!("{error:?}"))?;
-    address
+    let public_key = address
         .shielded_key()
         .copied()
-        .map_err(|_| anyhow!("expected a shielded address, got a public account address"))
+        .map_err(|_| anyhow!("expected a shielded address, got a public account address"))?;
+    if !public_key_is_valid(&public_key) {
+        anyhow::bail!("shielded address contains an invalid public key");
+    }
+    Ok(public_key)
 }
 
 pub fn license_request(
@@ -215,38 +243,44 @@ pub fn issue_license_arg(
     attributes: &str,
     recipient: PublicKey,
     issuer: &SecretKey,
-) -> Result<IssueLicenseArg> {
-    let attr_data = attribute_scalar(attributes);
+) -> Result<(IssueLicenseArg, JubJubScalar)> {
+    let (schema_id, attr_data) = attribute_scalar(attributes);
     let license = License::new(
         &attr_data,
         issuer,
         &LicenseOrigin::FromPublicKey(Box::new(recipient)),
-        LicenseOptions::default(),
+        LicenseOptions {
+            schema_id,
+            ..LicenseOptions::default()
+        },
         &mut OsRng,
     )
     .map_err(|error| anyhow!("{error}"))?;
-    issue_arg_from_license(&license)
+    Ok((issue_arg_from_license(&license)?, attr_data))
 }
 
 pub fn issue_license_from_request_arg(
     attributes: &str,
     request_blob: &[u8],
     issuer: &SecretKey,
-) -> Result<(IssueLicenseArg, BlsScalar)> {
+) -> Result<(IssueLicenseArg, BlsScalar, JubJubScalar)> {
     let request: Request =
         rkyv::from_bytes(request_blob).map_err(|_| anyhow!("failed to decode request"))?;
     let request_id = request.id();
-    let attr_data = attribute_scalar(attributes);
+    let (schema_id, attr_data) = attribute_scalar(attributes);
     let license = License::new(
         &attr_data,
         issuer,
         &LicenseOrigin::FromRequest(Box::new(request)),
-        LicenseOptions::default(),
+        LicenseOptions {
+            schema_id,
+            ..LicenseOptions::default()
+        },
         &mut OsRng,
     )
     .map_err(|error| anyhow!("{error}"))?;
 
-    Ok((issue_arg_from_license(&license)?, request_id))
+    Ok((issue_arg_from_license(&license)?, request_id, attr_data))
 }
 
 fn issue_arg_from_license(license: &License) -> Result<IssueLicenseArg> {
@@ -288,10 +322,6 @@ pub fn issuer_public_key_hex(secret: &SecretKey) -> String {
 
 pub fn public_key_hex(public_key: &PublicKey) -> String {
     hex::encode(public_key.to_bytes())
-}
-
-pub fn attribute_scalar_hex(attributes: &str) -> String {
-    hex::encode(attribute_scalar(attributes).to_bytes())
 }
 
 pub fn owned_license(
@@ -406,6 +436,22 @@ pub fn validate_metadata(metadata: &DeploymentMetadata) -> Result<()> {
             "contract metadata does not match local deployment parameters"
         ));
     }
+
+    let expected_circuit_hash = expected_circuit_hash();
+    if metadata.circuit_hash != expected_circuit_hash {
+        return Err(anyhow!(
+            "contract circuit hash does not match this wallet build"
+        ));
+    }
+
+    let expected_verifier_key_hash = expected_verifier_key_hash()?;
+    if metadata.verifier_key_hash != expected_verifier_key_hash {
+        return Err(anyhow!(
+            "contract verifier key hash does not match {}",
+            verifier_path().display()
+        ));
+    }
+
     Ok(())
 }
 
@@ -426,13 +472,15 @@ pub fn verify_session_cookie(
     chain_session: &LicenseSession,
     expected_challenge: JubJubScalar,
     expected_service_provider: PublicKey,
+    expected_policy_id: BlsScalar,
+    expected_license_provider: PublicKey,
 ) -> Result<SessionCookieVerification> {
     let session = Session::from(&chain_session.public_inputs)
         .map_err(|error| anyhow!("failed to parse session public inputs: {error}"))?;
     let policy = SessionPolicy::new(
-        cookie.policy_id,
+        expected_policy_id,
         expected_service_provider,
-        cookie.pk_lp,
+        expected_license_provider,
         expected_challenge,
     );
 
@@ -491,6 +539,15 @@ pub fn parse_bls_scalar_hex(value: &str, label: &str) -> Result<BlsScalar> {
         .ok_or_else(|| anyhow!("{label} is not a canonical scalar"))
 }
 
+pub fn parse_public_key_hex(value: &str, label: &str) -> Result<PublicKey> {
+    let bytes = decode_fixed_hex::<{ PublicKey::SIZE }>(value, label)?;
+    let public_key = PublicKey::from_bytes(&bytes).map_err(|_| anyhow!("{label} is invalid"))?;
+    if !public_key_is_valid(&public_key) {
+        anyhow::bail!("{label} is not a valid non-identity subgroup public key");
+    }
+    Ok(public_key)
+}
+
 pub fn encode_challenge(challenge: &str) -> Result<JubJubScalar> {
     let challenge = challenge.trim();
     if challenge.is_empty() {
@@ -511,13 +568,72 @@ fn decode_fixed_hex<const N: usize>(value: &str, label: &str) -> Result<[u8; N]>
         .map_err(|_| anyhow!("{label} must be {N} bytes of hex"))
 }
 
-fn attribute_scalar(attributes: &str) -> JubJubScalar {
-    attr_data_from_canonical_attributes(
-        DEFAULT_DEPLOYMENT,
-        LicenseOptions::default().schema_id,
-        attributes.as_bytes(),
-        JubJubScalar::from(0u64),
+fn attribute_scalar(attributes: &str) -> (BlsScalar, JubJubScalar) {
+    let schema_id = BlsScalar::from(WALLET_TEXT_ATTRIBUTE_SCHEMA_ID);
+    let mut wide = [0u8; 64];
+    OsRng.fill_bytes(&mut wide);
+    let r_attr = JubJubScalar::from_bytes_wide(&wide);
+    (
+        schema_id,
+        attr_data_from_canonical_attributes(
+            DEFAULT_DEPLOYMENT,
+            schema_id,
+            attributes.as_bytes(),
+            r_attr,
+        ),
     )
+}
+
+fn verifier_path() -> PathBuf {
+    std::env::var_os(VERIFIER_PATH_ENV)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(DEFAULT_VERIFIER_PATH))
+}
+
+fn expected_verifier_key_hash() -> Result<BlsScalar> {
+    let path = verifier_path();
+    let verifier = fs::read(&path).map_err(|error| {
+        anyhow!(
+            "failed to read {} for verifier-key hash pinning; build the contract with `make contract` or set {VERIFIER_PATH_ENV}: {error}",
+            path.display()
+        )
+    })?;
+    Ok(scalar_from_sha256(
+        b"CITADEL_VERIFIER_KEY_HASH_V1",
+        &verifier,
+    ))
+}
+
+fn expected_circuit_hash() -> BlsScalar {
+    let mut hasher = Sha256::new();
+    hasher.update(CIRCUIT_SOURCE_FINGERPRINT_DOMAIN);
+
+    for (canonical_path, source) in CIRCUIT_SOURCE_FILES {
+        hasher.update((*canonical_path).as_bytes());
+        hasher.update((source.len() as u64).to_le_bytes());
+        hasher.update(source.as_bytes());
+    }
+
+    let circuit_build_id = format!("{:x}", hasher.finalize());
+    scalar_from_sha256(b"CITADEL_CIRCUIT_HASH_V1", circuit_build_id.as_bytes())
+}
+
+fn scalar_from_sha256(domain: &[u8], bytes: &[u8]) -> BlsScalar {
+    let mut hasher = Sha256::new();
+    hasher.update(domain);
+    hasher.update((bytes.len() as u64).to_le_bytes());
+    hasher.update(bytes);
+    let digest = hasher.finalize();
+
+    let mut scalar_bytes = [0u8; 32];
+    scalar_bytes[..31].copy_from_slice(&digest[..31]);
+
+    let mut limbs = [0u64; 4];
+    for (i, byte) in scalar_bytes.iter().enumerate() {
+        limbs[i / 8] |= (*byte as u64) << ((i % 8) * 8);
+    }
+
+    BlsScalar::from_raw(limbs)
 }
 
 #[cfg(test)]
@@ -596,8 +712,15 @@ mod tests {
         let cookie = cookie(challenge);
         let chain_session = chain_session(&cookie);
 
-        let verification = verify_session_cookie(cookie, &chain_session, challenge, cookie.pk_sp)
-            .expect("matching chain session and challenge should verify");
+        let verification = verify_session_cookie(
+            cookie,
+            &chain_session,
+            challenge,
+            cookie.pk_sp,
+            cookie.policy_id,
+            cookie.pk_lp,
+        )
+        .expect("matching chain session and challenge should verify");
 
         assert_eq!(verification.session_id, cookie.session_id);
         assert_eq!(verification.session_root, BlsScalar::from(18u64));
@@ -614,7 +737,9 @@ mod tests {
                 cookie,
                 &chain_session,
                 JubJubScalar::from(99u64),
-                cookie.pk_sp
+                cookie.pk_sp,
+                cookie.policy_id,
+                cookie.pk_lp,
             )
             .is_err()
         );
@@ -627,6 +752,57 @@ mod tests {
         let chain_session = chain_session(&cookie);
         let other_sp = PublicKey::from(&SecretKey::random(&mut OsRng));
 
-        assert!(verify_session_cookie(cookie, &chain_session, challenge, other_sp).is_err());
+        assert!(
+            verify_session_cookie(
+                cookie,
+                &chain_session,
+                challenge,
+                other_sp,
+                cookie.policy_id,
+                cookie.pk_lp,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn rejects_cookie_selected_policy_or_issuer() {
+        let challenge = JubJubScalar::from(14u64);
+        let cookie = cookie(challenge);
+        let chain_session = chain_session(&cookie);
+        let other_lp = PublicKey::from(&SecretKey::random(&mut OsRng));
+
+        assert!(
+            verify_session_cookie(
+                cookie,
+                &chain_session,
+                challenge,
+                cookie.pk_sp,
+                BlsScalar::from(99u64),
+                cookie.pk_lp,
+            )
+            .is_err()
+        );
+        assert!(
+            verify_session_cookie(
+                cookie,
+                &chain_session,
+                challenge,
+                cookie.pk_sp,
+                cookie.policy_id,
+                other_lp,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn attribute_scalar_uses_schema_and_fresh_blinding() {
+        let (schema_id, first) = attribute_scalar("tier=academic");
+        let (second_schema_id, second) = attribute_scalar("tier=academic");
+
+        assert_eq!(schema_id, BlsScalar::from(WALLET_TEXT_ATTRIBUTE_SCHEMA_ID));
+        assert_eq!(second_schema_id, schema_id);
+        assert_ne!(first, second);
     }
 }
