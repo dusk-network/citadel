@@ -23,7 +23,7 @@ const PROVER_PATH: &str = "../target/prover";
 const VERIFIER_PATH: &str = "../target/verifier";
 const CIRCUIT_MARKER_PATH: &str = "../target/license-circuit-build-id";
 const OUT_DIR_VERIFIER_FILENAME: &str = "license_verifier";
-const CIRCUIT_BUILD_DOMAIN: &[u8] = b"zk-citadel-license-circuit-v2";
+const CIRCUIT_SOURCE_FINGERPRINT_DOMAIN: &[u8] = b"zk-citadel-license-circuit-source-fingerprint";
 const CIRCUIT_SOURCE_PATHS: &[(&str, &str)] = &[
     ("core/Cargo.toml", "../core/Cargo.toml"),
     ("core/src/helpers.rs", "../core/src/helpers.rs"),
@@ -104,7 +104,7 @@ fn compile_and_write_setup_material(pp: &PublicParameters, circuit_build_id: &st
 
 fn circuit_build_id() -> String {
     let mut hasher = Sha256::new();
-    hasher.update(CIRCUIT_BUILD_DOMAIN);
+    hasher.update(CIRCUIT_SOURCE_FINGERPRINT_DOMAIN);
 
     for (canonical_path, disk_path) in CIRCUIT_SOURCE_PATHS {
         let source = fs::read(disk_path)

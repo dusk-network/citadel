@@ -377,25 +377,6 @@ fn session_verify_reports_each_cookie_opening_failure() {
         .verify(sc, &signing_point_policy)
         .expect("matching LP signing point should be accepted");
 
-    let mut bound_sc = sc;
-    bound_sc.binding_data = [
-        BlsScalar::from(31u64),
-        BlsScalar::from(32u64),
-        BlsScalar::from(33u64),
-        BlsScalar::from(34u64),
-    ];
-    let binding_policy = policy(&bound_sc).with_expected_binding_data(bound_sc.binding_data);
-    session
-        .verify(bound_sc, &binding_policy)
-        .expect("matching binding data should be accepted");
-
-    let mut wrong_binding = bound_sc;
-    wrong_binding.binding_data[0] = BlsScalar::from(35u64);
-    assert!(matches!(
-        session.verify(wrong_binding, &binding_policy),
-        Err(CitadelError::WrongBindingData)
-    ));
-
     let mut wrong_deployment = sc;
     wrong_deployment.deployment_id = BlsScalar::from(1u64);
     assert!(matches!(

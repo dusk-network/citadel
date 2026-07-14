@@ -39,7 +39,7 @@ const MAX_LICENSE_BLOB_SIZE: u32 = 4096;
 const WALLET_TEXT_ATTRIBUTE_SCHEMA_ID: u64 = 1;
 const DEFAULT_VERIFIER_PATH: &str = "target/verifier";
 const VERIFIER_PATH_ENV: &str = "CITADEL_VERIFIER_PATH";
-const CIRCUIT_BUILD_DOMAIN: &[u8] = b"zk-citadel-license-circuit-v2";
+const CIRCUIT_SOURCE_FINGERPRINT_DOMAIN: &[u8] = b"zk-citadel-license-circuit-source-fingerprint";
 const CIRCUIT_SOURCE_FILES: &[(&str, &str)] = &[
     ("core/Cargo.toml", include_str!("../../core/Cargo.toml")),
     (
@@ -606,7 +606,7 @@ fn expected_verifier_key_hash() -> Result<BlsScalar> {
 
 fn expected_circuit_hash() -> BlsScalar {
     let mut hasher = Sha256::new();
-    hasher.update(CIRCUIT_BUILD_DOMAIN);
+    hasher.update(CIRCUIT_SOURCE_FINGERPRINT_DOMAIN);
 
     for (canonical_path, source) in CIRCUIT_SOURCE_FILES {
         hasher.update((*canonical_path).as_bytes());

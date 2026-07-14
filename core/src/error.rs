@@ -30,8 +30,6 @@ pub enum Error {
     WrongLicenseProvider,
     /// The disclosed challenge does not match the selected policy
     WrongChallenge,
-    /// The disclosed binding data does not match the selected policy
-    WrongBindingData,
     /// The disclosed attribute data does not match the selected policy
     WrongAttributeData,
     /// The session root does not satisfy the selected policy
