@@ -11,10 +11,10 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 dusk-curves = { version = "=0.2.1", default-features = false, features = ["rkyv-impl"] }
 dusk-jubjub = { version = "=0.15.2", default-features = false }
-dusk-poseidon = { git = "https://github.com/dusk-network/zk-tools", rev = "560f2092f1464bd6e2f31fb3f3894eeda7b8f627", default-features = false }
+dusk-poseidon = { git = "https://github.com/dusk-network/zk-tools", tag = "v0.1.0", default-features = false }
 rkyv = { version = "=0.7.39", default-features = false, features = ["size_32"] }
 bytecheck = { version = "=0.6.12", default-features = false }
-poseidon-merkle = { git = "https://github.com/dusk-network/zk-tools", rev = "560f2092f1464bd6e2f31fb3f3894eeda7b8f627", default-features = false, features = ["rkyv-impl"] }
+poseidon-merkle = { git = "https://github.com/dusk-network/zk-tools", tag = "v0.1.0", default-features = false, features = ["rkyv-impl"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 dusk-core = { version = "=1.6.0", features = ["abi-dlmalloc"] }
@@ -42,7 +42,7 @@ bls-backend-blst = [
 
 [build-dependencies]
 zk-citadel = { path = "../core", default-features = false, features = ["rkyv-impl", "std", "zk"] }
-dusk-plonk = { git = "https://github.com/dusk-network/zk-tools", rev = "560f2092f1464bd6e2f31fb3f3894eeda7b8f627", default-features = false, features = ["rkyv-impl", "alloc"] }
+dusk-plonk = { git = "https://github.com/dusk-network/zk-tools", tag = "v0.1.0", default-features = false, features = ["rkyv-impl", "alloc"] }
 rand_core = { version = "0.6", default-features = false, features = ["getrandom"] }
 reqwest = "0.12"
 tokio = { version = "1.41.1", features = ["macros", "rt-multi-thread"] }
@@ -51,10 +51,10 @@ sha2 = { version = "0.10.8", default-features = false }
 
 [dev-dependencies]
 zk-citadel = { path = "../core", default-features = false, features = ["rkyv-impl", "std", "zk"] }
-dusk-plonk = { git = "https://github.com/dusk-network/zk-tools", rev = "560f2092f1464bd6e2f31fb3f3894eeda7b8f627", default-features = false, features = ["rkyv-impl", "alloc", "std"] }
+dusk-plonk = { git = "https://github.com/dusk-network/zk-tools", tag = "v0.1.0", default-features = false, features = ["rkyv-impl", "alloc", "std"] }
 ff = { version = "=0.13.0", default-features = false }
 rand = { version = "0.8.6", default-features = false }
-dusk-poseidon = { git = "https://github.com/dusk-network/zk-tools", rev = "560f2092f1464bd6e2f31fb3f3894eeda7b8f627", default-features = false }
+dusk-poseidon = { git = "https://github.com/dusk-network/zk-tools", tag = "v0.1.0", default-features = false }
 dusk-bytes = "=0.1.7"
 dusk-vm = "=1.6.0"
 dusk-core = { version = "=1.6.0", features = ["zk"] }

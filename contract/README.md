@@ -9,23 +9,33 @@ This package contains the Citadel contract. It stores encrypted licenses and lic
 
 ## Usage
 
-First, compile the license circuit (`/target/prover` and `/target/verifier`) as follows:
+From the repository root, the preferred BLST build and test commands are:
 
-```
-cargo build --release
-```
-
-Then, compile the license contract:
-
-```
-cargo build --target wasm32-unknown-unknown --release
+```sh
+make contract
+make test-contract
 ```
 
-Finally, execute the tests:
+The equivalent direct Cargo commands must select a backend explicitly. To
+generate the circuit artifacts and build the native contract with BLST:
 
+```sh
+cargo build -p license-contract --release --no-default-features \
+  --features contract,bls-backend-blst
 ```
-cargo test --release --test license_contract
+
+Then compile the wasm contract and run the VM tests:
+
+```sh
+rustup target add wasm32-unknown-unknown
+cargo build -p license-contract --target wasm32-unknown-unknown --release \
+  --no-default-features \
+  --features contract,bls-backend-blst
+cargo test -p license-contract --release --no-default-features \
+  --features contract,bls-backend-blst --test license_contract
 ```
+
+Use `bls-backend-dusk` instead when explicitly selecting the Dusk backend.
 
 The build script first tries to download the Dusk trusted setup and verify its SHA-256 hash. If the download is unavailable it generates local setup material so tests can run, but those generated keys are not deployment-ready.
 
