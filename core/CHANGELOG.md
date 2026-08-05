@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Use the `zk-tools` Git workspace for the PlonK, Poseidon, and Poseidon Merkle
+  crates, expose consumer-selected Dusk/BLST BLS backends, and use
+  `dusk-curves` for direct BLS scalar access. Repository tests and benchmarks
+  select BLST explicitly.
+
 ## [0.15.0] - 2026-05-31
 
 ### Added

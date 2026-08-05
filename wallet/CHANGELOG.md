@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Expose consumer-selected Dusk/BLST BLS backends without a default backend;
+  repository examples, tests, and CI select BLST explicitly.
 - Change default call gas pricing to use lower Lux gas prices with separate
   gas limits for issuance and license-use calls.
 - Improve TUI input handling by enabling bracketed paste, filtering whitespace

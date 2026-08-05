@@ -10,24 +10,29 @@ This package contains the off-chain Citadel protocol API: encrypted request and 
 
 ## Tests
 
-The package can be tested by running:
+The crate exposes `bls-backend-blst` and `bls-backend-dusk`; consumers must
+enable exactly one. Its Cargo defaults enable `rkyv-impl` and `std`, but
+deliberately do not select a BLS backend. Repository tests use BLST:
 
-```
-cargo test --release --features zk
+```sh
+cargo test -p zk-citadel --release \
+  --features zk,bls-backend-blst
 ```
 
 Documentation can be checked by running:
 
-```
-cargo doc --no-deps --features zk
+```sh
+cargo doc -p zk-citadel --no-deps \
+  --features zk,bls-backend-blst
 ```
 
 ## Benchmarks
 
 The package can be benchmarked by running:
 
-```
-cargo bench --features zk
+```sh
+cargo bench -p zk-citadel --profile release \
+  --features zk,bls-backend-blst
 ```
 
 ## License

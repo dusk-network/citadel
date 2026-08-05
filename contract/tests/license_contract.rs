@@ -27,9 +27,9 @@ pub type LicenseOpening = poseidon_merkle::Opening<(), { circuit::DEPTH }>;
 use dusk_core::{
     BlsScalar, JubJubAffine, JubJubScalar,
     abi::ContractId,
-    plonk::{Prover, Verifier},
     transfer::phoenix::{PublicKey, SecretKey, ViewKey},
 };
+use dusk_plonk::prelude::{Prover, Verifier};
 use dusk_vm::{ContractData, Session, VM};
 
 #[path = "../src/license_types.rs"]
