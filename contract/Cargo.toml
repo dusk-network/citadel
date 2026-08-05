@@ -22,6 +22,7 @@ dusk-forge = "0.3"
 dusk-data-driver = { version = "0.3", default-features = false, features = ["alloc", "wasm-export"], optional = true }
 
 [features]
+# The final consumer must select exactly one BLS backend.
 default = ["contract"]
 contract = []
 data-driver = ["dep:dusk-data-driver"]
