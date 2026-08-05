@@ -4,9 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use dusk_jubjub::{
-    EDWARDS_D, GENERATOR, GENERATOR_EXTENDED, GENERATOR_NUMS, GENERATOR_NUMS_EXTENDED, dhke,
-};
+use dusk_jubjub::{GENERATOR, GENERATOR_EXTENDED, GENERATOR_NUMS, GENERATOR_NUMS_EXTENDED, dhke};
 use dusk_plonk::prelude::*;
 use dusk_poseidon::{Domain, HashGadget};
 use ff::Field;
@@ -52,8 +50,8 @@ pub fn use_license<const DEPTH: usize>(
     // APPEND THE LICENSE PUBLIC KEYS OF THE USER
     let lpk = composer.append_point(gp.lpk);
     let lpk_p = composer.append_point(gp.lpk_p);
-    assert_valid_witness_point(composer, lpk);
-    assert_valid_witness_point(composer, lpk_p);
+    let lpk = assert_valid_witness_point(composer, lpk);
+    let lpk_p = assert_valid_witness_point(composer, lpk_p);
 
     // APPEND PUBLIC INPUTS IN THE SPECIFIED ORDER
     let c = composer.append_witness(sc.c);
@@ -77,10 +75,10 @@ pub fn use_license<const DEPTH: usize>(
     // VERIFY THE LICENSE SIGNATURE
     let sig_lic_z = composer.append_witness(*gp.sig_lic.z());
     let sig_lic_r = composer.append_point(gp.sig_lic.R());
-    assert_valid_witness_point(composer, sig_lic_r);
+    let sig_lic_r = assert_valid_witness_point(composer, sig_lic_r);
     let pk_lp_a = JubJubAffine::from(sc.pk_lp.A());
     let pk_lp = composer.append_point(pk_lp_a);
-    assert_valid_witness_point(composer, pk_lp);
+    let pk_lp = assert_valid_witness_point(composer, pk_lp);
     let attr_data = composer.append_witness(sc.attr_data);
 
     let license_sig_ctx =
@@ -112,7 +110,7 @@ pub fn use_license<const DEPTH: usize>(
     let pc_1_2 = composer.component_mul_generator(s_1, GENERATOR_NUMS)?;
     let com_1 = composer.component_add_point(pc_1_1, pc_1_2);
 
-    composer.assert_equal_point(com_1, com_1_pi);
+    composer.assert_equal_point(com_1.into(), com_1_pi);
 
     // COMMIT TO THE CHALLENGE
     let s_2 = composer.append_witness(sc.s_2);
@@ -120,7 +118,7 @@ pub fn use_license<const DEPTH: usize>(
     let pc_2_2 = composer.component_mul_generator(s_2, GENERATOR_NUMS)?;
     let com_2 = composer.component_add_point(pc_2_1, pc_2_2);
 
-    composer.assert_equal_point(com_2, com_2_pi);
+    composer.assert_equal_point(com_2.into(), com_2_pi);
 
     // VERIFY THE SESSION AUTHORIZATION SIGNATURE
     let session_auth_ctx = composer.append_constant(deployment.context(CitadelDomain::SessionAuth));
@@ -143,8 +141,8 @@ pub fn use_license<const DEPTH: usize>(
     let sig_session_auth_z = composer.append_witness(*gp.sig_session_auth.z());
     let sig_session_auth_r = composer.append_point(gp.sig_session_auth.R());
     let sig_session_auth_r_p = composer.append_point(gp.sig_session_auth.R_prime());
-    assert_valid_witness_point(composer, sig_session_auth_r);
-    assert_valid_witness_point(composer, sig_session_auth_r_p);
+    let sig_session_auth_r = assert_valid_witness_point(composer, sig_session_auth_r);
+    let sig_session_auth_r_p = assert_valid_witness_point(composer, sig_session_auth_r_p);
 
     verify_session_auth_signature(
         composer,
@@ -178,8 +176,8 @@ fn verify_license_signature(
     composer: &mut Composer,
     deployment: crate::helpers::Deployment,
     z: Witness,
-    r: WitnessPoint,
-    pk: WitnessPoint,
+    r: TorsionFreeWitnessPoint,
+    pk: TorsionFreeWitnessPoint,
     msg: Witness,
 ) -> Result<(), Error> {
     let ctx = composer.append_constant(deployment.context(CitadelDomain::LicenseSigChallenge));
@@ -192,17 +190,17 @@ fn verify_license_signature(
     let lhs = composer.component_mul_generator(z, GENERATOR)?;
     let challenge_pk = composer.component_mul_point(challenge, pk);
     let rhs = composer.component_add_point(r, challenge_pk);
-    composer.assert_equal_point(lhs, rhs);
+    composer.assert_equal_point(lhs.into(), rhs.into());
 
     Ok(())
 }
 
 struct SessionAuthWitnesses {
     z: Witness,
-    r: WitnessPoint,
-    r_p: WitnessPoint,
-    pk: WitnessPoint,
-    pk_p: WitnessPoint,
+    r: TorsionFreeWitnessPoint,
+    r_p: TorsionFreeWitnessPoint,
+    pk: TorsionFreeWitnessPoint,
+    pk_p: TorsionFreeWitnessPoint,
     msg: Witness,
 }
 
@@ -232,45 +230,22 @@ fn verify_session_auth_signature(
     let lhs = composer.component_mul_generator(witnesses.z, GENERATOR)?;
     let challenge_pk = composer.component_mul_point(challenge, witnesses.pk);
     let rhs = composer.component_add_point(witnesses.r, challenge_pk);
-    composer.assert_equal_point(lhs, rhs);
+    composer.assert_equal_point(lhs.into(), rhs.into());
 
     let lhs_prime = composer.component_mul_generator(witnesses.z, GENERATOR_NUMS)?;
     let challenge_pk_prime = composer.component_mul_point(challenge, witnesses.pk_p);
     let rhs_prime = composer.component_add_point(witnesses.r_p, challenge_pk_prime);
-    composer.assert_equal_point(lhs_prime, rhs_prime);
+    composer.assert_equal_point(lhs_prime.into(), rhs_prime.into());
 
     Ok(())
 }
 
-fn assert_valid_witness_point(composer: &mut Composer, point: WitnessPoint) {
-    assert_on_curve(composer, point);
+fn assert_valid_witness_point(
+    composer: &mut Composer,
+    point: WitnessPoint,
+) -> TorsionFreeWitnessPoint {
     assert_not_identity(composer, point);
-
-    // Jubjub has cofactor 8; multiplying by 8 must not collapse a valid
-    // prime-order witness point to the identity.
-    let two_p = composer.component_add_point(point, point);
-    let four_p = composer.component_add_point(two_p, two_p);
-    let eight_p = composer.component_add_point(four_p, four_p);
-    assert_not_identity(composer, eight_p);
-}
-
-fn assert_on_curve(composer: &mut Composer, point: WitnessPoint) {
-    let x = *point.x();
-    let y = *point.y();
-    let x2 = composer.gate_mul(Constraint::new().mult(1).a(x).b(x));
-    let y2 = composer.gate_mul(Constraint::new().mult(1).a(y).b(y));
-    let x2_y2 = composer.gate_mul(Constraint::new().mult(1).a(x2).b(y2));
-    let curve = composer.gate_add(
-        Constraint::new()
-            .left(1)
-            .right(-BlsScalar::one())
-            .fourth(-EDWARDS_D)
-            .constant(-BlsScalar::one())
-            .a(y2)
-            .b(x2)
-            .d(x2_y2),
-    );
-    composer.assert_equal_constant(curve, BlsScalar::zero(), None);
+    composer.assert_torsion_free_point(point)
 }
 
 fn assert_not_identity(composer: &mut Composer, point: WitnessPoint) {

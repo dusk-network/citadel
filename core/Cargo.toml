@@ -11,13 +11,12 @@ license = "MPL-2.0"
 
 [dependencies]
 dusk-bytes = "0.1"
-dusk-poseidon = "0.42.0-rc.0"
-poseidon-merkle = { version = "0.9.0-rc.0", features = ["rkyv-impl", "size_32"], optional = true }
-dusk-plonk = { version = "0.22", default-features = false, features = ["rkyv-impl", "alloc"] }
-dusk-bls12_381 = { version = "0.14", default-features = false, features = ["rkyv-impl", "alloc"] }
+dusk-poseidon = { git = "https://github.com/dusk-network/zk-tools", rev = "560f2092f1464bd6e2f31fb3f3894eeda7b8f627", default-features = false }
+poseidon-merkle = { git = "https://github.com/dusk-network/zk-tools", rev = "560f2092f1464bd6e2f31fb3f3894eeda7b8f627", default-features = false, features = ["rkyv-impl", "size_32"], optional = true }
+dusk-plonk = { git = "https://github.com/dusk-network/zk-tools", rev = "560f2092f1464bd6e2f31fb3f3894eeda7b8f627", default-features = false, features = ["rkyv-impl", "alloc"] }
+dusk-curves = { version = "=0.2.1", default-features = false, features = ["rkyv-impl"] }
 dusk-jubjub = { version = "0.15", default-features = false, features = ["rkyv-impl", "alloc"] }
 ff = { version = "0.13", default-features = false }
-jubjub-schnorr = { version = "0.7.0-rc.0", features = ["rkyv-impl", "alloc"] }
 phoenix-core = { version = "0.35", features = ["rkyv-impl", "alloc"] }
 rand_core = { version = "0.6", default-features = false }
 rkyv = { version = "0.7", default-features = false, features = ["size_32"] }
@@ -35,5 +34,17 @@ required-features = ["zk"]
 [features]
 rkyv-impl = []
 std = ["dusk-plonk/std"]
-zk = ["dep:poseidon-merkle", "dusk-poseidon/zk", "jubjub-schnorr/zk", "poseidon-merkle/zk"]
+zk = ["dep:poseidon-merkle", "dusk-poseidon/zk", "poseidon-merkle/zk"]
+bls-backend-dusk = [
+    "dusk-curves/bls-backend-dusk",
+    "dusk-plonk/bls-backend-dusk",
+    "dusk-poseidon/bls-backend-dusk",
+    "poseidon-merkle?/bls-backend-dusk",
+]
+bls-backend-blst = [
+    "dusk-curves/bls-backend-blst",
+    "dusk-plonk/bls-backend-blst",
+    "dusk-poseidon/bls-backend-blst",
+    "poseidon-merkle?/bls-backend-blst",
+]
 default = ["rkyv-impl", "std"]
