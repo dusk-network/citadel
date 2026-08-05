@@ -23,7 +23,8 @@ circuit, contract, dependency, and operational review.
 To use the interactive wallet, simply execute:
 
 ```sh
-cargo run --release --features bls-backend-blst
+cargo run -p zk-citadel-wallet --release --no-default-features \
+  --features bls-backend-blst
 ```
 
 Also, you can install the last released version from `crates.io`:
@@ -60,7 +61,8 @@ Session cookies are bearer credentials; handle them as sensitive.
 Run the wallet unit tests:
 
 ```sh
-cargo test --release --no-default-features --features bls-backend-blst
+cargo test -p zk-citadel-wallet --release --no-default-features \
+  --features bls-backend-blst
 ```
 
 ## Non-interactive API

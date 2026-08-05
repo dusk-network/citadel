@@ -28,11 +28,11 @@ crossterm = "0.29"
 dusk-curves = { version = "=0.2.1", default-features = false, features = ["rkyv-impl"] }
 dusk-bytes = "0.1"
 dusk-core = "1.6.0"
-dusk-plonk = { git = "https://github.com/dusk-network/zk-tools", rev = "560f2092f1464bd6e2f31fb3f3894eeda7b8f627", default-features = false, features = ["alloc", "std", "rkyv-impl"] }
+dusk-plonk = { git = "https://github.com/dusk-network/zk-tools", tag = "v0.1.0", default-features = false, features = ["alloc", "std", "rkyv-impl"] }
 dusk-jubjub = "0.15"
 hex = "0.4"
 phoenix-core = { version = "0.35", features = ["rkyv-impl"] }
-poseidon-merkle = { git = "https://github.com/dusk-network/zk-tools", rev = "560f2092f1464bd6e2f31fb3f3894eeda7b8f627", default-features = false, features = ["rkyv-impl", "size_32"] }
+poseidon-merkle = { git = "https://github.com/dusk-network/zk-tools", tag = "v0.1.0", default-features = false, features = ["rkyv-impl", "size_32"] }
 pbkdf2 = "0.12"
 rand = "0.8"
 ratatui = "0.30"
