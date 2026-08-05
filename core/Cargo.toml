@@ -11,9 +11,9 @@ license = "MPL-2.0"
 
 [dependencies]
 dusk-bytes = "0.1"
-dusk-poseidon = { git = "https://github.com/dusk-network/zk-tools", rev = "560f2092f1464bd6e2f31fb3f3894eeda7b8f627", default-features = false }
-poseidon-merkle = { git = "https://github.com/dusk-network/zk-tools", rev = "560f2092f1464bd6e2f31fb3f3894eeda7b8f627", default-features = false, features = ["rkyv-impl", "size_32"], optional = true }
-dusk-plonk = { git = "https://github.com/dusk-network/zk-tools", rev = "560f2092f1464bd6e2f31fb3f3894eeda7b8f627", default-features = false, features = ["rkyv-impl", "alloc"] }
+dusk-poseidon = { git = "https://github.com/dusk-network/zk-tools", tag = "v0.1.0", default-features = false }
+poseidon-merkle = { git = "https://github.com/dusk-network/zk-tools", tag = "v0.1.0", default-features = false, features = ["rkyv-impl", "size_32"], optional = true }
+dusk-plonk = { git = "https://github.com/dusk-network/zk-tools", tag = "v0.1.0", default-features = false, features = ["rkyv-impl", "alloc"] }
 dusk-curves = { version = "=0.2.1", default-features = false, features = ["rkyv-impl"] }
 dusk-jubjub = { version = "0.15", default-features = false, features = ["rkyv-impl", "alloc"] }
 ff = { version = "0.13", default-features = false }
