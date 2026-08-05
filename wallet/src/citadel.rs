@@ -14,9 +14,9 @@ use std::{path::Path, str::FromStr};
 
 use anyhow::{Context, Result, anyhow};
 use bytecheck::CheckBytes;
-use dusk_bls12_381::BlsScalar;
 use dusk_bytes::Serializable;
 use dusk_core::{JubJubAffine, JubJubScalar};
+use dusk_curves::bls12_381::BlsScalar;
 use dusk_plonk::prelude::Prover;
 use phoenix_core::{PublicKey, SecretKey};
 use poseidon_merkle::Opening;

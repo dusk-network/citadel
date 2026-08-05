@@ -32,7 +32,7 @@ pub struct CitadelQuery {
     pub tree_len: u32,
     pub sessions: u32,
     pub accepted_roots: u32,
-    pub current_root: dusk_bls12_381::BlsScalar,
+    pub current_root: dusk_curves::bls12_381::BlsScalar,
 }
 
 impl Dusk {
@@ -72,7 +72,10 @@ impl Dusk {
         Ok(metadata)
     }
 
-    pub async fn current_root(&self, contract_id: &str) -> Result<dusk_bls12_381::BlsScalar> {
+    pub async fn current_root(
+        &self,
+        contract_id: &str,
+    ) -> Result<dusk_curves::bls12_381::BlsScalar> {
         let contract_id = normalize_contract_id(contract_id)?;
         let request = citadel::serialize_unit()?;
         let response = self
@@ -84,7 +87,7 @@ impl Dusk {
     pub async fn accepted_roots(
         &self,
         contract_id: &str,
-    ) -> Result<Vec<dusk_bls12_381::BlsScalar>> {
+    ) -> Result<Vec<dusk_curves::bls12_381::BlsScalar>> {
         let contract_id = normalize_contract_id(contract_id)?;
         let request = citadel::serialize_unit()?;
         let response = self
@@ -114,7 +117,7 @@ impl Dusk {
     pub async fn session(
         &self,
         contract_id: &str,
-        session_id: dusk_bls12_381::BlsScalar,
+        session_id: dusk_curves::bls12_381::BlsScalar,
     ) -> Result<Option<citadel::LicenseSession>> {
         let contract_id = normalize_contract_id(contract_id)?;
         let request =
