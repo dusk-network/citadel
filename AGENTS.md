@@ -82,47 +82,46 @@ make bench
 make run-wallet
 ```
 
-All Makefile build, test, benchmark, and wallet targets use release mode. The build, wallet, test, and benchmark targets select `bls-backend-blst` unless `BLS_BACKEND` is explicitly overridden for a build or wallet run. ZK targets explicitly enable `std`, so `dusk-plonk/std` remains enabled.
+All Makefile build, test, benchmark, and wallet targets use release mode. Consumer-facing contract builds and wallet runs default to `bls-backend-blst` and accept an explicit `BLS_BACKEND` override. Repository tests and benchmarks hardcode `bls-backend-blst`.
 
 Target details:
 
 ```sh
-make contract                         # builds release artifacts and wasm
-make contract BLS_BACKEND=bls-backend-dusk  # explicitly use the Dusk backend
-make test-contract                    # runs make contract, then contract VM tests
+make contract                         # builds BLST release artifacts and wasm
+make test-contract                    # builds BLST artifacts, then runs contract VM tests
 make test-core                        # core tests with zk enabled
 make test-wallet                      # wallet tests in release mode
 make bench                            # core benchmarks with zk enabled
 make bench BENCH_ARGS=--no-run        # compile benchmarks without running them
-make run-wallet WALLET_ARGS="--help"  # run the wallet in release mode
-make run-wallet BLS_BACKEND=bls-backend-dusk WALLET_ARGS="--help"
+make run-wallet WALLET_ARGS="--help"  # defaults to the BLST backend
 ```
 
 Documentation and wallet analysis checks:
 
 ```sh
-RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --no-default-features --features rkyv-impl,std,zk,contract,bls-backend-blst
-cargo fmt --check
-cargo clippy --release --no-default-features --features rkyv-impl,std,zk,contract,bls-backend-blst -- -D warnings
-cargo clippy -p zk-citadel-wallet --all-targets --no-default-features --features bls-backend-blst -- -D warnings
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --features zk,bls-backend-blst
+cargo fmt --all --check
+cargo clippy --release --features zk,bls-backend-blst -- -D warnings
+cargo clippy -p zk-citadel-wallet --all-targets --features bls-backend-blst -- -D warnings
 make test-wallet
 ```
 
 Notes:
 - The core, contract, and wallet Cargo features deliberately do not select a
-  BLS backend by default. Direct Cargo invocations must enable exactly one of
-  `bls-backend-blst` or `bls-backend-dusk`; the Makefile selects BLST by
-  default.
+  BLS backend. Direct Cargo invocations must enable exactly one of
+  `bls-backend-blst` or `bls-backend-dusk`. Makefile contract builds and wallet
+  runs default to BLST and accept an explicit override; tests and benchmarks
+  always use BLST.
 - Always run repository tests with `--release`. The PlonK prover path runs in
   parallel and is much faster in release mode; debug-mode ZK tests can appear to
   hang for a long time.
-- Contract tests include `target/prover`, `target/verifier`, and the wasm artifact, so run `make contract` before `contract` VM tests or use `make test-contract`. The contract crate does not define a `zk` feature; do not pass `--features zk` to `cargo test` from `contract/`.
+- Contract tests include `target/prover`, `target/verifier`, and the wasm artifact, so run `make contract` before `contract` VM tests or use `make test-contract`. Both use BLST. The contract crate does not define a `zk` feature; do not pass `--features zk` to `cargo test` from `contract/`.
 - ZK tests should run in release mode through the Makefile so `std` and the BLST backend are selected explicitly. Avoid adding the slow no-std ZK test path to routine docs or CI unless a specific no-std regression needs investigation.
 - `contract/build.rs` first tries to download the trusted setup from `https://nodes.dusk.network/trusted-setup` and verify its SHA-256 hash. If download fails it generates local setup material and warns that this is unsafe for real use. Do not present fallback-generated keys as deployment-ready.
 - `target/` artifacts are generated and ignored. Do not commit proving/verifier keys or wasm build outputs unless the repository policy changes.
 - The wallet defaults `deploy` to `target/wasm32-unknown-unknown/release/license_contract.wasm` and `use-license` to `target/prover`, relative to the current working directory. Override with `--code` or `CITADEL_CONTRACT_WASM` for wasm and `CITADEL_PROVER_PATH` for prover material.
 - `cargo package -p zk-citadel-wallet --allow-dirty` is expected to fail while
-  the backend-enabled ZK dependencies are pinned only by Git revision. Do not
+  the backend-enabled ZK dependencies are available only through Git tags. Do not
   add fallbacks to the incompatible crates.io versions merely to make packaging
   pass; restore the package check once compatible releases are published.
 - CI has an explicit wallet job because the wallet is not a workspace default member. Keep wallet `fmt`, BLST-featured clippy, and `make test-wallet` passing.

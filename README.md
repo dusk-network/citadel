@@ -33,11 +33,11 @@ All build, test, benchmark, and wallet targets compile in release mode. The
 core, contract, and wallet expose `bls-backend-dusk` and
 `bls-backend-blst`, forwarding the final consumer's backend choice through the
 ZK dependency stack. Neither backend is enabled by the Cargo defaults, so a
-consumer must enable exactly one. Makefile build and wallet targets select the
-BLST backend by default and accept `BLS_BACKEND=bls-backend-dusk`; repository
-tests and benchmarks always select BLST. ZK targets explicitly enable `std`, so
-`dusk-plonk/std` remains enabled and PlonK can use its parallel `std`/rayon
-path.
+consumer must enable exactly one. The non-backend Cargo defaults only enable
+general crate functionality such as `std`, serialization support, or the
+contract interface. The `make contract` and `make run-wallet` targets default
+to BLST and accept an explicit `BLS_BACKEND` override. Repository tests,
+benchmarks, documentation, and CI always select BLST.
 
 ### Build Contract
 
@@ -49,11 +49,8 @@ Builds the release contract artifacts, ensures the `wasm32-unknown-unknown`
 target is installed, and compiles the contract wasm as described in
 [`contract/README.md`](contract/README.md).
 
-To build with the Dusk backend instead of the default BLST backend:
-
-```sh
-make contract BLS_BACKEND=bls-backend-dusk
-```
+Consumers that choose the alternative backend can set `BLS_BACKEND`
+explicitly. Repository examples use BLST consistently.
 
 ### Test Contract
 
@@ -106,8 +103,7 @@ Builds and runs the Citadel wallet. Pass CLI arguments with `WALLET_ARGS`:
 make run-wallet WALLET_ARGS="--help"
 ```
 
-Select the Dusk backend for a wallet run with
-`make run-wallet BLS_BACKEND=bls-backend-dusk`.
+Both commands use BLST unless `BLS_BACKEND` is set explicitly.
 
 ## License
 
