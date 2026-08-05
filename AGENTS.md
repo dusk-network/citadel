@@ -103,6 +103,7 @@ Documentation and wallet analysis checks:
 ```sh
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --no-default-features --features rkyv-impl,std,zk,contract,bls-backend-blst
 cargo fmt --check
+cargo clippy --release --no-default-features --features rkyv-impl,std,zk,contract,bls-backend-blst -- -D warnings
 cargo clippy -p zk-citadel-wallet --all-targets --no-default-features --features bls-backend-blst -- -D warnings
 make test-wallet
 ```

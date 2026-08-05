@@ -10,6 +10,9 @@ jobs:
   code_analysis:
     name: Code Analysis
     uses: dusk-network/.github/.github/workflows/code-analysis.yml@main
+    with:
+      clippy_default: false
+      clippy_args: --release --no-default-features --features rkyv-impl,std,zk,contract,bls-backend-blst -- -D warnings
 
   wallet_code_analysis:
     name: Wallet Code Analysis
