@@ -9,7 +9,7 @@ use alloc::vec::Vec;
 use bytecheck::CheckBytes;
 use rkyv::{Archive, Deserialize, Serialize};
 
-use dusk_bls12_381::BlsScalar;
+use dusk_curves::bls12_381::BlsScalar;
 
 /// Maximum encrypted license blob size accepted by the contract.
 pub const MAX_LICENSE_BLOB_SIZE: usize = 4096;

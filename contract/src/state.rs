@@ -10,8 +10,8 @@ pub mod license_contract {
 
     use alloc::vec::Vec;
 
-    use dusk_bls12_381::BlsScalar;
     use dusk_core::abi::{block_height, feed, verify_plonk};
+    use dusk_curves::bls12_381::BlsScalar;
     use dusk_jubjub::JubJubAffine;
     use dusk_poseidon::{Domain, Hash};
     use license_contract::{
