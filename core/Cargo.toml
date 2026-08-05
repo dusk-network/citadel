@@ -29,7 +29,7 @@ rand_core = { version = "0.6", default-features = false, features = ["getrandom"
 [[bench]]
 name = "license_circuit"
 harness = false
-required-features = ["zk"]
+required-features = ["zk", "bls-backend-blst"]
 
 [features]
 rkyv-impl = []
@@ -47,4 +47,5 @@ bls-backend-blst = [
     "dusk-poseidon/bls-backend-blst",
     "poseidon-merkle?/bls-backend-blst",
 ]
+# The final consumer must select exactly one BLS backend.
 default = ["rkyv-impl", "std"]
