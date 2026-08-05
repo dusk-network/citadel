@@ -47,6 +47,7 @@ zk-citadel = { version = "0.15.0", path = "../core", default-features = false, f
 zeroize = "1.8"
 
 [features]
+# The final consumer must select exactly one BLS backend.
 default = []
 bls-backend-dusk = [
     "dusk-curves/bls-backend-dusk",

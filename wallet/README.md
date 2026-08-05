@@ -23,14 +23,15 @@ circuit, contract, dependency, and operational review.
 To use the interactive wallet, simply execute:
 
 ```sh
-cargo run -p zk-citadel-wallet --release --no-default-features \
+cargo run -p zk-citadel-wallet --release \
   --features bls-backend-blst
 ```
 
 Also, you can install the last released version from `crates.io`:
 
 ```sh
-cargo install zk-citadel-wallet
+cargo install zk-citadel-wallet \
+  --features bls-backend-blst
 ```
 
 ## Requirements
@@ -40,7 +41,8 @@ cargo install zk-citadel-wallet
 - Point `--state`, `--prover`, and `--archiver` at the intended Rusk services.
   `--prover` and `--archiver` default to `--state`.
 - Build matching Citadel contract artifacts before `deploy` or `use-license`.
-  From the Citadel repository root, run `make contract`.
+  From the Citadel repository root, run `make contract`, which uses BLST by
+  default.
 
 Artifact defaults are relative to the current working directory:
 
@@ -61,7 +63,7 @@ Session cookies are bearer credentials; handle them as sensitive.
 Run the wallet unit tests:
 
 ```sh
-cargo test -p zk-citadel-wallet --release --no-default-features \
+cargo test -p zk-citadel-wallet --release \
   --features bls-backend-blst
 ```
 
