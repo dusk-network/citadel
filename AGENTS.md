@@ -82,40 +82,49 @@ make bench
 make run-wallet
 ```
 
-All Makefile build, test, benchmark, and wallet targets use release mode. ZK targets keep Cargo default features enabled while adding `zk`, so `dusk-plonk/std` remains enabled and PlonK can use its parallel `std`/rayon path.
+All Makefile build, test, benchmark, and wallet targets use release mode. The build, wallet, test, and benchmark targets select `bls-backend-blst` unless `BLS_BACKEND` is explicitly overridden for a build or wallet run. ZK targets explicitly enable `std`, so `dusk-plonk/std` remains enabled.
 
 Target details:
 
 ```sh
 make contract                         # builds release artifacts and wasm
+make contract BLS_BACKEND=bls-backend-dusk  # explicitly use the Dusk backend
 make test-contract                    # runs make contract, then contract VM tests
 make test-core                        # core tests with zk enabled
 make test-wallet                      # wallet tests in release mode
 make bench                            # core benchmarks with zk enabled
 make bench BENCH_ARGS=--no-run        # compile benchmarks without running them
 make run-wallet WALLET_ARGS="--help"  # run the wallet in release mode
+make run-wallet BLS_BACKEND=bls-backend-dusk WALLET_ARGS="--help"
 ```
 
-Documentation and wallet analysis/publishing checks:
+Documentation and wallet analysis checks:
 
 ```sh
-RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --features zk
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --no-default-features --features rkyv-impl,std,zk,contract,bls-backend-blst
 cargo fmt --check
-cargo clippy -p zk-citadel-wallet --all-targets -- -D warnings
+cargo clippy -p zk-citadel-wallet --all-targets --no-default-features --features bls-backend-blst -- -D warnings
 make test-wallet
-cargo package -p zk-citadel-wallet --allow-dirty
 ```
 
 Notes:
+- The core, contract, and wallet Cargo features deliberately do not select a
+  BLS backend by default. Direct Cargo invocations must enable exactly one of
+  `bls-backend-blst` or `bls-backend-dusk`; the Makefile selects BLST by
+  default.
 - Always run repository tests with `--release`. The PlonK prover path runs in
   parallel and is much faster in release mode; debug-mode ZK tests can appear to
   hang for a long time.
 - Contract tests include `target/prover`, `target/verifier`, and the wasm artifact, so run `make contract` before `contract` VM tests or use `make test-contract`. The contract crate does not define a `zk` feature; do not pass `--features zk` to `cargo test` from `contract/`.
-- ZK tests should run in release mode with default features so `dusk-plonk/std` remains enabled. Avoid adding the slow non-default-feature ZK test path to routine docs or CI unless a specific no-std regression needs investigation.
+- ZK tests should run in release mode through the Makefile so `std` and the BLST backend are selected explicitly. Avoid adding the slow no-std ZK test path to routine docs or CI unless a specific no-std regression needs investigation.
 - `contract/build.rs` first tries to download the trusted setup from `https://nodes.dusk.network/trusted-setup` and verify its SHA-256 hash. If download fails it generates local setup material and warns that this is unsafe for real use. Do not present fallback-generated keys as deployment-ready.
 - `target/` artifacts are generated and ignored. Do not commit proving/verifier keys or wasm build outputs unless the repository policy changes.
 - The wallet defaults `deploy` to `target/wasm32-unknown-unknown/release/license_contract.wasm` and `use-license` to `target/prover`, relative to the current working directory. Override with `--code` or `CITADEL_CONTRACT_WASM` for wasm and `CITADEL_PROVER_PATH` for prover material.
-- CI has an explicit wallet job because the wallet is not a workspace default member. Keep wallet `fmt`, `clippy -p zk-citadel-wallet --all-targets -- -D warnings`, and `make test-wallet` passing.
+- `cargo package -p zk-citadel-wallet --allow-dirty` is expected to fail while
+  the backend-enabled ZK dependencies are pinned only by Git revision. Do not
+  add fallbacks to the incompatible crates.io versions merely to make packaging
+  pass; restore the package check once compatible releases are published.
+- CI has an explicit wallet job because the wallet is not a workspace default member. Keep wallet `fmt`, BLST-featured clippy, and `make test-wallet` passing.
 
 ## Change guidance for agents
 
@@ -126,7 +135,10 @@ Notes:
 - When touching cookies or SP verification, remember that `Session::verify` checks the selected `SessionPolicy`, cookie envelope, session openings, optional exact root, optional exact `attr_data`, and optional attribute opening. Replay/binding, revocation freshness, richer attribute semantics, issuer trust lists beyond the selected key, and rate limits remain SP profile responsibilities.
 - When touching wallet cookie storage or wallet-issued session cookies, remember that `wallet/src/state.rs` stores `citadel_wallet.dat` and `citadel_session_cookies.dat` next to the Rusk wallet using an AES-GCM key derived from the encrypted wallet material. Session cookies remain bearer credentials.
 - When touching wallet contract payload types or metadata validation, keep `wallet/src/citadel.rs`, `contract/src/license_types.rs`, contract metadata constants, and the protocol constants synchronized.
-- Before publishing `zk-citadel-wallet`, check `wallet/Cargo.toml` package metadata, `wallet/README.md`, `cargo package -p zk-citadel-wallet`, and the wallet code-analysis commands.
+- Before publishing `zk-citadel-wallet`, ensure the backend-enabled ZK
+  dependencies have compatible crates.io releases, then check
+  `wallet/Cargo.toml` package metadata, `wallet/README.md`,
+  `cargo package -p zk-citadel-wallet`, and the wallet code-analysis commands.
 - Preserve `#![deny(missing_docs)]` expectations in `core` and keep public APIs documented.
 - Preserve the MPL-2.0 license header style used by existing Rust files when adding new Rust source files.
 - Prefer structured serialization/deserialization APIs already in use (`rkyv`, `dusk-bytes`, canonical `from_bytes`/point checks) over hand-rolled byte parsing. When byte parsing is unavoidable, validate lengths and canonical encodings explicitly.

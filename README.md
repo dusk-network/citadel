@@ -29,8 +29,13 @@ This repository is structured as follows:
 Use the Rust toolchain from [`rust-toolchain.toml`](rust-toolchain.toml). The root
 [`Makefile`](Makefile) is the preferred entry point for local and CI workflows.
 
-All build, test, benchmark, and wallet targets compile in release mode. The ZK
-targets keep Cargo default features enabled while adding `zk`, so
+All build, test, benchmark, and wallet targets compile in release mode. The
+core, contract, and wallet expose `bls-backend-dusk` and
+`bls-backend-blst`, forwarding the final consumer's backend choice through the
+ZK dependency stack. Neither backend is enabled by the Cargo defaults, so a
+consumer must enable exactly one. Makefile build and wallet targets select the
+BLST backend by default and accept `BLS_BACKEND=bls-backend-dusk`; repository
+tests and benchmarks always select BLST. ZK targets explicitly enable `std`, so
 `dusk-plonk/std` remains enabled and PlonK can use its parallel `std`/rayon
 path.
 
@@ -43,6 +48,12 @@ make contract
 Builds the release contract artifacts, ensures the `wasm32-unknown-unknown`
 target is installed, and compiles the contract wasm as described in
 [`contract/README.md`](contract/README.md).
+
+To build with the Dusk backend instead of the default BLST backend:
+
+```sh
+make contract BLS_BACKEND=bls-backend-dusk
+```
 
 ### Test Contract
 
@@ -59,6 +70,7 @@ make test-core
 ```
 
 Runs the core test suite in release mode with `zk` enabled.
+Tests always use the BLST backend.
 
 ### Benchmarks
 
@@ -80,6 +92,7 @@ make test-wallet
 ```
 
 Runs the wallet test suite in release mode.
+Tests always use the BLST backend.
 
 ### Run Wallet
 
@@ -92,6 +105,9 @@ Builds and runs the Citadel wallet. Pass CLI arguments with `WALLET_ARGS`:
 ```sh
 make run-wallet WALLET_ARGS="--help"
 ```
+
+Select the Dusk backend for a wallet run with
+`make run-wallet BLS_BACKEND=bls-backend-dusk`.
 
 ## License
 

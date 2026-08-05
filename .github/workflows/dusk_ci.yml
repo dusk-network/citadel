@@ -19,7 +19,7 @@ jobs:
       - uses: dsherret/rust-toolchain-file@v1
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --check
-      - run: cargo clippy -p zk-citadel-wallet --all-targets -- -D warnings
+      - run: cargo clippy -p zk-citadel-wallet --all-targets --no-default-features --features bls-backend-blst -- -D warnings
       - run: make test-wallet
 
   dusk_analyzer:
@@ -42,4 +42,4 @@ jobs:
       - uses: dsherret/rust-toolchain-file@v1
       - run: make test-core
       - run: make test-contract
-      - run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --features zk
+      - run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --no-default-features --features rkyv-impl,std,zk,contract,bls-backend-blst
