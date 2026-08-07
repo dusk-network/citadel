@@ -48,8 +48,8 @@ pub fn use_license<const DEPTH: usize>(
     let deployment = DEFAULT_DEPLOYMENT;
 
     // APPEND THE LICENSE PUBLIC KEYS OF THE USER
-    let lpk = composer.append_point(gp.lpk);
-    let lpk_p = composer.append_point(gp.lpk_p);
+    let lpk = composer.append_point(gp.lpk)?;
+    let lpk_p = composer.append_point(gp.lpk_p)?;
     let lpk = assert_valid_witness_point(composer, lpk);
     let lpk_p = assert_valid_witness_point(composer, lpk_p);
 
@@ -58,8 +58,8 @@ pub fn use_license<const DEPTH: usize>(
     let session_id_pi = composer.append_public(sc.session_id);
     let session_hash_pi = composer.append_public(gp.session_hash);
     let com_0_pi = composer.append_public(gp.com_0);
-    let com_1_pi = composer.append_public_point(gp.com_1);
-    let com_2_pi = composer.append_public_point(gp.com_2);
+    let com_1_pi = composer.append_public_point(gp.com_1)?;
+    let com_2_pi = composer.append_public_point(gp.com_2)?;
     let root_pi = composer.append_public(gp.merkle_proof.root().hash);
 
     // COMPUTE THE SESSION ID
@@ -74,10 +74,10 @@ pub fn use_license<const DEPTH: usize>(
 
     // VERIFY THE LICENSE SIGNATURE
     let sig_lic_z = composer.append_witness(*gp.sig_lic.z());
-    let sig_lic_r = composer.append_point(gp.sig_lic.R());
+    let sig_lic_r = composer.append_point(*gp.sig_lic.R())?;
     let sig_lic_r = assert_valid_witness_point(composer, sig_lic_r);
     let pk_lp_a = JubJubAffine::from(sc.pk_lp.A());
-    let pk_lp = composer.append_point(pk_lp_a);
+    let pk_lp = composer.append_point(pk_lp_a)?;
     let pk_lp = assert_valid_witness_point(composer, pk_lp);
     let attr_data = composer.append_witness(sc.attr_data);
 
@@ -139,8 +139,8 @@ pub fn use_license<const DEPTH: usize>(
     );
 
     let sig_session_auth_z = composer.append_witness(*gp.sig_session_auth.z());
-    let sig_session_auth_r = composer.append_point(gp.sig_session_auth.R());
-    let sig_session_auth_r_p = composer.append_point(gp.sig_session_auth.R_prime());
+    let sig_session_auth_r = composer.append_point(*gp.sig_session_auth.R())?;
+    let sig_session_auth_r_p = composer.append_point(*gp.sig_session_auth.R_prime())?;
     let sig_session_auth_r = assert_valid_witness_point(composer, sig_session_auth_r);
     let sig_session_auth_r_p = assert_valid_witness_point(composer, sig_session_auth_r_p);
 
