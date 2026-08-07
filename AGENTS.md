@@ -126,6 +126,27 @@ Notes:
   pass; restore the package check once compatible releases are published.
 - CI has an explicit wallet job because the wallet is not a workspace default member. Keep wallet `fmt`, BLST-featured clippy, and `make test-wallet` passing.
 
+## Troubleshooting
+
+### `librocksdb-sys` fails to find fixed-width integer types
+
+A `librocksdb-sys` build bug has been observed on Fedora distributions. The
+vendored RocksDB C++ sources can fail to compile with errors such as
+`'uint64_t' has not been declared` or notes suggesting that `<cstdint>` is
+missing.
+
+Force the compiler to include `<cstdint>` before running the affected Cargo or
+Make command:
+
+```sh
+export CXXFLAGS="-include cstdint"
+make test-wallet
+```
+
+The exported flag applies to subsequent C++ builds in the current shell, so it
+can also be used with the documentation, clippy, or other commands that compile
+wallet dependencies.
+
 ## Change guidance for agents
 
 - Prefer small, spec-aligned changes. If a change affects protocol semantics, update `docs/specs.md` and related tests in the same patch.
