@@ -5,7 +5,7 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use crate::{SessionCookie, zk::gadgets};
-use dusk_plonk::prelude::*;
+use dusk_zk_composer::prelude::*;
 
 #[allow(dead_code)]
 /// The capacity required for the setup
@@ -30,7 +30,7 @@ impl LicenseCircuit {
 }
 
 impl Circuit for LicenseCircuit {
-    fn circuit(&self, composer: &mut Composer) -> Result<(), Error> {
+    fn circuit<B: ComposerBackend>(&self, composer: &mut Composer<B>) -> Result<(), CircuitError> {
         gadgets::use_license(composer, &self.gp, &self.sc)?;
         Ok(())
     }

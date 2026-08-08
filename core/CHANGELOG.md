@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Update the `zk-tools` dependencies to v0.2.0 and migrate the license circuit,
+  Poseidon, and Merkle gadgets to the proof-system-neutral `dusk-zk-composer`
+  backend API. [#150]
 - Use the `zk-tools` Git workspace for the PlonK, Poseidon, and Poseidon Merkle
   crates, expose consumer-selected Dusk/BLST BLS backends, and use
   `dusk-curves` for direct BLS scalar access. Repository tests and benchmarks
@@ -206,6 +209,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add workflows for the Github Actions
 
 <!-- ISSUES -->
+[#150]: https://github.com/dusk-network/citadel/issues/150
 [#98]: https://github.com/dusk-network/citadel/issues/98
 [#113]: https://github.com/dusk-network/citadel/issues/113
 [#111]: https://github.com/dusk-network/citadel/issues/111
