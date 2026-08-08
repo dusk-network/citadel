@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Update the wallet's PlonK and Poseidon Merkle dependencies to `zk-tools`
+  v0.2.0 and use the decoupled `dusk-zk-composer` integration from the core
+  crate. [#150]
 - Expose consumer-selected Dusk/BLST BLS backends without a default backend;
   repository examples, tests, and CI select BLST explicitly.
 - Change default call gas pricing to use lower Lux gas prices with separate
@@ -31,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deployment, license issuance, license use, and contract queries.
 
 <!-- ISSUES -->
+[#150]: https://github.com/dusk-network/citadel/issues/150
 
 <!-- VERSIONS -->
 [Unreleased]: https://github.com/dusk-network/citadel/compare/wallet-0.1.0...HEAD
