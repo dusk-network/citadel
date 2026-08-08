@@ -11,9 +11,10 @@ license = "MPL-2.0"
 
 [dependencies]
 dusk-bytes = "0.1"
-dusk-poseidon = { git = "https://github.com/dusk-network/zk-tools", tag = "v0.1.0", default-features = false }
-poseidon-merkle = { git = "https://github.com/dusk-network/zk-tools", tag = "v0.1.0", default-features = false, features = ["rkyv-impl", "size_32"], optional = true }
-dusk-plonk = { git = "https://github.com/dusk-network/zk-tools", tag = "v0.1.0", default-features = false, features = ["rkyv-impl", "alloc"] }
+dusk-poseidon = { git = "https://github.com/dusk-network/zk-tools", tag = "v0.2.0", default-features = false }
+poseidon-merkle = { git = "https://github.com/dusk-network/zk-tools", tag = "v0.2.0", default-features = false, features = ["rkyv-impl", "size_32"], optional = true }
+dusk-plonk = { git = "https://github.com/dusk-network/zk-tools", tag = "v0.2.0", default-features = false, features = ["rkyv-impl", "alloc"] }
+dusk-zk-composer = { git = "https://github.com/dusk-network/zk-tools", tag = "v0.2.0", default-features = false, features = ["rkyv-impl", "plonkish"] }
 dusk-curves = { version = "=0.2.1", default-features = false, features = ["rkyv-impl"] }
 dusk-jubjub = { version = "0.15", default-features = false, features = ["rkyv-impl", "alloc"] }
 ff = { version = "0.13", default-features = false }
@@ -33,17 +34,19 @@ required-features = ["zk", "bls-backend-blst"]
 
 [features]
 rkyv-impl = []
-std = ["dusk-plonk/std"]
+std = ["dusk-plonk/std", "dusk-zk-composer/std"]
 zk = ["dep:poseidon-merkle", "dusk-poseidon/zk", "poseidon-merkle/zk"]
 bls-backend-dusk = [
     "dusk-curves/bls-backend-dusk",
     "dusk-plonk/bls-backend-dusk",
+    "dusk-zk-composer/bls-backend-dusk",
     "dusk-poseidon/bls-backend-dusk",
     "poseidon-merkle?/bls-backend-dusk",
 ]
 bls-backend-blst = [
     "dusk-curves/bls-backend-blst",
     "dusk-plonk/bls-backend-blst",
+    "dusk-zk-composer/bls-backend-blst",
     "dusk-poseidon/bls-backend-blst",
     "poseidon-merkle?/bls-backend-blst",
 ]

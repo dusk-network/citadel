@@ -5,7 +5,8 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use dusk_jubjub::{JubJubAffine, JubJubScalar};
-use dusk_plonk::prelude::*;
+use dusk_plonk::prelude::{Compiler, PublicParameters};
+use dusk_zk_composer::prelude::*;
 use phoenix_core::{PublicKey, SecretKey};
 use poseidon_merkle::{Item, Tree};
 
@@ -38,7 +39,7 @@ impl LicenseCircuit {
 }
 
 impl Circuit for LicenseCircuit {
-    fn circuit(&self, composer: &mut Composer) -> Result<(), Error> {
+    fn circuit<B: ComposerBackend>(&self, composer: &mut Composer<B>) -> Result<(), CircuitError> {
         gadgets::use_license(composer, &self.gp, &self.sc)?;
         CONSTRAINTS.store(composer.constraints(), Ordering::Relaxed);
         Ok(())

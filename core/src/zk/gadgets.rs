@@ -4,9 +4,13 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use dusk_jubjub::{GENERATOR, GENERATOR_EXTENDED, GENERATOR_NUMS, GENERATOR_NUMS_EXTENDED, dhke};
-use dusk_plonk::prelude::*;
+use dusk_curves::bls12_381::BlsScalar;
+use dusk_jubjub::{
+    GENERATOR, GENERATOR_EXTENDED, GENERATOR_NUMS, GENERATOR_NUMS_EXTENDED, JubJubAffine,
+    JubJubExtended, JubJubScalar, dhke,
+};
 use dusk_poseidon::{Domain, HashGadget};
+use dusk_zk_composer::prelude::*;
 use ff::Field;
 use phoenix_core::{PublicKey, SecretKey, aes::decrypt};
 use poseidon_merkle::{Item, Opening, Tree};
@@ -40,11 +44,11 @@ use poseidon_merkle::zk::opening_gadget;
 /// com_2.x
 /// com_2.y
 /// root
-pub fn use_license<const DEPTH: usize>(
-    composer: &mut Composer,
+pub fn use_license<B: ComposerBackend, const DEPTH: usize>(
+    composer: &mut Composer<B>,
     gp: &GadgetParameters<DEPTH>,
     sc: &SessionCookie,
-) -> Result<(), Error> {
+) -> Result<(), CircuitError> {
     let deployment = DEFAULT_DEPLOYMENT;
 
     // APPEND THE LICENSE PUBLIC KEYS OF THE USER
@@ -172,14 +176,14 @@ pub fn use_license<const DEPTH: usize>(
     Ok(())
 }
 
-fn verify_license_signature(
-    composer: &mut Composer,
+fn verify_license_signature<B: ComposerBackend>(
+    composer: &mut Composer<B>,
     deployment: crate::helpers::Deployment,
     z: Witness,
     r: TorsionFreeWitnessPoint,
     pk: TorsionFreeWitnessPoint,
     msg: Witness,
-) -> Result<(), Error> {
+) -> Result<(), CircuitError> {
     let ctx = composer.append_constant(deployment.context(CitadelDomain::LicenseSigChallenge));
     let challenge = HashGadget::digest_truncated(
         composer,
@@ -204,11 +208,11 @@ struct SessionAuthWitnesses {
     msg: Witness,
 }
 
-fn verify_session_auth_signature(
-    composer: &mut Composer,
+fn verify_session_auth_signature<B: ComposerBackend>(
+    composer: &mut Composer<B>,
     deployment: crate::helpers::Deployment,
     witnesses: SessionAuthWitnesses,
-) -> Result<(), Error> {
+) -> Result<(), CircuitError> {
     let ctx = composer.append_constant(deployment.context(CitadelDomain::SessionSigChallenge));
     let challenge = HashGadget::digest_truncated(
         composer,
@@ -240,15 +244,15 @@ fn verify_session_auth_signature(
     Ok(())
 }
 
-fn assert_valid_witness_point(
-    composer: &mut Composer,
+fn assert_valid_witness_point<B: ComposerBackend>(
+    composer: &mut Composer<B>,
     point: WitnessPoint,
 ) -> TorsionFreeWitnessPoint {
     assert_not_identity(composer, point);
     composer.assert_torsion_free_point(point)
 }
 
-fn assert_not_identity(composer: &mut Composer, point: WitnessPoint) {
+fn assert_not_identity<B: ComposerBackend>(composer: &mut Composer<B>, point: WitnessPoint) {
     let x = *point.x();
     let y = *point.y();
     let x2 = composer.gate_mul(Constraint::new().mult(1).a(x).b(x));
